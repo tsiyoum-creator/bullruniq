@@ -1,0 +1,1969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Riley Kane — Artist Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════
+   ROOT TOKENS
+═══════════════════════════════════════════════════ */
+:root {
+  --bg:       #0d0d0d;
+  --card:     #161616;
+  --border:   #2a2a2a;
+  --green:    #00d26a;
+  --red:      #ff4d4d;
+  --gold:     #f0b429;
+  --blue:     #4f8ef7;
+  --purple:   #a259ff;
+  --muted:    #666;
+  --text:     #e8e8e8;
+  --text-dim: #999;
+  --radius:   10px;
+  --radius-sm:6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+
+/* ═══════════════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════════════ */
+.site-header {
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-brand h1 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+.header-brand span {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  font-family: 'Geist Mono', monospace;
+  text-transform: uppercase;
+}
+.header-meta {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+  line-height: 1.6;
+}
+.header-meta strong { color: var(--green); }
+
+/* ═══════════════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════════════ */
+.tabs-bar {
+  display: flex;
+  gap: 4px;
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  overflow-x: auto;
+}
+.tab-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tab-btn:hover { color: var(--text); border-color: var(--border); }
+.tab-btn.active { color: #fff; border-color: var(--accent, #4f8ef7); background: rgba(255,255,255,0.04); }
+.tab-btn[data-tab="overview"].active  { --accent: var(--blue); color: var(--blue); }
+.tab-btn[data-tab="press"].active     { --accent: var(--green); color: var(--green); }
+.tab-btn[data-tab="sync"].active      { --accent: var(--gold); color: var(--gold); }
+.tab-btn[data-tab="growth"].active    { --accent: var(--purple); color: var(--purple); }
+
+.tabs-select {
+  display: none;
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  margin: 12px 16px;
+  width: calc(100% - 32px);
+}
+
+.tab-panel { display: none; padding: 28px 32px; max-width: 1200px; margin: 0 auto; }
+.tab-panel.active { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════════════════════ */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+.card-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  font-family: 'Geist Mono', monospace;
+}
+.card-title.blue   { color: var(--blue); }
+.card-title.green  { color: var(--green); }
+.card-title.gold   { color: var(--gold); }
+.card-title.purple { color: var(--purple); }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.stack  { display: flex; flex-direction: column; gap: 16px; }
+
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  font-family: 'Geist Mono', monospace;
+}
+input[type="text"], input[type="date"], input[type="number"], input[type="email"],
+select, textarea {
+  background: #1e1e1e;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  padding: 9px 12px;
+  width: 100%;
+  transition: border-color 0.2s;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: #444; }
+textarea { resize: vertical; min-height: 80px; }
+select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 18px;
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+}
+.btn-green  { background: var(--green); color: #000; }
+.btn-green:hover { background: #00b85e; }
+.btn-blue   { background: var(--blue); color: #000; }
+.btn-blue:hover { background: #3d7de0; }
+.btn-gold   { background: var(--gold); color: #000; }
+.btn-gold:hover { background: #d9a124; }
+.btn-purple { background: var(--purple); color: #fff; }
+.btn-purple:hover { background: #8e46e8; }
+.btn-ghost  { background: #222; color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: #2a2a2a; }
+.btn-red    { background: var(--red); color: #fff; }
+.btn-red:hover { background: #e03d3d; }
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+
+.badge {
+  display: inline-block;
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+.badge-green  { background: rgba(0,210,106,.15); color: var(--green); }
+.badge-gold   { background: rgba(240,180,41,.15); color: var(--gold); }
+.badge-blue   { background: rgba(79,142,247,.15); color: var(--blue); }
+.badge-purple { background: rgba(162,89,255,.15); color: var(--purple); }
+.badge-red    { background: rgba(255,77,77,.15); color: var(--red); }
+.badge-gray   { background: #222; color: var(--text-dim); }
+
+/* ═══════════════════════════════════════════════════
+   AGENT STATUS BANNER
+═══════════════════════════════════════════════════ */
+.agent-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  border: 1px solid;
+  margin-bottom: 24px;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.agent-banner.green { border-color: rgba(0,210,106,.3); background: rgba(0,210,106,.07); color: var(--green); }
+.agent-banner.gold  { border-color: rgba(240,180,41,.3); background: rgba(240,180,41,.07); color: var(--gold); }
+.agent-banner.purple{ border-color: rgba(162,89,255,.3); background: rgba(162,89,255,.07); color: var(--purple); }
+
+.pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+}
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+.pulse-dot.green  { background: var(--green); }
+.pulse-dot.green::after  { border: 2px solid var(--green); }
+.pulse-dot.gold   { background: var(--gold); }
+.pulse-dot.gold::after   { border: 2px solid var(--gold); }
+.pulse-dot.purple { background: var(--purple); }
+.pulse-dot.purple::after { border: 2px solid var(--purple); }
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1); opacity: 0.4; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════
+   METRICS
+═══════════════════════════════════════════════════ */
+.metric-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+.metric-val {
+  font-family: 'Geist Mono', monospace;
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.metric-lbl {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.metric-input {
+  background: #1e1e1e;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: 'Geist Mono', monospace;
+  font-size: 13px;
+  padding: 6px 10px;
+  text-align: center;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════
+   CALENDAR
+═══════════════════════════════════════════════════ */
+.cal-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cal-row:last-child { border-bottom: none; }
+.cal-week {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  width: 90px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.cal-week.wk-release { color: var(--green); }
+.cal-week.wk-post    { color: var(--blue); }
+.cal-week.wk-early   { color: var(--text-dim); }
+.cal-week.wk-mid     { color: var(--gold); }
+.cal-week.wk-late    { color: var(--purple); }
+.cal-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+/* ═══════════════════════════════════════════════════
+   CHECKLIST
+═══════════════════════════════════════════════════ */
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.check-item:last-child { border-bottom: none; }
+.check-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+.check-item label {
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.check-item.done label { color: #444; text-decoration: line-through; }
+
+/* ═══════════════════════════════════════════════════
+   PITCH CARDS
+═══════════════════════════════════════════════════ */
+.pitch-card {
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.pitch-outlet {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+}
+.pitch-body {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  margin: 10px 0;
+}
+.pitch-meta {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  color: #444;
+}
+
+/* ═══════════════════════════════════════════════════
+   OUTREACH TABLE
+═══════════════════════════════════════════════════ */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 10px 12px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e1e1e;
+  color: var(--text);
+  vertical-align: middle;
+}
+tr:hover td { background: rgba(255,255,255,.02); }
+td input, td select { background: transparent; border: none; color: var(--text); font-size: 13px; width: 100%; outline: none; }
+td select { color: var(--text-dim); }
+td input::placeholder { color: #444; }
+
+/* ═══════════════════════════════════════════════════
+   KANBAN
+═══════════════════════════════════════════════════ */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+}
+.kanban-col {
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  min-width: 160px;
+}
+.kanban-col-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: 'Geist Mono', monospace;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.kanban-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.kanban-card:hover { border-color: #444; }
+.kanban-card-title { font-weight: 600; color: #fff; margin-bottom: 4px; }
+.kanban-card-meta { color: var(--text-dim); font-family: 'Geist Mono', monospace; font-size: 10px; }
+.kanban-card-mood { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* ═══════════════════════════════════════════════════
+   SYNC PLATFORMS
+═══════════════════════════════════════════════════ */
+.platform-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+.platform-row:last-child { border-bottom: none; }
+.platform-name { font-size: 13px; font-weight: 600; }
+.platform-date { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--text-dim); }
+
+/* ═══════════════════════════════════════════════════
+   FEE CALC
+═══════════════════════════════════════════════════ */
+.fee-display {
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-top: 12px;
+  display: none;
+}
+.fee-display.visible { display: block; }
+.fee-range {
+  font-family: 'Geist Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+.fee-detail { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+
+/* ═══════════════════════════════════════════════════
+   GROWTH
+═══════════════════════════════════════════════════ */
+.growth-platform {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.growth-platform-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+.growth-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-bottom: 1px solid #1e1e1e;
+}
+.growth-stat:last-child { border-bottom: none; }
+.growth-stat strong { color: var(--text); font-family: 'Geist Mono', monospace; }
+
+/* ═══════════════════════════════════════════════════
+   ACCORDION
+═══════════════════════════════════════════════════ */
+.accordion-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.accordion-head h3 { font-size: 13px; font-weight: 700; color: var(--purple); }
+.accordion-arrow { color: var(--text-dim); transition: transform 0.25s; font-size: 12px; }
+.accordion-body { display: none; margin-top: 14px; }
+.accordion-body.open { display: block; }
+.accordion-head.open .accordion-arrow { transform: rotate(180deg); }
+
+.practice-item {
+  padding: 10px 14px;
+  border-left: 2px solid var(--purple);
+  margin-bottom: 10px;
+  background: rgba(162,89,255,0.06);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.practice-item strong { color: #fff; display: block; margin-bottom: 3px; font-size: 12px; }
+
+/* ═══════════════════════════════════════════════════
+   COMPETITOR TABLE
+═══════════════════════════════════════════════════ */
+.comp-row { }
+.comp-viral { font-size: 11px; color: var(--text-dim); max-width: 220px; }
+
+/* ═══════════════════════════════════════════════════
+   STATS ROW
+═══════════════════════════════════════════════════ */
+.stat-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.stat-item {
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+}
+.stat-item .val {
+  font-family: 'Geist Mono', monospace;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--green);
+}
+.stat-item .lbl { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+/* ═══════════════════════════════════════════════════
+   MISC
+═══════════════════════════════════════════════════ */
+.section-gap { margin-top: 24px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #222;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.chip.mood-sad       { background: rgba(79,142,247,.12); color: var(--blue); border-color: rgba(79,142,247,.2); }
+.chip.mood-uplifting { background: rgba(0,210,106,.12);  color: var(--green); border-color: rgba(0,210,106,.2); }
+.chip.mood-intense   { background: rgba(255,77,77,.12);  color: var(--red); border-color: rgba(255,77,77,.2); }
+.chip.mood-romantic  { background: rgba(240,180,41,.12); color: var(--gold); border-color: rgba(240,180,41,.2); }
+.chip.mood-chill     { background: rgba(162,89,255,.12); color: var(--purple); border-color: rgba(162,89,255,.2); }
+.empty-state { text-align: center; padding: 40px; color: var(--text-dim); font-size: 13px; }
+
+@media (max-width: 768px) {
+  .tabs-bar { display: none; }
+  .tabs-select { display: block; }
+  .tab-panel { padding: 16px; }
+  .grid-2, .grid-3, .grid-4, .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  .kanban { grid-template-columns: repeat(3, 200px); }
+  .site-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ HEADER ═══════ -->
+<header class="site-header">
+  <div class="header-brand">
+    <h1>RILEY KANE — Artist Command Center</h1>
+    <span>Label Management Dashboard</span>
+  </div>
+  <div class="header-meta">
+    <div>Last saved: <strong id="last-saved">—</strong></div>
+    <div>Session: <strong id="session-date"></strong></div>
+  </div>
+</header>
+
+<!-- ═══════ TAB BAR ═══════ -->
+<nav class="tabs-bar">
+  <button class="tab-btn active" data-tab="overview">&#9670; Overview</button>
+  <button class="tab-btn" data-tab="press">&#9670; Press Outreach</button>
+  <button class="tab-btn" data-tab="sync">&#9670; Sync Licensing</button>
+  <button class="tab-btn" data-tab="growth">&#9670; Social Growth</button>
+</nav>
+<select class="tabs-select" id="tabs-mobile">
+  <option value="overview">&#9670; Overview</option>
+  <option value="press">&#9670; Press Outreach</option>
+  <option value="sync">&#9670; Sync Licensing</option>
+  <option value="growth">&#9670; Social Growth</option>
+</select>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 1: OVERVIEW
+══════════════════════════════════════════════════ -->
+<section class="tab-panel active" id="tab-overview">
+
+  <!-- Artist info -->
+  <div class="card">
+    <div class="card-title blue">Artist Profile</div>
+    <div class="grid-2" style="gap:20px;">
+      <div class="stack" style="gap:12px;">
+        <div class="field">
+          <label class="label">Artist Name</label>
+          <input type="text" id="artist-name" value="Riley Kane" />
+        </div>
+        <div class="field">
+          <label class="label">Genre</label>
+          <input type="text" id="artist-genre" value="R&B / Melodic Rap" />
+        </div>
+      </div>
+      <div class="stack" style="gap:12px;">
+        <div class="field">
+          <label class="label">Label</label>
+          <input type="text" id="label-name" placeholder="Your Label Name" />
+        </div>
+        <div class="field">
+          <label class="label">Next Release Date</label>
+          <input type="date" id="release-date" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="grid-3 section-gap">
+    <div class="metric-card">
+      <div class="metric-val" id="tiktok-display">0</div>
+      <div class="metric-lbl">TikTok Followers</div>
+      <input type="text" class="metric-input" id="tiktok-followers" placeholder="e.g. 42,500" />
+    </div>
+    <div class="metric-card">
+      <div class="metric-val" id="spotify-display">0</div>
+      <div class="metric-lbl">Spotify Monthly Listeners</div>
+      <input type="text" class="metric-input" id="spotify-listeners" placeholder="e.g. 18,000" />
+    </div>
+    <div class="metric-card">
+      <div class="metric-val" id="ig-display">0</div>
+      <div class="metric-lbl">Instagram Followers</div>
+      <input type="text" class="metric-input" id="ig-followers" placeholder="e.g. 31,200" />
+    </div>
+  </div>
+
+  <!-- Content Calendar -->
+  <div class="card section-gap">
+    <div class="card-title blue">8-Week Pre-Release Content Calendar</div>
+    <div class="cal-row">
+      <div class="cal-week wk-early">WK -8 to -6</div>
+      <div class="cal-desc"><strong style="color:#e8e8e8">Snippet Testing Phase</strong> — Post 5x/week, test different 15–30 sec clips. Track which hooks get saved and shared the most. Keep shooting raw content.</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-week wk-mid">WK -5 to -3</div>
+      <div class="cal-desc"><strong style="color:#e8e8e8">Emotional Story Phase</strong> — Attach personal narratives to snippets. "This song is about the night…" — pair authentic storytelling with the audio. Drive emotional connection before the drop.</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-week wk-late">WK -2 to Release</div>
+      <div class="cal-desc"><strong style="color:#e8e8e8">Seeding Phase</strong> — Send to 10–15 micro-influencers in your niche. Give them the unreleased audio. No brief, just vibe. Let them create organically.</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-week wk-release">RELEASE WEEK</div>
+      <div class="cal-desc"><strong style="color:var(--green)">Launch + Engage</strong> — Reply to all comments within first 2 hrs. Use duet feature to react to creator content. Go live the night of release. Fan engagement = algorithmic signal.</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-week wk-post" style="color:var(--blue)">POST-RELEASE</div>
+      <div class="cal-desc"><strong style="color:#e8e8e8">Sustain</strong> — Weekly content tied to the record. Monitor what content type is driving streams. Double down on it. Keep replying, keep posting, keep seeding.</div>
+    </div>
+  </div>
+
+  <!-- Viral Strategy Checklist -->
+  <div class="card section-gap">
+    <div class="card-title blue">Viral Strategy Checklist</div>
+    <div id="viral-checklist">
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk0" /><label for="chk0">8-week pre-release content campaign started</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk1" /><label for="chk1">Metadata tagged on all tracks (BPM, key, mood)</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk2" /><label for="chk2">ASCAP/BMI registered</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk3" /><label for="chk3">Clean instrumental versions created</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk4" /><label for="chk4">ISRC codes assigned</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk5" /><label for="chk5">One-sheet created</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk6" /><label for="chk6">TikTok micro-influencer list built (10–15 creators)</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk7" /><label for="chk7">Musicbed submission submitted</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="chk8" /><label for="chk8">That Pitch submission submitted</label>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 2: PRESS OUTREACH
+══════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-press">
+
+  <div class="agent-banner green">
+    <div class="pulse-dot green"></div>
+    PRESS AGENT — Active
+    <span style="margin-left:auto;font-size:11px;opacity:0.7;font-family:'Geist Mono',monospace;">Pitch generation ready</span>
+  </div>
+
+  <!-- Release info form -->
+  <div class="card">
+    <div class="card-title green">Release Info</div>
+    <div class="form-row" style="gap:12px;margin-bottom:12px;">
+      <div class="field">
+        <label class="label">Song Title</label>
+        <input type="text" id="p-song-title" placeholder="e.g. Late Night Moves" />
+      </div>
+      <div class="field">
+        <label class="label">Release Date</label>
+        <input type="date" id="p-release-date" />
+      </div>
+    </div>
+    <div class="form-row" style="gap:12px;margin-bottom:12px;">
+      <div class="field">
+        <label class="label">Genre Tags</label>
+        <input type="text" id="p-genre" placeholder="e.g. R&B, Melodic Rap, Trap Soul" />
+      </div>
+      <div class="field">
+        <label class="label">Streaming Link</label>
+        <input type="text" id="p-stream-link" placeholder="https://open.spotify.com/..." />
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:16px;">
+      <label class="label">Key Quote from Artist</label>
+      <textarea id="p-quote" placeholder="e.g. 'This record is about what it feels like when you know something is ending before the other person does…'"></textarea>
+    </div>
+    <button class="btn btn-green" onclick="generatePitches()">&#9670; Generate Pitches</button>
+  </div>
+
+  <!-- Generated pitches -->
+  <div class="section-gap" id="pitches-output" style="display:none;">
+    <div class="card-title green" style="margin-bottom:12px;">Generated Pitches</div>
+    <div id="pitches-list"></div>
+  </div>
+
+  <!-- Outreach tracker -->
+  <div class="card section-gap">
+    <div class="card-title green">Outreach Tracker</div>
+    <div class="table-wrap">
+      <table id="outreach-table">
+        <thead>
+          <tr>
+            <th>Outlet</th>
+            <th>Date Sent</th>
+            <th>Status</th>
+            <th>Notes</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="outreach-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-row section-gap">
+    <div class="stat-item">
+      <div class="val" id="stat-sent">0</div>
+      <div class="lbl">Pitches Sent</div>
+    </div>
+    <div class="stat-item">
+      <div class="val" id="stat-rate">0%</div>
+      <div class="lbl">Response Rate</div>
+    </div>
+    <div class="stat-item">
+      <div class="val" id="stat-coverage">0</div>
+      <div class="lbl">Coverage Secured</div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 3: SYNC LICENSING
+══════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-sync">
+
+  <div class="agent-banner green">
+    <div class="pulse-dot green"></div>
+    SYNC AGENT — Active
+    <span style="margin-left:auto;font-size:11px;opacity:0.7;font-family:'Geist Mono',monospace;">Catalog ready for placement</span>
+  </div>
+
+  <!-- Add track form -->
+  <div class="card">
+    <div class="card-title gold">Add Track to Catalog</div>
+    <div class="form-row-3" style="margin-bottom:12px;">
+      <div class="field">
+        <label class="label">Track Title</label>
+        <input type="text" id="s-title" placeholder="Track title" />
+      </div>
+      <div class="field">
+        <label class="label">BPM</label>
+        <input type="number" id="s-bpm" placeholder="e.g. 92" min="40" max="200" />
+      </div>
+      <div class="field">
+        <label class="label">Key</label>
+        <input type="text" id="s-key" placeholder="e.g. F# Minor" />
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom:12px;">
+      <div class="field">
+        <label class="label">Instrumentation</label>
+        <input type="text" id="s-inst" placeholder="e.g. Piano, 808s, Live drums" />
+      </div>
+      <div class="field">
+        <label class="label">Has Instrumental</label>
+        <select id="s-instrumental">
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:16px;">
+      <label class="label">Mood Tags</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;"><input type="checkbox" id="mood-sad" style="width:14px;height:14px;accent-color:var(--blue);" /> Sad</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;"><input type="checkbox" id="mood-uplifting" style="width:14px;height:14px;accent-color:var(--green);" /> Uplifting</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;"><input type="checkbox" id="mood-intense" style="width:14px;height:14px;accent-color:var(--red);" /> Intense</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;"><input type="checkbox" id="mood-romantic" style="width:14px;height:14px;accent-color:var(--gold);" /> Romantic</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;"><input type="checkbox" id="mood-chill" style="width:14px;height:14px;accent-color:var(--purple);" /> Chill</label>
+      </div>
+    </div>
+    <button class="btn btn-gold" onclick="addTrack()">+ Add to Catalog</button>
+  </div>
+
+  <!-- Submission Pipeline Kanban -->
+  <div class="card section-gap">
+    <div class="card-title gold">Submission Pipeline</div>
+    <div class="kanban" id="kanban-board">
+      <div class="kanban-col">
+        <div class="kanban-col-head" style="color:var(--blue)">Prepare</div>
+        <div class="kanban-cards" id="col-prepare"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-head" style="color:var(--gold)">Submitted</div>
+        <div class="kanban-cards" id="col-submitted"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-head" style="color:var(--text-dim)">Pending</div>
+        <div class="kanban-cards" id="col-pending"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-head" style="color:var(--green)">Placed ✓</div>
+        <div class="kanban-cards" id="col-placed"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-head" style="color:var(--red)">Passed ✗</div>
+        <div class="kanban-cards" id="col-passed"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync platforms -->
+  <div class="grid-2 section-gap">
+    <div class="card">
+      <div class="card-title gold">Sync Platforms</div>
+      <div id="sync-platforms-list"></div>
+    </div>
+
+    <!-- Fee calculator -->
+    <div class="card">
+      <div class="card-title gold">Sync Fee Calculator</div>
+      <div class="field">
+        <label class="label">Placement Type</label>
+        <select id="fee-type" onchange="calcFee()">
+          <option value="">— Select placement —</option>
+          <option value="major-tv">Major Network TV (CBS, NBC, ABC)</option>
+          <option value="streaming-show">Streaming Show (Netflix, HBO, Hulu)</option>
+          <option value="indie-film">Indie Film</option>
+          <option value="national-commercial">National Commercial</option>
+          <option value="regional-commercial">Regional Commercial</option>
+          <option value="video-game">Video Game</option>
+        </select>
+      </div>
+      <div class="fee-display" id="fee-display">
+        <div class="fee-range" id="fee-range">—</div>
+        <div class="fee-detail" id="fee-detail"></div>
+      </div>
+      <div class="stack" style="gap:10px;margin-top:20px;">
+        <div class="field">
+          <label class="label">Total Sync Income Earned</label>
+          <input type="text" id="sync-income" placeholder="$0" />
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="field" style="flex:1;">
+            <label class="label">Placements This Year</label>
+            <input type="number" id="sync-placements" placeholder="0" min="0" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Music Supervisor Outreach -->
+  <div class="card section-gap">
+    <div class="card-title gold">Music Supervisor Outreach</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Supervisor</th>
+            <th>Show / Film</th>
+            <th>Email</th>
+            <th>Date Pitched</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="supervisor-tbody"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="addSupervisor()">+ Add Supervisor</button>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 4: SOCIAL GROWTH
+══════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-growth">
+
+  <div class="agent-banner gold" style="border-color:rgba(162,89,255,.3);background:rgba(162,89,255,.07);color:var(--purple);">
+    <div class="pulse-dot purple"></div>
+    GROWTH AGENT — Monitoring
+    <span style="margin-left:auto;font-size:11px;opacity:0.7;font-family:'Geist Mono',monospace;">Weekly cycle active</span>
+  </div>
+
+  <!-- Weekly growth report -->
+  <div class="grid-3 section-gap" style="gap:16px;">
+    <div class="growth-platform">
+      <div class="growth-platform-name" style="color:var(--red)">TikTok</div>
+      <div class="growth-stat"><span>Followers gained this week</span><strong id="g-tiktok-gain">+<input type="text" style="background:transparent;border:none;color:var(--text);font-family:'Geist Mono',monospace;font-size:13px;width:60px;outline:none;" id="tiktok-gain-val" value="340" /></strong></div>
+      <div class="growth-stat"><span>Best content type</span><strong id="g-tiktok-best"><select style="background:transparent;border:none;color:var(--text);font-family:'Geist Mono',monospace;font-size:11px;width:90px;outline:none;appearance:none;" id="tiktok-best-type"><option>Snippet</option><option>BTS</option><option>Lyric</option><option>Story</option><option>Performance</option></select></strong></div>
+      <div class="growth-stat"><span>Best post time</span><strong style="font-size:11px;">7–9 PM EST</strong></div>
+    </div>
+    <div class="growth-platform">
+      <div class="growth-platform-name" style="color:var(--purple)">Instagram</div>
+      <div class="growth-stat"><span>Followers gained</span><strong>+<input type="text" style="background:transparent;border:none;color:var(--text);font-family:'Geist Mono',monospace;font-size:13px;width:60px;outline:none;" id="ig-gain-val" value="210" /></strong></div>
+      <div class="growth-stat"><span>Reels vs Feed</span><strong style="font-size:11px;">Reels 4.2x</strong></div>
+      <div class="growth-stat"><span>Save rate</span><strong>+<input type="text" style="background:transparent;border:none;color:var(--text);font-family:'Geist Mono',monospace;font-size:11px;width:40px;outline:none;" id="ig-save-val" value="3.8" />%</strong></div>
+    </div>
+    <div class="growth-platform">
+      <div class="growth-platform-name" style="color:#ff0000">YouTube Shorts</div>
+      <div class="growth-stat"><span>Views this week</span><strong>+<input type="text" style="background:transparent;border:none;color:var(--text);font-family:'Geist Mono',monospace;font-size:13px;width:70px;outline:none;" id="yt-views-val" value="12,400" /></strong></div>
+      <div class="growth-stat"><span>Subscriber gain</span><strong>+<input type="text" style="background:transparent;border:none;color:var(--text);font-family:'Geist Mono',monospace;font-size:13px;width:60px;outline:none;" id="yt-subs-val" value="88" /></strong></div>
+      <div class="growth-stat"><span>Best performing short</span><strong style="font-size:10px;max-width:100px;text-overflow:ellipsis;overflow:hidden;">Snippet #3</strong></div>
+    </div>
+  </div>
+
+  <!-- Content performance tracker -->
+  <div class="card section-gap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="card-title purple" style="margin-bottom:0;">Content Performance Tracker</div>
+      <button class="btn btn-purple btn-sm" onclick="showAddPost()">+ Log Post</button>
+    </div>
+
+    <!-- Add post form (hidden by default) -->
+    <div id="add-post-form" style="display:none;background:#111;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+      <div class="form-row-3" style="margin-bottom:10px;">
+        <div class="field">
+          <label class="label">Platform</label>
+          <select id="post-platform"><option>TikTok</option><option>Instagram</option><option>YouTube Shorts</option></select>
+        </div>
+        <div class="field">
+          <label class="label">Date</label>
+          <input type="date" id="post-date" />
+        </div>
+        <div class="field">
+          <label class="label">Content Type</label>
+          <select id="post-type"><option>Snippet</option><option>Story</option><option>Performance</option><option>BTS</option><option>Lyric</option></select>
+        </div>
+      </div>
+      <div class="form-row" style="margin-bottom:10px;">
+        <div class="field">
+          <label class="label">Views</label>
+          <input type="text" id="post-views" placeholder="e.g. 45,200" />
+        </div>
+        <div class="field">
+          <label class="label">Likes</label>
+          <input type="text" id="post-likes" placeholder="e.g. 3,100" />
+        </div>
+      </div>
+      <div class="form-row-3" style="margin-bottom:10px;">
+        <div class="field">
+          <label class="label">Shares</label>
+          <input type="text" id="post-shares" placeholder="e.g. 420" />
+        </div>
+        <div class="field">
+          <label class="label">Saves</label>
+          <input type="text" id="post-saves" placeholder="e.g. 890" />
+        </div>
+        <div class="field">
+          <label class="label">Watch-Through %</label>
+          <input type="number" id="post-watch" placeholder="e.g. 68" min="0" max="100" />
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label class="label">Notes</label>
+        <input type="text" id="post-notes" placeholder="What worked, what didn't…" />
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-purple btn-sm" onclick="logPost()">Save Post</button>
+        <button class="btn btn-ghost btn-sm" onclick="hideAddPost()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Views</th>
+            <th>Likes</th>
+            <th>Shares</th>
+            <th>Saves</th>
+            <th>Watch %</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="posts-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Competitor tracking -->
+  <div class="card section-gap">
+    <div class="card-title purple">Competitor Tracking</div>
+    <div class="table-wrap">
+      <table id="comp-table">
+        <thead>
+          <tr>
+            <th>Artist</th>
+            <th>Monthly Listeners</th>
+            <th>TikTok Followers</th>
+            <th>Recent Viral Moment</th>
+          </tr>
+        </thead>
+        <tbody id="comp-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Weekly TikTok checklist -->
+  <div class="card section-gap">
+    <div class="card-title purple">TikTok Strategy — This Week</div>
+    <div id="tiktok-checklist">
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="tkchk0" /><label for="tkchk0">Tested 2+ different snippet clips</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="tkchk1" /><label for="tkchk1">Replied to first 50 comments on each post</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="tkchk2" /><label for="tkchk2">Posted raw/unpolished performance clip</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="tkchk3" /><label for="tkchk3">Posted lyric highlight clip</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="tkchk4" /><label for="tkchk4">Reached out to 3 micro-influencers for seeding</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="tkchk5" /><label for="tkchk5">Cross-posted to Instagram Reels (24–48hr delay)</label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" id="tkchk6" /><label for="tkchk6">Posted YouTube Short with music video link in comments</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Best practices accordion -->
+  <div class="card section-gap">
+    <div class="accordion-head" onclick="toggleAccordion(this)" id="practices-head">
+      <h3>Best Practices — Expand to Review</h3>
+      <span class="accordion-arrow">▼</span>
+    </div>
+    <div class="accordion-body" id="practices-body">
+      <div class="practice-item">
+        <strong>The 8-Week Rule</strong>
+        Start content 8 weeks before release. The algorithm needs time to learn your audience. Don't rush the seeding phase.
+      </div>
+      <div class="practice-item">
+        <strong>Emotional Story + Snippet = 2–5x Higher Share Rate</strong>
+        Pair every audio snippet with a personal story. Context drives emotional investment. Shares = free distribution.
+      </div>
+      <div class="practice-item">
+        <strong>Raw Phone Quality Outperforms Polished Production</strong>
+        TikTok and Reels algorithms favor native-looking content. Overly produced clips get deprioritized. Authenticity wins.
+      </div>
+      <div class="practice-item">
+        <strong>Reply to Every Comment in the First 2 Hours</strong>
+        Early engagement is the strongest algorithmic signal. Reply to comments, pin the best one, reply to your own pin. Force the loop.
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+const STORAGE_KEY = 'rk_data';
+
+const DEFAULT_STATE = {
+  artistName:    'Riley Kane',
+  artistGenre:   'R&B / Melodic Rap',
+  labelName:     '',
+  releaseDate:   '',
+  tiktokFollowers: '',
+  spotifyListeners: '',
+  igFollowers:   '',
+  viralChecks:   [false,false,false,false,false,false,false,false,false],
+  tiktokChecks:  [false,false,false,false,false,false,false],
+  // press
+  pressSongTitle: '',
+  pressReleaseDate: '',
+  pressGenre:    '',
+  pressStreamLink: '',
+  pressQuote:    '',
+  pitches:       null,
+  outreach: [
+    { outlet: 'HipHopDX',        dateSent: '', status: 'Not Sent', notes: '' },
+    { outlet: 'Ones To Watch',   dateSent: '', status: 'Not Sent', notes: '' },
+    { outlet: 'The FADER',       dateSent: '', status: 'Not Sent', notes: '' },
+    { outlet: 'Pigeons & Planes',dateSent: '', status: 'Not Sent', notes: '' },
+    { outlet: 'Lyrical Lemonade',dateSent: '', status: 'Not Sent', notes: '' },
+    { outlet: 'Complex Music',   dateSent: '', status: 'Not Sent', notes: '' },
+  ],
+  // sync
+  catalog: [
+    { id:1, title:'Ride or Die',    bpm:88,  key:'A Minor',  moods:['romantic','intense'], inst:'Piano, 808s, Strings', hasInstrumental:'yes', stage:'prepare' },
+    { id:2, title:'Late Night Moves', bpm:92, key:'F# Minor', moods:['chill','romantic'],   inst:'Rhodes, Trap Hats, Sub Bass', hasInstrumental:'yes', stage:'submitted' },
+    { id:3, title:'Golden Era',     bpm:102, key:'D Major',  moods:['uplifting','intense'], inst:'Vintage samples, Live drums', hasInstrumental:'no', stage:'pending' },
+  ],
+  syncPlatforms: [
+    { name:'That Pitch',         status:'Not Submitted', lastDate:'' },
+    { name:'Musicbed',           status:'Not Submitted', lastDate:'' },
+    { name:'Artlist',            status:'Not Submitted', lastDate:'' },
+    { name:'Epidemic Sound',     status:'Not Submitted', lastDate:'' },
+    { name:'Bodega Sync',        status:'Not Submitted', lastDate:'' },
+    { name:'Crucial Music',      status:'Not Submitted', lastDate:'' },
+    { name:'UnitedMasters SELECT', status:'Not Submitted', lastDate:'' },
+  ],
+  supervisors: [
+    { name:'Alex Patsavas',     show:'Euphoria (HBO)',        email:'', datePitched:'', status:'Not Sent' },
+    { name:'Lola Sherwood',     show:'Power Book (Starz)',    email:'', datePitched:'', status:'Not Sent' },
+    { name:'George Drakoulias', show:'Atlanta (FX)',          email:'', datePitched:'', status:'Not Sent' },
+  ],
+  syncIncome:    '',
+  syncPlacements: '',
+  // growth
+  tiktokGain:   '340',
+  tiktokBest:   'Snippet',
+  igGain:       '210',
+  igSave:       '3.8',
+  ytViews:      '12,400',
+  ytSubs:       '88',
+  posts: [
+    { platform:'TikTok',    date:'2026-05-14', type:'Snippet',     views:'84,200', likes:'6,100', shares:'1,240', saves:'2,800', watch:'72', notes:'Hook around 0:08 drove saves' },
+    { platform:'TikTok',    date:'2026-05-16', type:'Story',       views:'22,400', likes:'1,800', shares:'310',   saves:'520',   watch:'58', notes:'Story angle got 3 duets' },
+    { platform:'Instagram', date:'2026-05-15', type:'Reel',        views:'18,700', likes:'2,200', shares:'180',   saves:'940',   watch:'61', notes:'Reels outperformed feed 4x' },
+    { platform:'YouTube Shorts', date:'2026-05-13', type:'Snippet',views:'41,000', likes:'3,400', shares:'290',   saves:'0',     watch:'48', notes:'Traffic from TikTok link' },
+    { platform:'TikTok',    date:'2026-05-18', type:'BTS',         views:'9,800',  likes:'780',   shares:'65',    saves:'210',   watch:'44', notes:'Lower reach — try earlier post time' },
+  ],
+  competitors: [
+    { name:'Destin Conrad',  listeners:'2.4M',  tiktok:'890K',  viral:'Bedroom R&B series went #1 trending week of May 8' },
+    { name:'BunnaB',         listeners:'440K',  tiktok:'320K',  viral:'Raw vocal challenge clip hit 4.2M views' },
+    { name:'Dej Loaf',       listeners:'3.1M',  tiktok:'510K',  viral:'Throwback snippet resurfaced, 6M TikTok plays' },
+    { name:'Arin Ray',       listeners:'1.8M',  tiktok:'280K',  viral:'Collab with SZA producer drove 2M Spotify streams' },
+    { name:'Jacquees',       listeners:'5.2M',  tiktok:'1.1M',  viral:'"Queen/King" challenge generated 40K user videos' },
+  ],
+};
+
+let STATE = {};
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      STATE = Object.assign({}, DEFAULT_STATE, JSON.parse(saved));
+      // merge nested arrays carefully
+      if (!STATE.catalog || !STATE.catalog.length) STATE.catalog = DEFAULT_STATE.catalog;
+      if (!STATE.supervisors || !STATE.supervisors.length) STATE.supervisors = DEFAULT_STATE.supervisors;
+      if (!STATE.competitors || !STATE.competitors.length) STATE.competitors = DEFAULT_STATE.competitors;
+      if (!STATE.posts) STATE.posts = DEFAULT_STATE.posts;
+    } else {
+      STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    }
+  } catch(e) {
+    STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  }
+}
+
+function saveState() {
+  // collect all form field values before saving
+  collectFormValues();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+    const now = new Date();
+    document.getElementById('last-saved').textContent = now.toLocaleTimeString();
+  } catch(e) {}
+}
+
+function collectFormValues() {
+  STATE.artistName    = v('artist-name');
+  STATE.artistGenre   = v('artist-genre');
+  STATE.labelName     = v('label-name');
+  STATE.releaseDate   = v('release-date');
+  STATE.tiktokFollowers = v('tiktok-followers');
+  STATE.spotifyListeners = v('spotify-listeners');
+  STATE.igFollowers   = v('ig-followers');
+  STATE.pressSongTitle = v('p-song-title');
+  STATE.pressReleaseDate = v('p-release-date');
+  STATE.pressGenre    = v('p-genre');
+  STATE.pressStreamLink = v('p-stream-link');
+  STATE.pressQuote    = v('p-quote');
+  STATE.syncIncome    = v('sync-income');
+  STATE.syncPlacements = v('sync-placements');
+  STATE.tiktokGain    = v('tiktok-gain-val');
+  STATE.igGain        = v('ig-gain-val');
+  STATE.igSave        = v('ig-save-val');
+  STATE.ytViews       = v('yt-views-val');
+  STATE.ytSubs        = v('yt-subs-val');
+}
+
+function v(id) {
+  const el = document.getElementById(id);
+  return el ? el.value : '';
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+function init() {
+  loadState();
+  populateFields();
+  renderOutreach();
+  renderKanban();
+  renderSyncPlatforms();
+  renderSupervisors();
+  renderPosts();
+  renderCompetitors();
+  updateMetricDisplays();
+  updateOutreachStats();
+
+  // Set session date
+  document.getElementById('session-date').textContent = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+  // Auto-save on any input
+  document.addEventListener('input', debounce(saveState, 800));
+  document.addEventListener('change', debounce(saveState, 400));
+}
+
+function populateFields() {
+  set('artist-name',       STATE.artistName);
+  set('artist-genre',      STATE.artistGenre);
+  set('label-name',        STATE.labelName);
+  set('release-date',      STATE.releaseDate);
+  set('tiktok-followers',  STATE.tiktokFollowers);
+  set('spotify-listeners', STATE.spotifyListeners);
+  set('ig-followers',      STATE.igFollowers);
+  set('p-song-title',      STATE.pressSongTitle);
+  set('p-release-date',    STATE.pressReleaseDate);
+  set('p-genre',           STATE.pressGenre);
+  set('p-stream-link',     STATE.pressStreamLink);
+  set('p-quote',           STATE.pressQuote);
+  set('sync-income',       STATE.syncIncome);
+  set('sync-placements',   STATE.syncPlacements);
+  set('tiktok-gain-val',   STATE.tiktokGain);
+  set('ig-gain-val',       STATE.igGain);
+  set('ig-save-val',       STATE.igSave);
+  set('yt-views-val',      STATE.ytViews);
+  set('yt-subs-val',       STATE.ytSubs);
+
+  // Checkboxes
+  (STATE.viralChecks || []).forEach((checked, i) => {
+    const cb = document.getElementById('chk' + i);
+    const item = cb ? cb.closest('.check-item') : null;
+    if (cb) { cb.checked = checked; }
+    if (item) { item.classList.toggle('done', checked); }
+  });
+  (STATE.tiktokChecks || []).forEach((checked, i) => {
+    const cb = document.getElementById('tkchk' + i);
+    const item = cb ? cb.closest('.check-item') : null;
+    if (cb) { cb.checked = checked; }
+    if (item) { item.classList.toggle('done', checked); }
+  });
+
+  // Metric displays
+  if (STATE.tiktokFollowers) document.getElementById('tiktok-display').textContent = STATE.tiktokFollowers;
+  if (STATE.spotifyListeners) document.getElementById('spotify-display').textContent = STATE.spotifyListeners;
+  if (STATE.igFollowers) document.getElementById('ig-display').textContent = STATE.igFollowers;
+}
+
+function set(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== undefined) el.value = val || '';
+}
+
+function updateMetricDisplays() {
+  const fields = [
+    ['tiktok-followers','tiktok-display'],
+    ['spotify-listeners','spotify-display'],
+    ['ig-followers','ig-display'],
+  ];
+  fields.forEach(([inputId, displayId]) => {
+    const el = document.getElementById(inputId);
+    const disp = document.getElementById(displayId);
+    if (el && disp) {
+      el.addEventListener('input', () => {
+        disp.textContent = el.value || '0';
+      });
+      if (el.value) disp.textContent = el.value;
+    }
+  });
+}
+
+function debounce(fn, ms) {
+  let t;
+  return function(...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+}
+
+// ═══════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+document.getElementById('tabs-mobile').addEventListener('change', function() {
+  switchTab(this.value);
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  document.getElementById('tabs-mobile').value = name;
+}
+
+// ═══════════════════════════════════════════════════
+//  CHECKBOXES
+// ═══════════════════════════════════════════════════
+function toggleCheck(item) {
+  const cb = item.querySelector('input[type="checkbox"]');
+  if (!cb) return;
+  // only toggle if click was not directly on the checkbox (browser handles that)
+  const target = event.target;
+  if (target !== cb) cb.checked = !cb.checked;
+  item.classList.toggle('done', cb.checked);
+
+  // persist
+  const id = cb.id;
+  if (id.startsWith('chk')) {
+    const idx = parseInt(id.replace('chk',''));
+    if (!STATE.viralChecks) STATE.viralChecks = [];
+    STATE.viralChecks[idx] = cb.checked;
+  } else if (id.startsWith('tkchk')) {
+    const idx = parseInt(id.replace('tkchk',''));
+    if (!STATE.tiktokChecks) STATE.tiktokChecks = [];
+    STATE.tiktokChecks[idx] = cb.checked;
+  }
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  PRESS — PITCH GENERATION
+// ═══════════════════════════════════════════════════
+const PITCH_TEMPLATES = {
+  'HipHopDX': (d) => `Subject: Exclusive Review Consideration — ${d.title} by Riley Kane (${d.releaseDate})
+
+Hey HipHopDX team,
+
+I'm reaching out on behalf of Riley Kane, a rising R&B / Melodic Rap artist who's building serious traction with a sound that sits at the intersection of emotional vulnerability and street authenticity — a lane HipHopDX has always covered with precision.
+
+Riley's new single "${d.title}" (dropping ${d.releaseDate}) is a ${d.genre} record that's been doing numbers in the pre-release testing phase — the kind of track your readers will immediately recognize as something to watch.
+
+In Riley's words: ${d.quote}
+
+HipHopDX's analytical approach to breaking down an artist's trajectory is exactly the frame this record deserves. The technical construction — the production choices, the lyrical density — holds up to that lens.
+
+I'd love to offer you an exclusive pre-release stream ahead of the drop. Happy to coordinate a direct interview with Riley as well if there's editorial appetite.
+
+Streaming: ${d.link}
+
+Let me know how you'd like to move forward.
+
+— Riley Kane Management
+Generated: ${d.timestamp}`,
+
+  'Ones To Watch': (d) => `Subject: You Need to Hear Riley Kane — "${d.title}" Drops ${d.releaseDate}
+
+Hi Ones To Watch,
+
+Your discovery radar has introduced the world to some of the most important voices in new music — and I'm confident Riley Kane belongs in that conversation right now.
+
+"${d.title}" is a ${d.genre} single releasing ${d.releaseDate} that captures the exact feeling of an artist stepping fully into their identity. The record is emotionally direct, sonically refined, and built for the kind of listener who finds artists before they blow.
+
+Riley on the record: ${d.quote}
+
+We're not looking for a puff piece — we're looking for the kind of editorial feature that Ones To Watch does better than anyone: the early, informed, "remember when we told you" coverage.
+
+Stream here before it drops: ${d.link}
+
+Would love to get Riley in front of your editorial team. Open to full features, premiere slots, or a playlist add to start.
+
+Warmly,
+Riley Kane Team
+Generated: ${d.timestamp}`,
+
+  'The FADER': (d) => `Subject: Riley Kane — "${d.title}" — Culture + Identity Angle, ${d.releaseDate}
+
+FADER team,
+
+Riley Kane makes music about the interior life — the specific kind of loneliness, longing, and loyalty that R&B has always articulated best. "${d.title}" is that kind of record.
+
+Releasing ${d.releaseDate}, the single is a ${d.genre} piece that interrogates the space between who you are and who love asks you to become. It's not just a song — it's a document.
+
+Riley puts it this way: ${d.quote}
+
+The FADER has always covered music at the intersection of identity and culture, not just commerce. That's why this felt like the right place to bring this record. There's a story here worth telling — Riley's background, the sonic DNA of the work, and what it means to release music like this right now.
+
+Full stream access: ${d.link}
+
+Happy to arrange a conversation with Riley for a proper feature pitch.
+
+Best,
+Riley Kane Management
+Generated: ${d.timestamp}`,
+
+  'Pigeons & Planes': (d) => `Subject: Riley Kane — "${d.title}" — Streaming-first R&B, Out ${d.releaseDate}
+
+Pigeons & Planes,
+
+You know better than most that the best new music usually finds its audience online before it ever finds a press cycle. Riley Kane's "${d.title}" is exactly that kind of record — it's already generating real numbers in the pre-release phase.
+
+This is a ${d.genre} single dropping ${d.releaseDate}, built for the playlist era without sounding like it was engineered for one. It has a hook, it has staying power, and it has the kind of replayability that DSP algorithms reward.
+
+Riley on the track: ${d.quote}
+
+I know P&P is internet-culture first — so I'll just say: this one is already circulating in the right rooms. Getting ahead of it editorially makes sense.
+
+Pre-release stream: ${d.link}
+
+Let me know if you want a download or a full press kit.
+
+— Riley Kane Team
+Generated: ${d.timestamp}`,
+
+  'Lyrical Lemonade': (d) => `Subject: Riley Kane — Visual + Creative Pitch — "${d.title}" — ${d.releaseDate}
+
+Lyrical Lemonade team,
+
+Riley Kane's aesthetic isn't just sonic — it's visual, tactile, and made to be experienced in a specific way. "${d.title}" is a record that deserves that treatment, and Lyrical Lemonade is the right home for it.
+
+Dropping ${d.releaseDate}, the single is a ${d.genre} record with real cinematic texture. We've been developing visual content alongside the audio — there's a creative world here that translates to the screen in a way your audience will respond to.
+
+In Riley's words: ${d.quote}
+
+Whether that's an exclusive visual premiere, a LL Confidential session, or a YouTube exclusive moment — we want to build something creative with your platform, not just land a streaming embed.
+
+Listen here: ${d.link}
+
+Open to a call to discuss format. Let's make something worth watching.
+
+Riley Kane Management
+Generated: ${d.timestamp}`,
+
+  'Complex Music': (d) => `Subject: Riley Kane — "${d.title}" — Co-Sign Ready — Drops ${d.releaseDate}
+
+Complex team,
+
+Riley Kane is the kind of artist the culture finds before the industry does — and "${d.title}" is the record that makes that case.
+
+Releasing ${d.releaseDate}, this ${d.genre} single has the pedigree and the emotional intelligence that Complex's music coverage recognizes in artists before they cross over. The production is right, the writing is sharp, and the co-sign moment is here.
+
+Riley's own words on the record: ${d.quote}
+
+Complex Music has always known that the urban cultural moment is bigger than any single genre — it's about the convergence. That's exactly what Riley Kane represents. This isn't just an R&B record; it's a statement about where the sound is going.
+
+Stream it: ${d.link}
+
+We're ready to move fast. Happy to coordinate exclusive content, a studio session, or a direct interview.
+
+— Riley Kane Team
+Generated: ${d.timestamp}`,
+};
+
+function generatePitches() {
+  const title     = v('p-song-title')      || 'Untitled';
+  const releaseDate = v('p-release-date')  || 'TBA';
+  const genre     = v('p-genre')           || 'R&B / Melodic Rap';
+  const link      = v('p-stream-link')     || '[streaming link]';
+  const quote     = v('p-quote')           ? `"${v('p-quote')}"` : '"[artist quote]"';
+  const timestamp = new Date().toLocaleString();
+
+  const d = { title, releaseDate, genre, link, quote, timestamp };
+
+  const outlets = ['HipHopDX','Ones To Watch','The FADER','Pigeons & Planes','Lyrical Lemonade','Complex Music'];
+  const container = document.getElementById('pitches-list');
+  container.innerHTML = '';
+
+  outlets.forEach(outlet => {
+    const body = PITCH_TEMPLATES[outlet](d);
+    STATE.pitches = STATE.pitches || {};
+    STATE.pitches[outlet] = body;
+
+    const card = document.createElement('div');
+    card.className = 'pitch-card';
+    card.innerHTML = `
+      <div class="pitch-outlet">${outlet}</div>
+      <div class="pitch-body">${escHtml(body)}</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-ghost btn-sm" onclick="copyPitch(this, ${JSON.stringify(outlet)})">Copy</button>
+        <span class="pitch-meta">Generated: ${timestamp}</span>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  document.getElementById('pitches-output').style.display = 'block';
+  document.getElementById('pitches-output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  saveState();
+}
+
+function copyPitch(btn, outlet) {
+  const body = STATE.pitches && STATE.pitches[outlet];
+  if (!body) return;
+  navigator.clipboard.writeText(body).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ═══════════════════════════════════════════════════
+//  OUTREACH TABLE
+// ═══════════════════════════════════════════════════
+const STATUS_OPTS = ['Not Sent','Sent','Opened','Replied','Published'];
+const STATUS_COLORS = {
+  'Not Sent':'badge-gray', 'Sent':'badge-blue', 'Opened':'badge-gold',
+  'Replied':'badge-purple', 'Published':'badge-green'
+};
+
+function renderOutreach() {
+  const tbody = document.getElementById('outreach-tbody');
+  tbody.innerHTML = '';
+  (STATE.outreach || []).forEach((row, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${row.outlet}</strong></td>
+      <td><input type="date" value="${row.dateSent||''}" onchange="updateOutreach(${i},'dateSent',this.value)" /></td>
+      <td>
+        <select onchange="updateOutreach(${i},'status',this.value)" style="background:#1e1e1e;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-size:12px;">
+          ${STATUS_OPTS.map(s => `<option value="${s}" ${row.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" placeholder="Notes…" value="${escHtml(row.notes||'')}" onchange="updateOutreach(${i},'notes',this.value)" /></td>
+      <td>
+        <button class="btn btn-green btn-sm" onclick="markSent(${i})" ${row.status!=='Not Sent'?'style="opacity:.4"':''}>
+          ${row.status==='Not Sent' ? 'Mark Sent' : 'Sent ✓'}
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  updateOutreachStats();
+}
+
+function updateOutreach(i, field, val) {
+  STATE.outreach[i][field] = val;
+  if (field === 'status') renderOutreach();
+  updateOutreachStats();
+  saveState();
+}
+
+function markSent(i) {
+  STATE.outreach[i].status = 'Sent';
+  if (!STATE.outreach[i].dateSent) STATE.outreach[i].dateSent = new Date().toISOString().split('T')[0];
+  renderOutreach();
+  saveState();
+}
+
+function updateOutreachStats() {
+  const outreach = STATE.outreach || [];
+  const sent     = outreach.filter(r => r.status !== 'Not Sent').length;
+  const replied  = outreach.filter(r => r.status === 'Replied' || r.status === 'Published').length;
+  const pub      = outreach.filter(r => r.status === 'Published').length;
+  const rate     = sent > 0 ? Math.round((replied / sent) * 100) : 0;
+  const ss = document.getElementById('stat-sent');
+  const sr = document.getElementById('stat-rate');
+  const sc = document.getElementById('stat-coverage');
+  if (ss) ss.textContent = sent;
+  if (sr) sr.textContent = rate + '%';
+  if (sc) sc.textContent = pub;
+}
+
+// ═══════════════════════════════════════════════════
+//  SYNC — CATALOG + KANBAN
+// ═══════════════════════════════════════════════════
+let nextTrackId = 100;
+
+function addTrack() {
+  const title = v('s-title').trim();
+  if (!title) { alert('Please enter a track title.'); return; }
+  const moods = ['sad','uplifting','intense','romantic','chill'].filter(m => document.getElementById('mood-'+m).checked);
+  const track = {
+    id: nextTrackId++,
+    title,
+    bpm:  v('s-bpm'),
+    key:  v('s-key'),
+    moods,
+    inst: v('s-inst'),
+    hasInstrumental: v('s-instrumental'),
+    stage: 'prepare',
+  };
+  STATE.catalog.push(track);
+  // reset form
+  ['s-title','s-bpm','s-key','s-inst'].forEach(id => set(id,''));
+  ['sad','uplifting','intense','romantic','chill'].forEach(m => { document.getElementById('mood-'+m).checked = false; });
+  renderKanban();
+  saveState();
+}
+
+function renderKanban() {
+  const stages = ['prepare','submitted','pending','placed','passed'];
+  stages.forEach(stage => {
+    const col = document.getElementById('col-' + stage);
+    if (!col) return;
+    col.innerHTML = '';
+    (STATE.catalog || []).filter(t => t.stage === stage).forEach(track => {
+      const div = document.createElement('div');
+      div.className = 'kanban-card';
+      const moodChips = (track.moods||[]).map(m => `<span class="chip mood-${m}">${m}</span>`).join('');
+      div.innerHTML = `
+        <div class="kanban-card-title">${escHtml(track.title)}</div>
+        <div class="kanban-card-meta">${track.bpm ? track.bpm+'bpm' : ''} ${track.key ? '· '+track.key : ''} ${track.hasInstrumental==='yes'?'· instrumental ✓':''}</div>
+        <div class="kanban-card-mood">${moodChips}</div>
+        <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
+          ${stages.filter(s=>s!==stage).map(s=>`<button class="btn btn-ghost" style="padding:2px 7px;font-size:10px;" onclick="moveTrack(${track.id},'${s}')">${s}</button>`).join('')}
+          <button class="btn btn-red" style="padding:2px 7px;font-size:10px;" onclick="removeTrack(${track.id})">✕</button>
+        </div>
+      `;
+      col.appendChild(div);
+    });
+    if (!col.children.length) {
+      col.innerHTML = '<div style="color:#333;font-size:11px;text-align:center;padding:12px 0;">Empty</div>';
+    }
+  });
+}
+
+function moveTrack(id, stage) {
+  const t = STATE.catalog.find(t => t.id === id);
+  if (t) { t.stage = stage; renderKanban(); saveState(); }
+}
+
+function removeTrack(id) {
+  STATE.catalog = STATE.catalog.filter(t => t.id !== id);
+  renderKanban();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  SYNC PLATFORMS
+// ═══════════════════════════════════════════════════
+const PLATFORM_STATUS_OPTS = ['Not Submitted','Submitted','Active','Accepted','Rejected'];
+const PLATFORM_STATUS_COLORS = {
+  'Not Submitted':'badge-gray','Submitted':'badge-blue','Active':'badge-gold',
+  'Accepted':'badge-green','Rejected':'badge-red'
+};
+
+function renderSyncPlatforms() {
+  const list = document.getElementById('sync-platforms-list');
+  if (!list) return;
+  list.innerHTML = '';
+  (STATE.syncPlatforms || []).forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'platform-row';
+    div.innerHTML = `
+      <div>
+        <div class="platform-name">${p.name}</div>
+        <div class="platform-date">${p.lastDate ? 'Last submitted: '+p.lastDate : 'Not yet submitted'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select onchange="updatePlatform(${i},'status',this.value)" style="background:#1e1e1e;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-size:11px;font-family:'Geist Mono',monospace;">
+          ${PLATFORM_STATUS_OPTS.map(s=>`<option value="${s}" ${p.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="markPlatformSubmitted(${i})">Submit</button>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function updatePlatform(i, field, val) {
+  STATE.syncPlatforms[i][field] = val;
+  renderSyncPlatforms();
+  saveState();
+}
+
+function markPlatformSubmitted(i) {
+  STATE.syncPlatforms[i].status = 'Submitted';
+  STATE.syncPlatforms[i].lastDate = new Date().toISOString().split('T')[0];
+  renderSyncPlatforms();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  FEE CALCULATOR
+// ═══════════════════════════════════════════════════
+const FEE_DATA = {
+  'major-tv':            { range: '$15,000 – $50,000', backend: 'PRO performance royalties: $2,000–$8,000/year per airing', detail: 'Network TV sync fees are negotiated per scene and duration. Backend royalties are paid by PROs (ASCAP/BMI) per broadcast airing. Primetime placement = highest value.' },
+  'streaming-show':      { range: '$5,000 – $30,000', backend: 'Backend royalties vary by territory + platform deals', detail: 'Netflix, HBO, Hulu deals include a one-time sync fee + backend royalties if included in international licensing. Emerging artists often see $5K–$12K for non-title tracks.' },
+  'indie-film':          { range: '$500 – $5,000', backend: 'Festival distribution may yield additional backend', detail: 'Indie film sync fees are lower but carry strong cultural equity. Festival films that get picked up by distributors trigger additional licensing fees.' },
+  'national-commercial': { range: '$25,000 – $150,000', backend: 'No standard backend — negotiate usage windows', detail: 'National commercials pay the highest sync fees in the industry. Duration (6mo vs 1yr), territory (US-only vs global), and media type all affect the fee. Always negotiate a usage window.' },
+  'regional-commercial': { range: '$2,500 – $15,000', backend: 'Regional royalties via PRO local reporting', detail: 'Regional commercial placement covers a defined market (e.g., Southeast US). Lower rate than national but can compound with multiple regional deals.' },
+  'video-game':          { range: '$2,000 – $25,000', backend: 'No backend unless game has radio-style broadcast', detail: 'Video game sync is highly variable. AAA titles pay $10K–$25K+; indie games may offer $500–$3K. Buyout deals are common — negotiate for perpetuity rights carefully.' },
+};
+
+function calcFee() {
+  const type = v('fee-type');
+  const disp = document.getElementById('fee-display');
+  if (!type) { disp.classList.remove('visible'); return; }
+  const data = FEE_DATA[type];
+  if (!data) return;
+  document.getElementById('fee-range').textContent = data.range;
+  document.getElementById('fee-detail').innerHTML = `<strong style="color:var(--text);display:block;margin-bottom:4px;">Backend Royalties:</strong>${data.backend}<br/><br/>${data.detail}`;
+  disp.classList.add('visible');
+}
+
+// ═══════════════════════════════════════════════════
+//  SUPERVISORS
+// ═══════════════════════════════════════════════════
+const SUP_STATUS_OPTS = ['Not Sent','Sent','Followed Up','Replied','Passed','Placed'];
+
+function renderSupervisors() {
+  const tbody = document.getElementById('supervisor-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (STATE.supervisors || []).forEach((s, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${escHtml(s.name||'')}" placeholder="Supervisor name" onchange="updateSup(${i},'name',this.value)" /></td>
+      <td><input type="text" value="${escHtml(s.show||'')}" placeholder="Show / Film" onchange="updateSup(${i},'show',this.value)" /></td>
+      <td><input type="email" value="${escHtml(s.email||'')}" placeholder="email@studio.com" onchange="updateSup(${i},'email',this.value)" /></td>
+      <td><input type="date" value="${s.datePitched||''}" onchange="updateSup(${i},'datePitched',this.value)" /></td>
+      <td>
+        <select onchange="updateSup(${i},'status',this.value)" style="background:#1e1e1e;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-size:12px;">
+          ${SUP_STATUS_OPTS.map(opt=>`<option value="${opt}" ${s.status===opt?'selected':''}>${opt}</option>`).join('')}
+        </select>
+      </td>
+      <td><button class="btn btn-red btn-sm" onclick="removeSup(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateSup(i, field, val) {
+  STATE.supervisors[i][field] = val;
+  saveState();
+}
+
+function addSupervisor() {
+  STATE.supervisors.push({ name:'', show:'', email:'', datePitched:'', status:'Not Sent' });
+  renderSupervisors();
+  saveState();
+}
+
+function removeSup(i) {
+  STATE.supervisors.splice(i, 1);
+  renderSupervisors();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  POSTS
+// ═══════════════════════════════════════════════════
+function showAddPost() {
+  document.getElementById('add-post-form').style.display = 'block';
+}
+function hideAddPost() {
+  document.getElementById('add-post-form').style.display = 'none';
+}
+
+function logPost() {
+  const post = {
+    platform: v('post-platform'),
+    date:     v('post-date'),
+    type:     v('post-type'),
+    views:    v('post-views'),
+    likes:    v('post-likes'),
+    shares:   v('post-shares'),
+    saves:    v('post-saves'),
+    watch:    v('post-watch'),
+    notes:    v('post-notes'),
+  };
+  STATE.posts = STATE.posts || [];
+  STATE.posts.unshift(post);
+  hideAddPost();
+  // reset
+  ['post-views','post-likes','post-shares','post-saves','post-watch','post-notes'].forEach(id => set(id,''));
+  renderPosts();
+  saveState();
+}
+
+const PLATFORM_COLORS = {
+  'TikTok':'badge-red','Instagram':'badge-purple','YouTube Shorts':'badge-red'
+};
+const TYPE_COLORS = {
+  'Snippet':'badge-green','Story':'badge-blue','Performance':'badge-gold',
+  'BTS':'badge-gray','Lyric':'badge-purple','Reel':'badge-purple'
+};
+
+function renderPosts() {
+  const tbody = document.getElementById('posts-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (STATE.posts || []).forEach((p, i) => {
+    const watchNum = parseFloat(p.watch) || 0;
+    const watchColor = watchNum >= 70 ? 'var(--green)' : watchNum >= 50 ? 'var(--gold)' : 'var(--red)';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge ${PLATFORM_COLORS[p.platform]||'badge-gray'}">${p.platform}</span></td>
+      <td style="font-family:'Geist Mono',monospace;font-size:11px;">${p.date||'—'}</td>
+      <td><span class="badge ${TYPE_COLORS[p.type]||'badge-gray'}">${p.type}</span></td>
+      <td style="font-family:'Geist Mono',monospace;">${p.views||'—'}</td>
+      <td style="font-family:'Geist Mono',monospace;">${p.likes||'—'}</td>
+      <td style="font-family:'Geist Mono',monospace;">${p.shares||'—'}</td>
+      <td style="font-family:'Geist Mono',monospace;">${p.saves||'—'}</td>
+      <td style="font-family:'Geist Mono',monospace;color:${watchColor};">${p.watch ? p.watch+'%' : '—'}</td>
+      <td style="font-size:11px;color:var(--text-dim);max-width:180px;">${escHtml(p.notes||'')}</td>
+      <td><button class="btn btn-red btn-sm" onclick="removePost(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  if (!tbody.children.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No posts logged yet.</td></tr>';
+  }
+}
+
+function removePost(i) {
+  STATE.posts.splice(i, 1);
+  renderPosts();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  COMPETITORS
+// ═══════════════════════════════════════════════════
+function renderCompetitors() {
+  const tbody = document.getElementById('comp-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (STATE.competitors || []).forEach((c, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escHtml(c.name)}</strong></td>
+      <td><input type="text" value="${escHtml(c.listeners||'')}" onchange="updateComp(${i},'listeners',this.value)" style="font-family:'Geist Mono',monospace;font-size:12px;" /></td>
+      <td><input type="text" value="${escHtml(c.tiktok||'')}" onchange="updateComp(${i},'tiktok',this.value)" style="font-family:'Geist Mono',monospace;font-size:12px;" /></td>
+      <td class="comp-viral"><input type="text" value="${escHtml(c.viral||'')}" onchange="updateComp(${i},'viral',this.value)" style="font-size:11px;" /></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateComp(i, field, val) {
+  STATE.competitors[i][field] = val;
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  ACCORDION
+// ═══════════════════════════════════════════════════
+function toggleAccordion(head) {
+  head.classList.toggle('open');
+  const body = document.getElementById('practices-body');
+  body.classList.toggle('open');
+}
+
+// ═══════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
