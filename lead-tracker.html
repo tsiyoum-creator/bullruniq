@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeadTracker — BullRunIQ CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0d0d0d;--s1:#161616;--s2:#1e1e1e;--s3:#252525;
+  --bd:#2a2a2a;--bd2:#333;
+  --tx:#f0f0f0;--mu:#888;--mu2:#666;
+  --gr:#00d26a;--gr2:rgba(0,210,106,.12);--gr3:rgba(0,210,106,.25);
+  --rd:#ff4d4d;--rd2:rgba(255,77,77,.12);
+  --yw:#f0b429;--yw2:rgba(240,180,41,.12);
+  --bl:#3b82f6;--bl2:rgba(59,130,246,.12);
+  --pu:#a855f7;--pu2:rgba(168,85,247,.12);
+  --or:#f97316;--or2:rgba(249,115,22,.12);
+}
+body{background:var(--bg);color:var(--tx);font-family:'Inter',sans-serif;min-height:100vh;font-size:14px;}
+a{color:inherit;text-decoration:none;}
+button{cursor:pointer;font-family:'Inter',sans-serif;}
+input,select,textarea{font-family:'Inter',sans-serif;}
+
+/* HEADER NAV */
+.topbar{background:var(--s1);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:200;height:54px;display:flex;align-items:center;padding:0 20px;gap:16px;}
+.topbar-logo{font-size:16px;font-weight:800;letter-spacing:-.3px;}
+.topbar-logo span{color:var(--gr);}
+.topbar-sub{font-size:12px;color:var(--mu);font-weight:500;}
+.topbar-spacer{flex:1;}
+.topbar-btn{background:var(--gr);color:#000;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;transition:opacity .15s;}
+.topbar-btn:hover{opacity:.85;}
+.topbar-btn-ghost{background:transparent;color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;}
+.topbar-btn-ghost:hover{border-color:var(--bd2);}
+
+/* TABS */
+.tabs-wrap{background:var(--s1);border-bottom:1px solid var(--bd);padding:0 20px;display:flex;gap:2px;overflow-x:auto;}
+.tabs-wrap::-webkit-scrollbar{display:none;}
+.tab-btn{padding:12px 16px;font-size:13px;font-weight:600;color:var(--mu);border:none;background:none;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s,border-color .15s;}
+.tab-btn.active{color:var(--tx);border-bottom-color:var(--gr);}
+.tab-btn:hover:not(.active){color:var(--tx);}
+
+/* DASHBOARD STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:20px;max-width:1300px;margin:0 auto;}
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.stats-row{grid-template-columns:repeat(2,1fr);gap:8px;padding:12px;}}
+.stat-card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:16px;}
+.stat-label{font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
+.stat-value{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1;}
+.stat-value.green{color:var(--gr);}
+.stat-sub{font-size:11px;color:var(--mu);margin-top:6px;}
+
+/* PIPELINE BOARD */
+.pipeline-wrap{padding:0 20px 20px;max-width:1300px;margin:0 auto;overflow-x:auto;}
+.pipeline-board{display:grid;grid-template-columns:repeat(6,minmax(220px,1fr));gap:12px;min-width:900px;}
+@media(max-width:700px){.pipeline-board{grid-template-columns:1fr;min-width:unset;}}
+.pipeline-col{background:var(--s1);border:1px solid var(--bd);border-radius:12px;display:flex;flex-direction:column;min-height:200px;}
+.col-header{padding:14px 14px 10px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;}
+.col-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+.col-count{background:var(--s2);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700;color:var(--mu);}
+.col-value{font-size:11px;color:var(--mu);margin-top:2px;}
+.col-body{padding:10px;display:flex;flex-direction:column;gap:8px;flex:1;}
+
+/* LEAD CARDS */
+.lead-card{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:12px;cursor:pointer;transition:border-color .15s,transform .1s;}
+.lead-card:hover{border-color:var(--bd2);transform:translateY(-1px);}
+.lead-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.lead-biz{font-size:13px;font-weight:700;line-height:1.2;}
+.lead-owner{font-size:11px;color:var(--mu);margin-top:2px;}
+.lead-badge{font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap;}
+.badge-noweb{background:var(--rd2);color:var(--rd);}
+.badge-badweb{background:var(--yw2);color:var(--yw);}
+.badge-hasweb{background:var(--bl2);color:var(--bl);}
+.lead-meta{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--mu);}
+.lead-meta span{display:flex;align-items:center;gap:5px;}
+.lead-value{font-size:14px;font-weight:800;color:var(--gr);margin-top:8px;}
+.lead-days{font-size:10px;color:var(--mu2);margin-top:4px;}
+.lead-actions{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap;}
+.la-btn{border:none;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:600;transition:opacity .15s;}
+.la-btn:hover{opacity:.8;}
+.la-btn-edit{background:var(--s3);color:var(--tx);}
+.la-btn-adv{background:var(--gr2);color:var(--gr);}
+.la-btn-prop{background:var(--bl2);color:var(--bl);}
+.la-btn-del{background:var(--rd2);color:var(--rd);}
+
+/* COLUMN COLORS */
+.col-cold .col-title{color:#888;}
+.col-contacted .col-title{color:var(--bl);}
+.col-demo .col-title{color:var(--yw);}
+.col-proposal .col-title{color:var(--or);}
+.col-won .col-title{color:var(--gr);}
+.col-lost .col-title{color:var(--rd);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
+.modal-overlay.hidden{display:none;}
+.modal{background:var(--s1);border:1px solid var(--bd);border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column;}
+.modal-lg{max-width:700px;}
+.modal-xl{max-width:820px;}
+.modal-head{padding:20px 24px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--s1);z-index:10;}
+.modal-title{font-size:16px;font-weight:800;}
+.modal-close{background:var(--s2);border:none;color:var(--mu);width:30px;height:30px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center;transition:color .15s;}
+.modal-close:hover{color:var(--tx);}
+.modal-body{padding:20px 24px;display:flex;flex-direction:column;gap:14px;flex:1;}
+.modal-foot{padding:16px 24px;border-top:1px solid var(--bd);display:flex;gap:10px;justify-content:flex-end;}
+
+/* FORM FIELDS */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:480px){.form-row{grid-template-columns:1fr;}}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group.full{grid-column:1/-1;}
+.form-label{font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;}
+.form-input,.form-select,.form-textarea{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;color:var(--tx);font-size:14px;outline:none;transition:border-color .15s;width:100%;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--gr);}
+.form-select option{background:var(--s2);}
+.form-textarea{resize:vertical;min-height:80px;}
+.btn-primary{background:var(--gr);color:#000;border:none;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:700;transition:opacity .15s;}
+.btn-primary:hover{opacity:.85;}
+.btn-secondary{background:var(--s2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 20px;font-size:14px;font-weight:600;}
+.btn-danger{background:var(--rd2);color:var(--rd);border:1px solid transparent;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:600;}
+
+/* PROPOSAL */
+.proposal-preview{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:20px;font-size:13px;line-height:1.7;color:var(--tx);white-space:pre-wrap;max-height:400px;overflow-y:auto;}
+.proposal-tier{background:var(--s3);border:1px solid var(--bd);border-radius:8px;padding:14px;margin:8px 0;}
+.tier-name{font-weight:800;font-size:15px;margin-bottom:4px;}
+.tier-price{color:var(--gr);font-weight:700;margin-bottom:8px;}
+.tier-bullets{color:var(--mu);font-size:12px;line-height:1.8;}
+.copy-success{color:var(--gr);font-size:12px;font-weight:600;display:none;}
+.copy-success.show{display:inline;}
+
+/* TEMPLATES */
+.template-box{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:18px;font-size:13px;line-height:1.8;color:var(--tx);white-space:pre-wrap;}
+
+/* REVENUE / CHART */
+.section-wrap{padding:0 20px 24px;max-width:1300px;margin:0 auto;}
+.section-title{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.section-title span{width:3px;height:16px;background:var(--gr);border-radius:2px;display:block;}
+.rev-grid{display:grid;grid-template-columns:1fr 320px;gap:16px;}
+@media(max-width:900px){.rev-grid{grid-template-columns:1fr;}}
+.chart-card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:20px;}
+.chart-title{font-size:12px;font-weight:600;color:var(--mu);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em;}
+.rev-stats{display:flex;flex-direction:column;gap:10px;}
+.rev-stat{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:14px;}
+.rev-stat-label{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
+.rev-stat-val{font-size:22px;font-weight:800;color:var(--gr);}
+
+/* ACTIVITY FEED */
+.feed-list{display:flex;flex-direction:column;gap:1px;}
+.feed-item{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;}
+.feed-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.fi-add{background:var(--gr2);}
+.fi-move{background:var(--bl2);}
+.fi-prop{background:var(--pu2);}
+.fi-close{background:var(--yw2);}
+.feed-text{font-size:13px;line-height:1.4;}
+.feed-time{font-size:11px;color:var(--mu);margin-top:2px;}
+
+/* STATE SELECTOR */
+.stage-select-row{display:flex;gap:6px;flex-wrap:wrap;}
+.stage-pill{border:1px solid var(--bd);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:600;background:transparent;color:var(--mu);transition:all .15s;}
+.stage-pill.active{color:#000;}
+.stage-pill[data-stage="cold"].active{background:#666;border-color:#666;color:#fff;}
+.stage-pill[data-stage="contacted"].active{background:var(--bl);border-color:var(--bl);}
+.stage-pill[data-stage="demo"].active{background:var(--yw);border-color:var(--yw);}
+.stage-pill[data-stage="proposal"].active{background:var(--or);border-color:var(--or);}
+.stage-pill[data-stage="won"].active{background:var(--gr);border-color:var(--gr);}
+.stage-pill[data-stage="lost"].active{background:var(--rd);border-color:var(--rd);}
+
+/* LOST REASON */
+.lost-reason-wrap{display:none;}
+.lost-reason-wrap.show{display:block;}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:30px 10px;color:var(--mu);font-size:12px;}
+
+/* NOTIFICATION TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--s1);border:1px solid var(--gr);border-radius:10px;padding:12px 18px;font-size:13px;font-weight:600;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;display:flex;align-items:center;gap:8px;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast-dot{width:7px;height:7px;border-radius:50%;background:var(--gr);}
+
+/* SEARCH BAR */
+.search-bar{padding:12px 20px;max-width:1300px;margin:0 auto;display:flex;gap:10px;align-items:center;}
+.search-input{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;color:var(--tx);font-size:13px;outline:none;flex:1;max-width:300px;}
+.search-input:focus{border-color:var(--gr);}
+.filter-select{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;color:var(--tx);font-size:13px;outline:none;}
+
+/* HIDDEN */
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px;}
+
+/* SVG CHART */
+.bar-chart{width:100%;overflow:visible;}
+.bar-rect{transition:opacity .15s;}
+.bar-rect:hover{opacity:.8;}
+.chart-label{font-size:10px;fill:#888;font-family:'Inter',sans-serif;}
+.chart-value{font-size:10px;fill:#f0f0f0;font-family:'Inter',sans-serif;font-weight:600;}
+
+/* MOBILE */
+@media(max-width:680px){
+  .topbar{gap:8px;}
+  .topbar-sub{display:none;}
+  .tabs-wrap{padding:0 12px;}
+  .tab-btn{padding:10px 12px;font-size:12px;}
+  .stats-row{padding:12px;}
+  .search-bar{padding:8px 12px;}
+  .section-wrap{padding:0 12px 20px;}
+  .pipeline-wrap{padding:0 12px 20px;}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-logo">BullRun<span>IQ</span></div>
+  <div class="topbar-sub">Lead Tracker CRM</div>
+  <div class="topbar-spacer"></div>
+  <button class="topbar-btn-ghost" onclick="openTemplate()">&#9993; Templates</button>
+  <button class="topbar-btn" onclick="openAddLead()">+ Add Lead</button>
+</div>
+
+<!-- TABS -->
+<div class="tabs-wrap">
+  <button class="tab-btn active" onclick="switchTab('pipeline',this)">Pipeline</button>
+  <button class="tab-btn" onclick="switchTab('revenue',this)">Revenue</button>
+  <button class="tab-btn" onclick="switchTab('activity',this)">Activity</button>
+  <button class="tab-btn" onclick="switchTab('proposal',this)">Proposal Gen</button>
+  <button class="tab-btn" onclick="switchTab('templates',this)">Cold Pitch</button>
+</div>
+
+<!-- STATS ROW -->
+<div class="stats-row" id="statsRow"></div>
+
+<!-- PIPELINE TAB -->
+<div class="tab-panel active" id="tab-pipeline">
+  <div class="search-bar">
+    <input class="search-input" type="text" id="searchInput" placeholder="Search leads..." oninput="renderBoard()">
+    <select class="filter-select" id="filterType" onchange="renderBoard()">
+      <option value="">All Types</option>
+      <option>Restaurant</option>
+      <option>Salon</option>
+      <option>Contractor</option>
+      <option>Retail</option>
+      <option>Medical</option>
+      <option>Other</option>
+    </select>
+  </div>
+  <div class="pipeline-wrap">
+    <div class="pipeline-board" id="pipelineBoard"></div>
+  </div>
+</div>
+
+<!-- REVENUE TAB -->
+<div class="tab-panel" id="tab-revenue">
+  <div class="section-wrap" style="padding-top:20px;">
+    <div class="section-title"><span></span>Revenue Overview</div>
+    <div class="rev-grid">
+      <div class="chart-card">
+        <div class="chart-title">Monthly Closed Revenue</div>
+        <svg class="bar-chart" id="revenueChart" height="200"></svg>
+      </div>
+      <div class="rev-stats" id="revStats"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ACTIVITY TAB -->
+<div class="tab-panel" id="tab-activity">
+  <div class="section-wrap" style="padding-top:20px;">
+    <div class="section-title"><span></span>Activity Feed</div>
+    <div id="activityFeed"></div>
+  </div>
+</div>
+
+<!-- PROPOSAL GEN TAB -->
+<div class="tab-panel" id="tab-proposal">
+  <div class="section-wrap" style="padding-top:20px;">
+    <div class="section-title"><span></span>Proposal Generator</div>
+    <div style="background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:20px;margin-bottom:16px;">
+      <div class="form-group" style="max-width:360px;">
+        <label class="form-label">Select Lead</label>
+        <select class="form-select" id="propLeadSelect" onchange="generateProposal()">
+          <option value="">— choose a lead —</option>
+        </select>
+      </div>
+    </div>
+    <div id="proposalOutput" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="section-title" style="margin-bottom:0;"><span></span>Generated Proposal</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="copy-success" id="propCopyMsg">Copied!</span>
+          <button class="btn-primary" onclick="copyProposal()" style="padding:7px 16px;font-size:13px;">Copy to Clipboard</button>
+        </div>
+      </div>
+      <div id="proposalContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COLD PITCH TAB -->
+<div class="tab-panel" id="tab-templates">
+  <div class="section-wrap" style="padding-top:20px;">
+    <div class="section-title"><span></span>Cold Pitch Templates</div>
+    <div style="background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:20px;margin-bottom:16px;">
+      <div class="form-row" style="max-width:600px;">
+        <div class="form-group">
+          <label class="form-label">Business Type</label>
+          <select class="form-select" id="templateType" onchange="generateTemplate()">
+            <option value="">— select type —</option>
+            <option>Restaurant</option>
+            <option>Salon</option>
+            <option>Contractor</option>
+            <option>Retail</option>
+            <option>Medical</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Channel</label>
+          <select class="form-select" id="templateChannel" onchange="generateTemplate()">
+            <option value="sms">SMS / Text</option>
+            <option value="email">Email</option>
+            <option value="dm">Social DM</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="templateOutput" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="section-title" style="margin-bottom:0;"><span></span>Generated Script</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="copy-success" id="tmplCopyMsg">Copied!</span>
+          <button class="btn-primary" onclick="copyTemplate()" style="padding:7px 16px;font-size:13px;">Copy Script</button>
+        </div>
+      </div>
+      <div class="template-box" id="templateContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT LEAD MODAL -->
+<div class="modal-overlay hidden" id="leadModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="leadModalTitle">Add New Lead</div>
+      <button class="modal-close" onclick="closeLeadModal()">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Business Name *</label>
+          <input class="form-input" id="f_biz" type="text" placeholder="Mario's Pizza">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Owner Name</label>
+          <input class="form-input" id="f_owner" type="text" placeholder="Mario Rossi">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input class="form-input" id="f_phone" type="tel" placeholder="(555) 000-0000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" id="f_email" type="email" placeholder="owner@business.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">City / State</label>
+          <input class="form-input" id="f_city" type="text" placeholder="Austin, TX">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Business Type</label>
+          <select class="form-select" id="f_type">
+            <option>Restaurant</option>
+            <option>Salon</option>
+            <option>Contractor</option>
+            <option>Retail</option>
+            <option>Medical</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Website URL (or "none")</label>
+          <input class="form-input" id="f_website" type="text" placeholder="none">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Website Status</label>
+          <select class="form-select" id="f_webstatus">
+            <option value="none">No Website</option>
+            <option value="bad">Bad Website</option>
+            <option value="has">Has Website</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Deal Value ($)</label>
+          <input class="form-input" id="f_value" type="number" placeholder="1200">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stage</label>
+          <select class="form-select" id="f_stage" onchange="toggleLostReason()">
+            <option value="cold">Cold Lead</option>
+            <option value="contacted">Contacted</option>
+            <option value="demo">Demo Booked</option>
+            <option value="proposal">Proposal Sent</option>
+            <option value="won">Closed Won</option>
+            <option value="lost">Closed Lost</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group lost-reason-wrap" id="lostReasonWrap">
+        <label class="form-label">Lost Reason</label>
+        <select class="form-select" id="f_lostreason">
+          <option value="price">Price too high</option>
+          <option value="timing">Bad timing</option>
+          <option value="competitor">Chose competitor</option>
+          <option value="nointerest">Not interested</option>
+          <option value="ghosted">Ghosted</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-textarea" id="f_notes" placeholder="Any relevant notes about this lead..."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeLeadModal()">Cancel</button>
+      <button class="btn-danger" id="deleteLeadBtn" onclick="deleteLead()" style="display:none;">Delete</button>
+      <button class="btn-primary" onclick="saveLead()">Save Lead</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROPOSAL VIEW MODAL -->
+<div class="modal-overlay hidden" id="proposalModal">
+  <div class="modal modal-xl">
+    <div class="modal-head">
+      <div class="modal-title" id="propModalTitle">Proposal</div>
+      <button class="modal-close" onclick="document.getElementById('proposalModal').classList.add('hidden')">&#x2715;</button>
+    </div>
+    <div class="modal-body" id="propModalBody"></div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="document.getElementById('proposalModal').classList.add('hidden')">Close</button>
+      <span class="copy-success" id="propModalCopyMsg" style="margin-right:auto;">Copied!</span>
+      <button class="btn-primary" onclick="copyProposalModal()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
+
+<script>
+// ===================== DATA =====================
+const STAGES = ['cold','contacted','demo','proposal','won','lost'];
+const STAGE_LABELS = {cold:'Cold Leads',contacted:'Contacted',demo:'Demo Booked',proposal:'Proposal Sent',won:'Closed Won',lost:'Closed Lost'};
+const STAGE_NEXT = {cold:'contacted',contacted:'demo',demo:'proposal',proposal:'won'};
+
+let leads = [];
+let activity = [];
+let editingId = null;
+
+// ===================== DEMO DATA =====================
+const DEMO_LEADS = [
+  {id:'d1',biz:'Napoli Pizza',owner:'Tony Marcello',phone:'(512) 555-0141',email:'tony@napolipizza.com',city:'Austin, TX',type:'Restaurant',website:'none',webstatus:'none',value:1200,stage:'contacted',notes:'Called on Monday, interested but wants to see examples',lostReason:'',dateAdded:'2026-05-01',stageDate:'2026-05-03'},
+  {id:'d2',biz:'Glam Beauty Studio',owner:'Maria Santos',phone:'(214) 555-0277',email:'maria@glambeauty.com',city:'Dallas, TX',type:'Salon',website:'none',webstatus:'none',value:950,stage:'demo',notes:'Demo scheduled for Thursday 2pm — she has 3 locations',lostReason:'',dateAdded:'2026-04-28',stageDate:'2026-05-08'},
+  {id:'d3',biz:'Apex Roofing Co.',owner:'Derek Mills',phone:'(713) 555-0399',email:'derek@apexroofing.net',city:'Houston, TX',type:'Contractor',website:'http://apexroofing.net',webstatus:'bad',value:1800,stage:'proposal',notes:'Sent Growth package proposal. Waiting on his business partner approval.',lostReason:'',dateAdded:'2026-04-20',stageDate:'2026-05-10'},
+  {id:'d4',biz:'Green Valley Dental',owner:'Dr. Linda Park',phone:'(949) 555-0422',email:'lpark@gvdental.com',city:'Irvine, CA',type:'Medical',website:'none',webstatus:'none',value:2500,stage:'won',notes:'Signed Premium package. $2500 upfront + $199/mo.',lostReason:'',dateAdded:'2026-04-10',stageDate:'2026-05-05'},
+  {id:'d5',biz:'Harbor Gifts & More',owner:'Susan Kim',phone:'(617) 555-0544',email:'susan@harborgifts.com',city:'Boston, MA',type:'Retail',website:'none',webstatus:'none',value:800,stage:'cold',notes:'Found on Yelp — no website, decent reviews. Good target.',lostReason:'',dateAdded:'2026-05-18',stageDate:'2026-05-18'},
+];
+
+function initData(){
+  const saved = localStorage.getItem('lt_leads');
+  const savedAct = localStorage.getItem('lt_activity');
+  if(saved){
+    leads = JSON.parse(saved);
+  } else {
+    leads = DEMO_LEADS;
+    saveLeads();
+  }
+  if(savedAct){
+    activity = JSON.parse(savedAct);
+  } else {
+    activity = [
+      {type:'add',text:'Added lead: Green Valley Dental',time:'2026-04-10T09:00:00'},
+      {type:'move',text:'Green Valley Dental moved to Closed Won',time:'2026-05-05T14:30:00'},
+      {type:'add',text:'Added lead: Apex Roofing Co.',time:'2026-04-20T11:15:00'},
+      {type:'prop',text:'Proposal sent to Apex Roofing Co.',time:'2026-05-10T16:00:00'},
+      {type:'add',text:'Added lead: Harbor Gifts & More',time:'2026-05-18T10:00:00'},
+    ];
+    saveActivity();
+  }
+}
+
+function saveLeads(){localStorage.setItem('lt_leads',JSON.stringify(leads));}
+function saveActivity(){localStorage.setItem('lt_activity',JSON.stringify(activity));}
+
+function logActivity(type,text){
+  activity.unshift({type,text,time:new Date().toISOString()});
+  if(activity.length>50) activity.pop();
+  saveActivity();
+  renderActivity();
+}
+
+// ===================== STATS =====================
+function calcStats(){
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+  const active = leads.filter(l=>!['won','lost'].includes(l.stage));
+  const won = leads.filter(l=>l.stage==='won');
+  const wonThisMonth = won.filter(l=>{
+    const d = new Date(l.stageDate);
+    return d.getMonth()===thisMonth && d.getFullYear()===thisYear;
+  });
+  const pipelineVal = active.reduce((s,l)=>s+(parseFloat(l.value)||0),0);
+  const closedVal = wonThisMonth.reduce((s,l)=>s+(parseFloat(l.value)||0),0);
+  const total = leads.filter(l=>['won','lost'].includes(l.stage)).length;
+  const closeRate = total>0 ? Math.round((won.length/total)*100) : 0;
+  return {active:active.length, pipeline:pipelineVal, closed:closedVal, closeRate};
+}
+
+function renderStats(){
+  const s = calcStats();
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Pipeline Value</div>
+      <div class="stat-value green">$${s.pipeline.toLocaleString()}</div>
+      <div class="stat-sub">Active opportunities</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Leads</div>
+      <div class="stat-value">${s.active}</div>
+      <div class="stat-sub">In pipeline</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Closed This Month</div>
+      <div class="stat-value green">$${s.closed.toLocaleString()}</div>
+      <div class="stat-sub">Revenue won</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Close Rate</div>
+      <div class="stat-value">${s.closeRate}<span style="font-size:16px;font-weight:600;color:var(--mu)">%</span></div>
+      <div class="stat-sub">Won vs all closed</div>
+    </div>
+  `;
+}
+
+// ===================== BOARD =====================
+function daysSince(dateStr){
+  const d = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now-d)/(1000*60*60*24));
+}
+
+function webBadge(status){
+  if(status==='none') return '<span class="lead-badge badge-noweb">No Website</span>';
+  if(status==='bad') return '<span class="lead-badge badge-badweb">Bad Website</span>';
+  return '<span class="lead-badge badge-hasweb">Has Website</span>';
+}
+
+function renderBoard(){
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  const ft = document.getElementById('filterType').value;
+  const board = document.getElementById('pipelineBoard');
+  board.innerHTML = '';
+
+  STAGES.forEach(stage=>{
+    let stageleads = leads.filter(l=>l.stage===stage);
+    if(q) stageleads = stageleads.filter(l=>l.biz.toLowerCase().includes(q)||l.owner.toLowerCase().includes(q)||l.city.toLowerCase().includes(q));
+    if(ft) stageleads = stageleads.filter(l=>l.type===ft);
+    const totalVal = stageleads.reduce((s,l)=>s+(parseFloat(l.value)||0),0);
+
+    const col = document.createElement('div');
+    col.className = `pipeline-col col-${stage}`;
+    col.innerHTML = `
+      <div class="col-header">
+        <div>
+          <div class="col-title">${STAGE_LABELS[stage]}</div>
+          <div class="col-value">$${totalVal.toLocaleString()}</div>
+        </div>
+        <div class="col-count">${stageleads.length}</div>
+      </div>
+      <div class="col-body" id="col-${stage}"></div>
+    `;
+    board.appendChild(col);
+
+    const body = col.querySelector(`#col-${stage}`);
+    if(stageleads.length===0){
+      body.innerHTML='<div class="empty-state">No leads</div>';
+    } else {
+      stageleads.forEach(lead=>{
+        const days = daysSince(lead.stageDate);
+        const card = document.createElement('div');
+        card.className='lead-card';
+        const nextStage = STAGE_NEXT[stage];
+        const advBtn = nextStage ? `<button class="la-btn la-btn-adv" onclick="event.stopPropagation();advanceLead('${lead.id}')">Advance &rarr;</button>` : '';
+        card.innerHTML = `
+          <div class="lead-card-top">
+            <div>
+              <div class="lead-biz">${esc(lead.biz)}</div>
+              <div class="lead-owner">${esc(lead.owner||'—')}</div>
+            </div>
+            ${webBadge(lead.webstatus)}
+          </div>
+          <div class="lead-meta">
+            ${lead.phone?`<span>&#128222; ${esc(lead.phone)}</span>`:''}
+            ${lead.city?`<span>&#128205; ${esc(lead.city)}</span>`:''}
+            <span>&#128197; ${esc(lead.type)}</span>
+          </div>
+          <div class="lead-value">$${(parseFloat(lead.value)||0).toLocaleString()}</div>
+          <div class="lead-days">${days===0?'Added today':`${days}d in stage`}</div>
+          ${lead.notes?`<div style="font-size:11px;color:var(--mu);margin-top:6px;line-height:1.5;">"${esc(lead.notes.substring(0,80))}${lead.notes.length>80?'...':''}"</div>`:''}
+          <div class="lead-actions">
+            <button class="la-btn la-btn-edit" onclick="event.stopPropagation();openEditLead('${lead.id}')">Edit</button>
+            ${advBtn}
+            <button class="la-btn la-btn-prop" onclick="event.stopPropagation();openQuickProposal('${lead.id}')">Proposal</button>
+          </div>
+        `;
+        body.appendChild(card);
+      });
+    }
+  });
+}
+
+function esc(str){
+  if(!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===================== ADVANCE LEAD =====================
+function advanceLead(id){
+  const lead = leads.find(l=>l.id===id);
+  if(!lead) return;
+  const next = STAGE_NEXT[lead.stage];
+  if(!next) return;
+  const old = lead.stage;
+  lead.stage = next;
+  lead.stageDate = new Date().toISOString().split('T')[0];
+  saveLeads();
+  renderBoard();
+  renderStats();
+  updateProposalLeadSelect();
+  logActivity('move',`${lead.biz} moved to ${STAGE_LABELS[next]}`);
+  showToast(`${lead.biz} → ${STAGE_LABELS[next]}`);
+}
+
+// ===================== MODAL =====================
+function openAddLead(){
+  editingId = null;
+  document.getElementById('leadModalTitle').textContent = 'Add New Lead';
+  document.getElementById('deleteLeadBtn').style.display = 'none';
+  ['f_biz','f_owner','f_phone','f_email','f_city','f_website','f_notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f_type').value = 'Restaurant';
+  document.getElementById('f_webstatus').value = 'none';
+  document.getElementById('f_value').value = '';
+  document.getElementById('f_stage').value = 'cold';
+  document.getElementById('f_lostreason').value = 'price';
+  toggleLostReason();
+  document.getElementById('leadModal').classList.remove('hidden');
+}
+
+function openEditLead(id){
+  const lead = leads.find(l=>l.id===id);
+  if(!lead) return;
+  editingId = id;
+  document.getElementById('leadModalTitle').textContent = 'Edit Lead';
+  document.getElementById('deleteLeadBtn').style.display = 'block';
+  document.getElementById('f_biz').value = lead.biz||'';
+  document.getElementById('f_owner').value = lead.owner||'';
+  document.getElementById('f_phone').value = lead.phone||'';
+  document.getElementById('f_email').value = lead.email||'';
+  document.getElementById('f_city').value = lead.city||'';
+  document.getElementById('f_website').value = lead.website||'none';
+  document.getElementById('f_webstatus').value = lead.webstatus||'none';
+  document.getElementById('f_value').value = lead.value||'';
+  document.getElementById('f_stage').value = lead.stage||'cold';
+  document.getElementById('f_lostreason').value = lead.lostReason||'price';
+  document.getElementById('f_notes').value = lead.notes||'';
+  toggleLostReason();
+  document.getElementById('leadModal').classList.remove('hidden');
+}
+
+function closeLeadModal(){
+  document.getElementById('leadModal').classList.add('hidden');
+}
+
+function toggleLostReason(){
+  const stage = document.getElementById('f_stage').value;
+  document.getElementById('lostReasonWrap').classList.toggle('show', stage==='lost');
+}
+
+function saveLead(){
+  const biz = document.getElementById('f_biz').value.trim();
+  if(!biz){showToast('Business name is required');return;}
+  const data = {
+    biz, owner:document.getElementById('f_owner').value.trim(),
+    phone:document.getElementById('f_phone').value.trim(),
+    email:document.getElementById('f_email').value.trim(),
+    city:document.getElementById('f_city').value.trim(),
+    type:document.getElementById('f_type').value,
+    website:document.getElementById('f_website').value.trim()||'none',
+    webstatus:document.getElementById('f_webstatus').value,
+    value:parseFloat(document.getElementById('f_value').value)||0,
+    stage:document.getElementById('f_stage').value,
+    lostReason:document.getElementById('f_lostreason').value,
+    notes:document.getElementById('f_notes').value.trim(),
+    stageDate:new Date().toISOString().split('T')[0],
+  };
+
+  if(editingId){
+    const idx = leads.findIndex(l=>l.id===editingId);
+    const old = leads[idx];
+    const stageChanged = old.stage !== data.stage;
+    data.id = editingId;
+    data.dateAdded = old.dateAdded;
+    if(!stageChanged) data.stageDate = old.stageDate;
+    leads[idx] = data;
+    logActivity('move',stageChanged?`${biz} moved to ${STAGE_LABELS[data.stage]}`:`${biz} updated`);
+    showToast('Lead updated');
+  } else {
+    data.id = 'l'+Date.now();
+    data.dateAdded = new Date().toISOString().split('T')[0];
+    leads.push(data);
+    logActivity('add',`Added lead: ${biz}`);
+    showToast('Lead added!');
+  }
+  saveLeads();
+  closeLeadModal();
+  renderBoard();
+  renderStats();
+  updateProposalLeadSelect();
+  renderRevenue();
+}
+
+function deleteLead(){
+  if(!editingId) return;
+  if(!confirm('Delete this lead? This cannot be undone.')) return;
+  const lead = leads.find(l=>l.id===editingId);
+  leads = leads.filter(l=>l.id!==editingId);
+  saveLeads();
+  closeLeadModal();
+  renderBoard();
+  renderStats();
+  updateProposalLeadSelect();
+  if(lead) logActivity('move',`Deleted lead: ${lead.biz}`);
+  showToast('Lead deleted');
+}
+
+// ===================== PROPOSAL GEN =====================
+function updateProposalLeadSelect(){
+  const sel = document.getElementById('propLeadSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— choose a lead —</option>';
+  leads.forEach(l=>{
+    const o = document.createElement('option');
+    o.value = l.id;
+    o.textContent = `${l.biz} (${l.type}) — $${(parseFloat(l.value)||0).toLocaleString()}`;
+    sel.appendChild(o);
+  });
+  if(cur) sel.value = cur;
+}
+
+function buildProposalHTML(lead){
+  const val = parseFloat(lead.value)||800;
+  const tiers = [
+    {name:'Starter',up:800,mo:99,bullets:['5-page professional website','Mobile responsive design','Google Maps integration','Contact form & click-to-call','1 month free support']},
+    {name:'Growth',up:1500,mo:149,bullets:['Everything in Starter','Up to 10 pages','SEO optimization','Google Business Profile setup','Monthly performance report','Photo gallery & social links','3 months free support']},
+    {name:'Premium',up:2500,mo:199,bullets:['Everything in Growth','Custom design mockup','Online booking / reservations','Menu or service catalog','Blog & content management','Google Ads campaign setup','Priority support — 6 months','Quarterly strategy call']},
+  ];
+  let html = `<div style="margin-bottom:20px;">
+    <div style="font-size:20px;font-weight:800;color:#f0f0f0;margin-bottom:6px;">${esc(lead.biz)} — Website Package Proposal</div>
+    <div style="font-size:13px;color:#888;line-height:1.6;">
+      Prepared for: ${esc(lead.owner||lead.biz)}<br>
+      Business Type: ${esc(lead.type)}<br>
+      Location: ${esc(lead.city||'—')}<br>
+      Date: ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
+    </div>
+  </div>
+  <div style="font-size:13px;color:#aaa;line-height:1.8;margin-bottom:20px;">
+    Hi ${esc(lead.owner?lead.owner.split(' ')[0]:'there')},<br><br>
+    Thanks for taking the time to connect. Below is my website proposal for ${esc(lead.biz)}. I offer three transparent packages — each built to drive real customers to your door. No hidden fees, no long-term contracts required.
+  </div>`;
+
+  tiers.forEach(t=>{
+    const isRec = t.up <= val+200 && t.up >= val-200;
+    html += `<div class="proposal-tier"${isRec?' style="border-color:var(--gr);"':''}>
+      <div class="tier-name">${t.name} Package${isRec?' <span style="color:var(--gr);font-size:12px;">&#10003; Recommended</span>':''}</div>
+      <div class="tier-price">$${t.up.toLocaleString()} one-time &nbsp;+&nbsp; $${t.mo}/mo maintenance</div>
+      <div class="tier-bullets">${t.bullets.map(b=>`&#10003; ${b}`).join('<br>')}</div>
+    </div>`;
+  });
+
+  html += `<div style="font-size:13px;color:#aaa;line-height:1.8;margin-top:16px;">
+    All packages include: SSL certificate, hosting setup, basic analytics, and a 30-day satisfaction guarantee.<br><br>
+    Ready to move forward? Reply to this message or call/text me and we can get started this week.<br><br>
+    Best,<br>[Your Name]<br>[Your Phone] | [Your Email]
+  </div>`;
+  return html;
+}
+
+function generateProposal(){
+  const id = document.getElementById('propLeadSelect').value;
+  if(!id){document.getElementById('proposalOutput').style.display='none';return;}
+  const lead = leads.find(l=>l.id===id);
+  if(!lead) return;
+  document.getElementById('proposalOutput').style.display='block';
+  document.getElementById('proposalContent').innerHTML = `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:24px;">${buildProposalHTML(lead)}</div>`;
+}
+
+function copyProposal(){
+  const id = document.getElementById('propLeadSelect').value;
+  const lead = leads.find(l=>l.id===id);
+  if(!lead) return;
+  const text = buildProposalText(lead);
+  navigator.clipboard.writeText(text).then(()=>{
+    const el = document.getElementById('propCopyMsg');
+    el.classList.add('show');
+    setTimeout(()=>el.classList.remove('show'),2000);
+    logActivity('prop',`Proposal copied for ${lead.biz}`);
+  });
+}
+
+function openQuickProposal(id){
+  const lead = leads.find(l=>l.id===id);
+  if(!lead) return;
+  document.getElementById('propModalTitle').textContent = `${lead.biz} — Proposal`;
+  document.getElementById('propModalBody').innerHTML = buildProposalHTML(lead);
+  document.getElementById('proposalModal').classList.remove('hidden');
+  document.getElementById('proposalModal').dataset.leadId = id;
+  logActivity('prop',`Proposal generated for ${lead.biz}`);
+}
+
+function copyProposalModal(){
+  const id = document.getElementById('proposalModal').dataset.leadId;
+  const lead = leads.find(l=>l.id===id);
+  if(!lead) return;
+  navigator.clipboard.writeText(buildProposalText(lead)).then(()=>{
+    const el = document.getElementById('propModalCopyMsg');
+    el.classList.add('show');
+    setTimeout(()=>el.classList.remove('show'),2000);
+  });
+}
+
+function buildProposalText(lead){
+  const tiers = [
+    {name:'STARTER'  ,up:800 ,mo:99 ,bullets:['5-page professional website','Mobile responsive design','Google Maps integration','Contact form & click-to-call','1 month free support']},
+    {name:'GROWTH'   ,up:1500,mo:149,bullets:['Everything in Starter','Up to 10 pages','SEO optimization','Google Business Profile setup','Monthly performance report','3 months free support']},
+    {name:'PREMIUM'  ,up:2500,mo:199,bullets:['Everything in Growth','Custom design mockup','Online booking / reservations','Menu or service catalog','Google Ads campaign setup','Priority support 6 months']},
+  ];
+  let txt = `${lead.biz.toUpperCase()} — WEBSITE PACKAGE PROPOSAL\n`;
+  txt += `${'─'.repeat(50)}\n`;
+  txt += `Prepared for: ${lead.owner||lead.biz}\nBusiness Type: ${lead.type}\nLocation: ${lead.city||'—'}\nDate: ${new Date().toLocaleDateString()}\n\n`;
+  txt += `Hi ${lead.owner?lead.owner.split(' ')[0]:'there'},\n\nThanks for connecting. Here's my proposal for ${lead.biz}.\n\n`;
+  tiers.forEach(t=>{
+    txt += `[${t.name} — $${t.up} one-time + $${t.mo}/mo]\n`;
+    t.bullets.forEach(b=>txt+=`  ✓ ${b}\n`);
+    txt += '\n';
+  });
+  txt += `All packages include: SSL, hosting setup, analytics, and 30-day guarantee.\n\nReady to get started? Reply or call/text me.\n\nBest,\n[Your Name]\n[Phone] | [Email]`;
+  return txt;
+}
+
+// ===================== TEMPLATES =====================
+const TEMPLATES = {
+  Restaurant:{
+    sms:`Hi [First Name]! I noticed [Restaurant Name] doesn't have a website (or the current one isn't bringing in customers). 87% of diners search online before choosing where to eat — I build professional restaurant sites starting at just $800. Can I show you a quick mockup of what yours could look like? — [Your Name]`,
+    email:`Subject: Quick question about [Restaurant Name]'s online presence\n\nHi [First Name],\n\nI came across [Restaurant Name] and noticed you may not have a website yet (or it might not be doing the heavy lifting it should).\n\nHere's why it matters: 87% of diners check a restaurant online before deciding where to eat. A professional site means more reservations, more foot traffic, and more orders.\n\nI specialize in restaurant websites that actually convert. Starter package from $800 one-time — no monthly contracts required.\n\nMind if I put together a quick preview of what yours could look like? Takes me about 20 minutes and there's no obligation.\n\nBest,\n[Your Name]\n[Phone Number]`,
+    dm:`Hey! Love what you're doing at [Restaurant Name]. Quick question — are you getting enough customers from online searches? I build clean, fast restaurant websites that help places like yours fill tables. Starting at $800. Would love to show you what I could do — want to see an example?`
+  },
+  Salon:{
+    sms:`Hi [First Name]! I saw [Salon Name] on Google and noticed you don't have a website where clients can book appointments. I build booking-ready salon sites from $800. Clients who book online spend 40% more on average. Want me to show you what yours could look like?`,
+    email:`Subject: More bookings for [Salon Name] — here's how\n\nHi [First Name],\n\nI noticed [Salon Name] doesn't have a website with online booking — you're likely losing clients who prefer to schedule on their own time.\n\nI build custom salon & beauty websites with:\n✓ Online booking integration\n✓ Service menu & pricing\n✓ Before/after photo galleries\n✓ Google Business optimization\n\nStarting at $800 one-time. Clients who book online spend 40% more on average.\n\nCan I send you a free mockup of what your site could look like?\n\nBest,\n[Your Name]`,
+    dm:`Hey [First Name]! Came across [Salon Name] and you have amazing work. Are you getting enough new clients? I build salon websites with online booking built in — starting at $800. Would love to show you what I could create for your brand!`
+  },
+  Contractor:{
+    sms:`Hi [First Name], I work with local contractors to build websites that generate leads automatically. Most of my clients see 3-5 new quote requests/month within 60 days. Site starts at $800 — interested in a free quote? — [Your Name]`,
+    email:`Subject: Generating more leads for [Company Name]\n\nHi [First Name],\n\nI help local contractors like [Company Name] get more quote requests through a professional website — without depending on Angi, Houzz, or word-of-mouth alone.\n\nWhat I build:\n✓ Professional credibility page with past projects\n✓ Quote request form (gets you leads 24/7)\n✓ SEO so you show up in "[Your City] + [your trade]" searches\n✓ Reviews & testimonials section\n\nMost contractor clients see 3–5 new inbound leads per month within 60 days of launch.\n\nStarting at $800. Happy to show you examples. Worth a 10-minute call?\n\n[Your Name]\n[Phone]`,
+    dm:`Hey [First Name]! Saw [Company Name] and noticed you could be getting more leads online. I build contractor websites that generate quote requests automatically — starting at $800. Want to see what one looks like?`
+  },
+  Retail:{
+    sms:`Hi [First Name]! I build websites for local retail shops like [Store Name]. A clean site helps customers find your hours, location, and products before they visit. Starts at $800. Want to see what I'd do for yours?`,
+    email:`Subject: Help [Store Name] get found online\n\nHi [First Name],\n\nLocal retail shops with a strong online presence see 30%+ more foot traffic from Google searches. I noticed [Store Name] might not have a fully optimized site.\n\nI build retail websites that include:\n✓ Product showcase or catalog\n✓ Store hours, location & map\n✓ Google Shopping integration\n✓ Email list capture\n✓ Mobile-first design\n\nStarting at $800 one-time. Want to see a quick preview of what yours could look like?\n\nBest,\n[Your Name]`,
+    dm:`Hey! Love [Store Name]'s vibe. Do you have a website where customers can check out your inventory before visiting? I build retail shop sites from $800 — totally worth it for the extra foot traffic. Want to see an example?`
+  },
+  Medical:{
+    sms:`Hi [First Name], I build professional medical practice websites that help patients find and trust your practice. HIPAA-conscious design, appointment request forms, and Google optimization. Starting at $2,500. Can I send you a quick overview?`,
+    email:`Subject: Modernize [Practice Name]'s online presence\n\nHi [First Name],\n\nPatients overwhelmingly choose healthcare providers with professional websites. First impressions matter — and 77% of patients use search engines before booking an appointment.\n\nI design clean, trustworthy medical practice sites that include:\n✓ Appointment request forms\n✓ Staff & services overview\n✓ Patient testimonials\n✓ Insurance accepted section\n✓ HIPAA-aware contact forms\n\nStarting at $2,500. I'd be glad to walk you through examples from similar practices. Does next week work for a quick call?\n\nBest,\n[Your Name]`,
+    dm:`Hi [First Name]! Patients increasingly choose providers based on their online presence. I help medical practices look polished and professional online — with appointment request forms and SEO built in. Mind if I share some examples?`
+  },
+  Other:{
+    sms:`Hi [First Name]! I build professional websites for local businesses starting at $800. A great site brings in customers 24/7 while you focus on running your business. Want me to show you what I'd build for [Business Name]?`,
+    email:`Subject: Your business deserves a better website\n\nHi [First Name],\n\nI help small businesses in [City] establish a powerful online presence that consistently brings in new customers.\n\nWhat you get:\n✓ Custom, professional design\n✓ Mobile-first (60%+ of traffic is mobile)\n✓ SEO to show up in local searches\n✓ Fast loading & secure (SSL)\n✓ Ongoing monthly support available\n\nStarting at $800 one-time. I've worked with businesses across many industries and would love to show you what I could build for [Business Name].\n\nAvailable for a quick call this week?\n\nBest,\n[Your Name]`,
+    dm:`Hey [First Name]! I noticed [Business Name] might not have a website yet — or it could use a refresh. I build clean, effective sites for local businesses starting at $800. Interested in seeing what I'd create for you?`
+  }
+};
+
+function generateTemplate(){
+  const type = document.getElementById('templateType').value;
+  const ch = document.getElementById('templateChannel').value;
+  if(!type){document.getElementById('templateOutput').style.display='none';return;}
+  const tpl = TEMPLATES[type];
+  if(!tpl){return;}
+  document.getElementById('templateContent').textContent = tpl[ch]||tpl['sms'];
+  document.getElementById('templateOutput').style.display='block';
+}
+
+function copyTemplate(){
+  const text = document.getElementById('templateContent').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const el = document.getElementById('tmplCopyMsg');
+    el.classList.add('show');
+    setTimeout(()=>el.classList.remove('show'),2000);
+  });
+}
+
+// ===================== REVENUE =====================
+function renderRevenue(){
+  const won = leads.filter(l=>l.stage==='won');
+  const total = won.reduce((s,l)=>s+(parseFloat(l.value)||0),0);
+  const avg = won.length>0 ? total/won.length : 0;
+  const pipeline = leads.filter(l=>!['won','lost'].includes(l.stage)).reduce((s,l)=>s+(parseFloat(l.value)||0),0);
+  const closeRate = leads.filter(l=>['won','lost'].includes(l.stage)).length > 0
+    ? won.length / leads.filter(l=>['won','lost'].includes(l.stage)).length : 0;
+  const forecast = pipeline * closeRate;
+
+  document.getElementById('revStats').innerHTML = `
+    <div class="rev-stat"><div class="rev-stat-label">Total Closed Revenue</div><div class="rev-stat-val">$${total.toLocaleString()}</div></div>
+    <div class="rev-stat"><div class="rev-stat-label">Average Deal Value</div><div class="rev-stat-val">$${Math.round(avg).toLocaleString()}</div></div>
+    <div class="rev-stat"><div class="rev-stat-label">Pipeline Forecast</div><div class="rev-stat-val">$${Math.round(forecast).toLocaleString()}</div></div>
+    <div class="rev-stat"><div class="rev-stat-label">Deals Closed</div><div class="rev-stat-val">${won.length}</div></div>
+  `;
+
+  // Monthly chart
+  const months = {};
+  const now = new Date();
+  for(let i=5;i>=0;i--){
+    const d = new Date(now.getFullYear(),now.getMonth()-i,1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    months[key] = 0;
+  }
+  won.forEach(l=>{
+    const d = new Date(l.stageDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if(key in months) months[key] += parseFloat(l.value)||0;
+  });
+  const keys = Object.keys(months);
+  const vals = keys.map(k=>months[k]);
+  const maxVal = Math.max(...vals,1);
+  const W = 480, H = 180, PAD = 40, BAR_W = 50, GAP = (W-PAD*2-BAR_W*6)/5;
+  const svg = document.getElementById('revenueChart');
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  let inner = '';
+  keys.forEach((k,i)=>{
+    const x = PAD + i*(BAR_W+GAP);
+    const barH = maxVal>0 ? (vals[i]/maxVal)*(H-50) : 0;
+    const y = H-30-barH;
+    const mon = new Date(k+'-01').toLocaleDateString('en-US',{month:'short'});
+    inner += `<rect class="bar-rect" x="${x}" y="${y}" width="${BAR_W}" height="${barH}" rx="4" fill="${vals[i]>0?'#00d26a':'#2a2a2a'}"/>`;
+    if(vals[i]>0) inner += `<text class="chart-value" x="${x+BAR_W/2}" y="${y-4}" text-anchor="middle">$${(vals[i]/1000).toFixed(1)}k</text>`;
+    inner += `<text class="chart-label" x="${x+BAR_W/2}" y="${H-8}" text-anchor="middle">${mon}</text>`;
+  });
+  svg.innerHTML = inner;
+}
+
+// ===================== ACTIVITY =====================
+function renderActivity(){
+  const icons = {add:'➕',move:'🔀',prop:'📄',close:'🎉'};
+  const bg = {add:'fi-add',move:'fi-move',prop:'fi-prop',close:'fi-close'};
+  const feed = document.getElementById('activityFeed');
+  if(!activity.length){feed.innerHTML='<div class="empty-state">No activity yet</div>';return;}
+  feed.innerHTML = activity.slice(0,30).map(a=>{
+    const t = new Date(a.time);
+    const rel = formatRelTime(t);
+    return `<div class="feed-item">
+      <div class="feed-icon ${bg[a.type]||'fi-add'}">${icons[a.type]||'+'}</div>
+      <div>
+        <div class="feed-text">${esc(a.text)}</div>
+        <div class="feed-time">${rel}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function formatRelTime(d){
+  const diff = Date.now()-d.getTime();
+  const m = Math.floor(diff/60000);
+  if(m<1) return 'just now';
+  if(m<60) return `${m}m ago`;
+  const h = Math.floor(m/60);
+  if(h<24) return `${h}h ago`;
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+// ===================== TABS =====================
+function switchTab(id, btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='revenue') renderRevenue();
+  if(id==='activity') renderActivity();
+  if(id==='proposal') updateProposalLeadSelect();
+}
+
+// ===================== TOAST =====================
+function showToast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ===================== INIT =====================
+initData();
+renderStats();
+renderBoard();
+updateProposalLeadSelect();
+</script>
+</body>
+</html>
