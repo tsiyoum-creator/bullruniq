@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BullrunIQ — Your Roadmap to Everything</title>
+<meta name="description" content="BullrunIQ connects every part of your financial life — wealth, business, debt, markets, and daily execution — into one AI-powered command center. Live portfolio tracking, a four-agent market council, buy/sell signals, and a morning brief that tells you exactly what to do today.">
+<meta name="theme-color" content="#050505">
+<link rel="canonical" href="https://bullruniq.com/">
+<meta name="robots" content="index,follow">
+<meta name="author" content="BullrunIQ">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="BullrunIQ">
+<meta property="og:title" content="BullrunIQ — Your Roadmap to Everything">
+<meta property="og:description" content="Wealth. Business. Debt. Markets. Daily execution. One AI-powered financial command center for people who refuse to stay where they are.">
+<meta property="og:url" content="https://bullruniq.com/">
+<meta property="og:image" content="https://bullruniq.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="BullrunIQ — Your Roadmap to Everything">
+<meta name="twitter:description" content="Wealth. Business. Debt. Markets. Daily execution. One AI-powered financial command center for people who refuse to stay where they are.">
+<meta name="twitter:image" content="https://bullruniq.com/og-image.png">
+
+<!-- Favicon (inline gold mark — no extra file needed) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505' stroke='%23c9a84c' stroke-opacity='0.5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23c9a84c'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BullrunIQ">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "BullrunIQ",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Web",
+  "description": "An AI-powered financial command center that connects wealth, business, debt, markets, and daily execution into five connected roadmaps.",
+  "url": "https://bullruniq.com/",
+  "offers": [
+    { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
+    { "@type": "Offer", "name": "Pro", "price": "29", "priceCurrency": "USD" },
+    { "@type": "Offer", "name": "Elite", "price": "79", "priceCurrency": "USD" }
+  ]
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --gold:#c9a84c;--gold-light:#e8c96d;
+  --gold-dim:rgba(201,168,76,.12);--gold-border:rgba(201,168,76,.2);
+  --bg:#050505;--surface:#111;--border:#1a1a1a;
+  --t:#f0ece4;--t2:#8a8278;--t3:#3d3a35;
+}
+html{scroll-behavior:smooth}
+body{font-family:"DM Sans",sans-serif;background:var(--bg);color:var(--t);overflow-x:hidden}
+button{cursor:pointer}
+a{text-decoration:none}
+.hp-field{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+
+/* REVEAL — visible by default, JS adds animation after load */
+.reveal{opacity:1;transform:none;transition:opacity .7s ease,transform .7s ease}
+.js-loaded .reveal{opacity:0;transform:translateY(20px)}
+.js-loaded .reveal.on{opacity:1;transform:none}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 48px;display:flex;align-items:center;justify-content:space-between;transition:all .4s}
+nav.scrolled{background:rgba(5,5,5,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{display:flex;align-items:center;gap:10px}
+.nav-dot{width:28px;height:28px;border:1px solid var(--gold-border);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.nav-dot-inner{width:8px;height:8px;border-radius:50%;background:var(--gold)}
+.nav-wordmark{font-family:"Cormorant Garamond",serif;font-size:18px;font-weight:500;letter-spacing:2px;color:var(--t)}
+.nav-wordmark span{color:var(--gold)}
+.nav-links{display:flex;gap:32px;list-style:none}
+.nav-links a{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t2);transition:color .2s}
+.nav-links a:hover{color:var(--gold)}
+.nav-btn{background:none;border:1px solid var(--gold-border);border-radius:4px;color:var(--gold);font-family:"DM Sans",sans-serif;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 24px;transition:all .2s}
+.nav-btn:hover{background:var(--gold-dim)}
+
+/* HERO */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:160px 48px 120px;position:relative;overflow:hidden}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(201,168,76,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(201,168,76,.04) 1px,transparent 1px);background-size:60px 60px;-webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 50%,black,transparent);mask-image:radial-gradient(ellipse 80% 60% at 50% 50%,black,transparent);pointer-events:none}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--gold-border);border-radius:100px;padding:8px 20px;margin-bottom:40px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
+.eyebrow-pulse{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+h1.hero-h1{font-family:"Cormorant Garamond",serif;font-size:clamp(56px,8vw,96px);font-weight:300;line-height:1.05;letter-spacing:-1px;margin-bottom:28px}
+h1.hero-h1 em{font-style:italic;color:var(--gold)}
+.hero-sub{font-size:17px;line-height:1.8;color:var(--t2);max-width:520px;margin:0 auto 56px;font-weight:300}
+.hero-btns{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap}
+.btn-gold{background:var(--gold);border:none;border-radius:4px;color:#000;font-family:"DM Sans",sans-serif;font-size:13px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;padding:16px 40px;transition:all .2s}
+.btn-gold:hover{background:var(--gold-light);transform:translateY(-1px)}
+.btn-outline{background:none;border:1px solid #2a2a2a;border-radius:4px;color:var(--t2);font-family:"DM Sans",sans-serif;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;padding:16px 40px;transition:all .2s}
+.btn-outline:hover{border-color:#555;color:var(--t)}
+.scroll-hint{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--t3);font-size:10px;letter-spacing:2px;text-transform:uppercase}
+.scroll-line{width:1px;height:48px;background:linear-gradient(var(--gold),transparent);animation:sline 2s infinite}
+@keyframes sline{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+/* STATS */
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.stat-cell{padding:40px 24px;text-align:center;border-right:1px solid var(--border)}
+.stat-cell:last-child{border-right:none}
+.stat-val{font-family:"Cormorant Garamond",serif;font-size:52px;font-weight:300;color:var(--gold);line-height:1;margin-bottom:8px}
+.stat-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--t3)}
+
+/* SECTION SHARED */
+.section-tag{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:20px}
+.section-h2{font-family:"Cormorant Garamond",serif;font-size:clamp(34px,4vw,54px);font-weight:300;line-height:1.15;margin-bottom:16px}
+.section-h2 em{font-style:italic;color:var(--gold)}
+.section-desc{font-size:15px;line-height:1.8;color:var(--t2);font-weight:300;max-width:480px}
+
+/* ROADMAPS */
+.roadmaps-wrap{padding:100px 0}
+.roadmaps-head{padding:0 48px;margin-bottom:64px}
+.roadmaps-grid{display:flex;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.rm-card{flex:1;background:var(--bg);padding:48px 28px;border-right:1px solid var(--border);position:relative;overflow:hidden;transition:background .3s}
+.rm-card:last-child{border-right:none}
+.rm-card::after{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold);transform:scaleX(0);transform-origin:left;transition:transform .4s}
+.rm-card:hover{background:var(--surface)}
+.rm-card:hover::after{transform:scaleX(1)}
+.rm-icon{font-size:22px;margin-bottom:24px;display:block}
+.rm-num{font-size:10px;letter-spacing:3px;color:var(--t3);text-transform:uppercase;margin-bottom:10px}
+.rm-title{font-family:"Cormorant Garamond",serif;font-size:21px;font-weight:400;color:var(--t);margin-bottom:12px;line-height:1.2}
+.rm-body{font-size:12px;line-height:1.75;color:var(--t2);font-weight:300}
+.rm-tag{display:inline-block;margin-top:20px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--gold-border);padding-bottom:2px}
+
+/* HOW */
+.how-wrap{padding:100px 48px;border-top:1px solid var(--border)}
+.how-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:start}
+.steps{display:flex;flex-direction:column}
+.step{display:flex;gap:24px;padding:28px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-n{font-size:12px;letter-spacing:2px;color:var(--t3);flex-shrink:0;padding-top:3px}
+.step-title{font-size:15px;font-weight:500;color:var(--t);margin-bottom:6px}
+.step-body{font-size:13px;line-height:1.7;color:var(--t2);font-weight:300}
+.dashboard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;position:sticky;top:100px}
+.dash-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.dash-brand{font-family:"Cormorant Garamond",serif;font-size:14px;letter-spacing:2px;color:var(--t)}
+.dash-live{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--gold)}
+.dash-live-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);animation:pulse 2s infinite}
+.dash-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.ds{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px}
+.ds-val{font-family:"Cormorant Garamond",serif;font-size:17px;color:var(--gold);line-height:1;margin-bottom:2px}
+.ds-lbl{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
+.dash-bar{margin-bottom:8px}
+.db-top{display:flex;justify-content:space-between;font-size:10px;color:var(--t2);margin-bottom:4px}
+.db-track{height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.db-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:2px}
+.dash-holdings{border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+.dh-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px}
+.dh-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+.dh-row:last-child{border-bottom:none}
+.dh-name{font-size:11px;font-weight:500;color:var(--t)}
+.dh-tick{font-size:9px;color:var(--t3);letter-spacing:1px}
+.dh-val{font-size:11px;color:var(--t);text-align:right}
+.dh-chg{font-size:10px;text-align:right}
+.pos{color:#4ade80}.neg{color:#f87171}
+
+/* PHILOSOPHY */
+.phil{text-align:center;padding:120px 48px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.phil-q{font-family:"Cormorant Garamond",serif;font-size:clamp(24px,3.5vw,44px);font-weight:300;font-style:italic;line-height:1.45;max-width:780px;margin:0 auto 40px;color:var(--t)}
+.phil-line{width:40px;height:1px;background:var(--gold);margin:0 auto}
+
+/* WAITLIST */
+.waitlist{padding:120px 48px;text-align:center;position:relative;overflow:hidden}
+.wl-glow{position:absolute;bottom:-100px;left:50%;transform:translateX(-50%);width:700px;height:500px;background:radial-gradient(ellipse,rgba(201,168,76,.06),transparent);pointer-events:none}
+.wl-h2{font-family:"Cormorant Garamond",serif;font-size:clamp(40px,5vw,70px);font-weight:300;line-height:1.1;margin-bottom:20px}
+.wl-h2 em{font-style:italic;color:var(--gold)}
+.wl-sub{font-size:15px;color:var(--t2);max-width:420px;margin:0 auto 48px;font-weight:300;line-height:1.7}
+.wl-form{display:flex;max-width:440px;margin:0 auto;border:1px solid var(--gold-border);border-radius:6px;overflow:hidden;background:var(--surface)}
+.wl-input{flex:1;background:none;border:none;color:var(--t);font-family:"DM Sans",sans-serif;font-size:14px;padding:16px 20px;outline:none;min-width:0}
+.wl-input::placeholder{color:var(--t3)}
+.wl-btn{background:var(--gold);border:none;color:#000;font-family:"DM Sans",sans-serif;font-size:12px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;padding:16px 28px;cursor:pointer;transition:background .2s;white-space:nowrap;flex-shrink:0}
+.wl-btn:hover{background:var(--gold-light)}
+.wl-note{margin-top:16px;font-size:11px;color:var(--t3);letter-spacing:.5px}
+
+/* FOOTER */
+footer{padding:40px 48px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.ft-brand{font-family:"Cormorant Garamond",serif;font-size:16px;letter-spacing:2px;color:var(--t2)}
+.ft-brand span{color:var(--gold)}
+.ft-copy{font-size:11px;color:var(--t3)}
+.ft-links{display:flex;gap:24px}
+.ft-links a{font-size:11px;color:var(--t3);transition:color .2s}
+.ft-links a:hover{color:var(--gold)}
+
+@media(max-width:900px){
+  nav{padding:16px 24px}
+  .nav-links{display:none}
+  .hero{padding:120px 24px 100px}
+  .stats-bar{grid-template-columns:1fr 1fr}
+  .stat-cell:nth-child(2){border-right:none}
+  .stat-cell:nth-child(3){border-top:1px solid var(--border)}
+  .roadmaps-wrap{padding:64px 0}
+  .roadmaps-head{padding:0 24px}
+  .roadmaps-grid{flex-direction:column}
+  .rm-card{border-right:none;border-bottom:1px solid var(--border)}
+  .rm-card:last-child{border-bottom:none}
+  .how-wrap{padding:64px 24px}
+  .how-grid{grid-template-columns:1fr;gap:48px}
+  .dashboard{position:static}
+  .phil{padding:80px 24px}
+  .waitlist{padding:80px 24px}
+  .wl-form{flex-direction:column;max-width:320px}
+  .wl-btn{padding:14px}
+  footer{padding:32px 24px;justify-content:center;text-align:center}
+  .ft-links{justify-content:center}
+}
+</style>
+</head>
+<body>
+
+<nav id="mainNav">
+  <div class="nav-logo">
+    <div class="nav-dot"><div class="nav-dot-inner"></div></div>
+    <span class="nav-wordmark">Bullrun<span>IQ</span></span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#roadmaps">Roadmaps</a></li>
+    <li><a href="#how">How it Works</a></li>
+    <li><a href="#waitlist">Early Access</a></li>
+    <li><a href="/platform" style="color:var(--gold)">Platform</a></li>
+  </ul>
+  <button class="nav-btn" id="navJoin">Join Waitlist</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="eyebrow reveal"><span class="eyebrow-pulse"></span>Free to try — no signup needed</div>
+  <h1 class="hero-h1 reveal">Your roadmap to<br><em>everything.</em></h1>
+  <p class="hero-sub reveal">BullrunIQ watches your investments, tells you when to buy and when to sell, and maps the fastest realistic path to your money goal — in plain English.</p>
+  <div class="hero-btns reveal">
+    <a class='btn-gold' href='/platform' style='display:inline-flex;align-items:center;justify-content:center;text-decoration:none'>Try the App Free →</a>
+    <button class="btn-outline" id="joinBtn">Join the Waitlist</button>
+  </div>
+  <p class="reveal" style="margin-top:24px;font-size:12px;color:var(--t3);line-height:1.8">Opens instantly with a sample portfolio &nbsp;·&nbsp; Every AI call logged &amp; graded — wins and losses &nbsp;·&nbsp; Educational tool, not financial advice</p>
+  <div class="scroll-hint"><div class="scroll-line"></div><span>Scroll</span></div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat-cell reveal"><div class="stat-val">5</div><div class="stat-label">Money Roadmaps</div></div>
+  <div class="stat-cell reveal"><div class="stat-val">AI</div><div class="stat-label">Powered Intelligence</div></div>
+  <div class="stat-cell reveal"><div class="stat-val">$0</div><div class="stat-label">To Start Building</div></div>
+  <div class="stat-cell reveal"><div class="stat-val">24/7</div><div class="stat-label">Your Advisor</div></div>
+</div>
+
+<!-- ROADMAPS -->
+<div class="roadmaps-wrap" id="roadmaps">
+  <div class="roadmaps-head">
+    <div class="section-tag reveal">The Five Roadmaps</div>
+    <h2 class="section-h2 reveal">Every area of your life,<br><em>connected.</em></h2>
+    <p class="section-desc reveal">Most people fail at wealth because they optimize one area and ignore the rest. BullrunIQ connects all five so everything works together.</p>
+  </div>
+  <div class="roadmaps-grid">
+    <div class="rm-card reveal">
+      <div class="rm-num">01</div>
+      <div class="rm-title">Wealth Roadmap</div>
+      <div class="rm-body">Real-time crypto and stock tracking. Capital rotation alerts. AI-powered market intelligence. Your path from your first dollar to your number.</div>
+      <div class="rm-tag">Live portfolio tracking</div>
+    </div>
+    <div class="rm-card reveal">
+      <div class="rm-num">02</div>
+      <div class="rm-title">Business Roadmap</div>
+      <div class="rm-body">Income stream tracker. Revenue milestones. Client pipeline. From zero to $10K to $100K per month with clear action steps at every stage.</div>
+      <div class="rm-tag">$0 to $100K monthly</div>
+    </div>
+    <div class="rm-card reveal">
+      <div class="rm-num">03</div>
+      <div class="rm-title">Debt Roadmap</div>
+      <div class="rm-body">Every balance. Every rate. Every payoff date. AI calculates your fastest path to debt-free. Visual. Motivating. Real.</div>
+      <div class="rm-tag">Debt elimination engine</div>
+    </div>
+    <div class="rm-card reveal">
+      <div class="rm-num">04</div>
+      <div class="rm-title">Markets Roadmap</div>
+      <div class="rm-body">A four-agent AI council, daily buy/sell signals, and Bitcoin-cycle analysis. Know exactly when to add, trim, or hold — with an entry, target, and stop on every position.</div>
+      <div class="rm-tag">AI signals & council</div>
+    </div>
+    <div class="rm-card reveal">
+      <div class="rm-num">05</div>
+      <div class="rm-title">Life Roadmap</div>
+      <div class="rm-body">Task management. AI morning brief. Legal deadlines. Daily accountability. Nothing falls through the cracks while you build.</div>
+      <div class="rm-tag">Daily command center</div>
+    </div>
+  </div>
+</div>
+
+<!-- HOW -->
+<div class="how-wrap" id="how">
+  <div class="how-grid">
+    <div>
+      <div class="section-tag reveal">How it Works</div>
+      <h2 class="section-h2 reveal" style="margin-bottom:40px">One platform.<br><em>Five roadmaps.</em><br>Zero excuses.</h2>
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-n">01</div>
+          <div><div class="step-title">Add your investments</div><div class="step-body">Type them in or import from your broker or exchange — about 2 minutes. Or explore the built-in sample portfolio first, no signup needed.</div></div>
+        </div>
+        <div class="step reveal">
+          <div class="step-n">02</div>
+          <div><div class="step-title">Tap Assess</div><div class="step-body">The AI checks every holding and tells you: buy, sell, or hold — with exact prices. Plus a morning brief that says what to do today. No noise. Just the move.</div></div>
+        </div>
+        <div class="step reveal">
+          <div class="step-n">03</div>
+          <div><div class="step-title">Set your goal — follow the roadmap</div><div class="step-body">Tell BullrunIQ your target number. It builds a year-by-year plan to reach it and adjusts in real time as you go.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="dashboard reveal">
+      <div class="dash-hdr">
+        <div class="dash-brand">BullrunIQ</div>
+        <div class="dash-live"><div class="dash-live-dot"></div>Live</div>
+      </div>
+      <div class="dash-stats">
+        <div class="ds"><div class="ds-val">$84.2k</div><div class="ds-lbl">Portfolio</div></div>
+        <div class="ds"><div class="ds-val pos">+12.4%</div><div class="ds-lbl">All Time</div></div>
+        <div class="ds"><div class="ds-val">8,240</div><div class="ds-lbl">Steps</div></div>
+      </div>
+      <div class="dash-bar"><div class="db-top"><span>Wealth</span><span style="color:var(--gold)">84%</span></div><div class="db-track"><div class="db-fill" style="width:84%"></div></div></div>
+      <div class="dash-bar"><div class="db-top"><span>Debt Free</span><span style="color:var(--gold)">61%</span></div><div class="db-track"><div class="db-fill" style="width:61%"></div></div></div>
+      <div class="dash-bar"><div class="db-top"><span>Business</span><span style="color:var(--gold)">43%</span></div><div class="db-track"><div class="db-fill" style="width:43%"></div></div></div>
+      <div class="dash-bar"><div class="db-top"><span>Savings Rate</span><span style="color:var(--gold)">78%</span></div><div class="db-track"><div class="db-fill" style="width:78%"></div></div></div>
+      <div class="dash-holdings">
+        <div class="dh-label">Holdings</div>
+        <div class="dh-row"><div><div class="dh-name">Bitcoin</div><div class="dh-tick">BTC</div></div><div><div class="dh-val">$41,200</div><div class="dh-chg pos">+8.2%</div></div></div>
+        <div class="dh-row"><div><div class="dh-name">Ethereum</div><div class="dh-tick">ETH</div></div><div><div class="dh-val">$18,400</div><div class="dh-chg pos">+5.1%</div></div></div>
+        <div class="dh-row"><div><div class="dh-name">Solana</div><div class="dh-tick">SOL</div></div><div><div class="dh-val">$12,800</div><div class="dh-chg neg">-2.3%</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHILOSOPHY -->
+<div class="phil">
+  <p class="phil-q reveal">"Most people track their money. BullrunIQ tracks your life and builds the roadmap that connects everything you are chasing into one direction."</p>
+  <div class="phil-line reveal"></div>
+</div>
+
+<!-- WAITLIST -->
+<div class="waitlist" id="waitlist">
+  <div class="wl-glow"></div>
+  <div class="section-tag reveal">Limited Early Access</div>
+  <h2 class="wl-h2 reveal">Be first.<br><em>Build first.</em><br>Win first.</h2>
+  <p class="wl-sub reveal">Join the waitlist for founding-member pricing and direct input on what gets built next. Or skip the line — <a href="/platform" style="color:var(--gold)">try the app right now</a>.</p>
+  <form class="wl-form reveal" id="wlForm" name="waitlist" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="/?joined=1">
+    <input type="hidden" name="form-name" value="waitlist">
+    <input type="hidden" name="source" id="wlSource" value="landing">
+    <p class="hp-field"><label>Leave this empty: <input name="bot-field"></label></p>
+    <input class="wl-input" type="email" name="email" placeholder="Your email address" id="wlEmail" autocomplete="email" required>
+    <button class="wl-btn" id="wlSubmit" type="submit">Join Now</button>
+  </form>
+  <p class="wl-note" id="wlNote">No spam. No noise. Just your roadmap.</p>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="ft-brand">Bullrun<span>IQ</span></div>
+  <div class="ft-copy">2026 BullrunIQ. All rights reserved.</div>
+  <div class="ft-links">
+    <a href="/platform">Platform</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="/contact">Contact</a>
+  </div>
+</footer>
+
+<script>
+// ── SCROLL TO SECTION ──────────────────────────────
+function goTo(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var top = el.getBoundingClientRect().top + window.pageYOffset - 80;
+  window.scrollTo({ top: top, behavior: 'smooth' });
+}
+
+// ── BUTTON WIRING ──────────────────────────────────
+document.getElementById('navJoin').onclick = function() { goTo('waitlist'); };
+document.getElementById('joinBtn').onclick = function() { goTo('waitlist'); };
+var _pb=document.getElementById('platformBtn');if(_pb)_pb.onclick=function(){goTo('roadmaps');};
+
+document.querySelectorAll('.nav-links a').forEach(function(a) {
+  a.onclick = function(e) {
+    e.preventDefault();
+    goTo(this.getAttribute('href').replace('#',''));
+  };
+});
+
+// ── NAV SCROLL STATE ───────────────────────────────
+window.onscroll = function() {
+  document.getElementById('mainNav').classList.toggle('scrolled', window.scrollY > 60);
+};
+
+// ── REVEAL ANIMATIONS (progressive enhancement) ────
+// Only activate animations AFTER page is confirmed loaded
+// Content stays visible at all times — JS adds the fade-in effect
+window.addEventListener('load', function() {
+  // Mark body so CSS activates animation classes
+  document.body.classList.add('js-loaded');
+  // Immediately mark anything already in viewport as visible
+  function reveal() {
+    document.querySelectorAll('.reveal').forEach(function(el) {
+      if (el.getBoundingClientRect().top < window.innerHeight - 40) {
+        el.classList.add('on');
+      }
+    });
+  }
+  reveal();
+  window.addEventListener('scroll', reveal, { passive: true });
+});
+
+// ── ANALYTICS (privacy-friendly first-party beacon) ─
+function track(ev, meta) {
+  try {
+    var body = JSON.stringify({ ev: ev, path: location.pathname, ref: document.referrer, meta: meta || null });
+    if (navigator.sendBeacon) navigator.sendBeacon('/api/track', body);
+    else fetch('/api/track', { method: 'POST', body: body, keepalive: true });
+  } catch (e) {}
+}
+track('pageview');
+if('serviceWorker' in navigator){try{navigator.serviceWorker.register('/sw.js');}catch(e){}}
+
+// ── WAITLIST FORM (real capture via Netlify Forms) ──
+var wlForm = document.getElementById('wlForm');
+function encodeForm(data) {
+  return Object.keys(data).map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]); }).join('&');
+}
+wlForm.addEventListener('submit', function(e) {
+  e.preventDefault();
+  var emailEl = document.getElementById('wlEmail');
+  var val = emailEl.value.trim();
+  var at = val.indexOf('@');
+  if (!val || at < 1 || val.indexOf('.', at) === -1) {
+    emailEl.style.outline = '1px solid #f87171';
+    setTimeout(function(){ emailEl.style.outline = 'none'; }, 2000);
+    return;
+  }
+  var btn = document.getElementById('wlSubmit');
+  btn.disabled = true; btn.textContent = 'Joining…';
+  fetch('/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: encodeForm({ 'form-name': 'waitlist', email: val, source: document.getElementById('wlSource').value })
+  }).then(function() {
+    track('waitlist_signup', { source: 'landing' });
+    wlForm.innerHTML = '<div style="padding:18px 32px;font-family:Cormorant Garamond,serif;font-size:22px;color:#c9a84c;letter-spacing:1px">You’re on the list. ✦</div>';
+    document.getElementById('wlNote').textContent = 'Check your inbox — we’ll be in touch soon.';
+  }).catch(function() {
+    btn.disabled = false; btn.textContent = 'Join Now';
+    document.getElementById('wlNote').textContent = 'Something went wrong — please try again.';
+  });
+});
+</script>
+</body>
+</html>
