@@ -1,0 +1,70 @@
+# Flat layout — site files live at the repo root.
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+  SECRETS_SCAN_OMIT_PATHS = "app.js"
+
+# ── Scheduled: Daily Brief newsletter (13:00 UTC ≈ 8–9am ET) ──
+[functions."newsletter"]
+  schedule = "0 13 * * *"
+
+# ── Scheduled: price alerts (every 30 min) ──────────────────
+[functions."alerts"]
+  schedule = "*/30 * * * *"
+
+# ── Clean URLs ──────────────────────────────────────
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/platform"
+  to = "/platform.html"
+  status = 200
+
+[[redirects]]
+  from = "/hub"
+  to = "/hub.html"
+  status = 200
+
+[[redirects]]
+  from = "/centcom"
+  to = "/hub.html"
+  status = 200
+
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms"
+  to = "/terms.html"
+  status = 200
+
+[[redirects]]
+  from = "/contact"
+  to = "/contact.html"
+  status = 200
+
+# ── Service worker must never be cached (updates propagate fast) ──
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# ── Security headers ─────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(self), microphone=(), camera=(), payment=(self)"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    X-XSS-Protection = "1; mode=block"
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://api.anthropic.com https://api.coingecko.com https://finnhub.io https://www.alphavantage.co https://api.alternative.me https://site.api.espn.com https://api.the-odds-api.com https://api.resend.com; frame-src https://www.tiktok.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
