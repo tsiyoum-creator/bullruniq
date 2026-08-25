@@ -1,0 +1,12 @@
+{
+  "name": "bullruniq",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BullrunIQ — AI financial command center (Netlify functions)",
+  "scripts": {
+    "test": "node tests/auth.test.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

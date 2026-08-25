@@ -1,0 +1,12 @@
+# OS
+.DS_Store
+
+# Node / Netlify
+node_modules/
+.netlify/
+*.log
+
+# Secrets — never commit; these live in Netlify env vars
+.env
+.env.*
+!.env.example
