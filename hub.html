@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Centcom</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#050505">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505' stroke='%2322c55e' stroke-opacity='0.5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%2322c55e'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#090909;--s1:#111;--s2:#171717;--s3:#1e1e1e;
+  --bd:#1e1e1e;--bd2:#2a2a2a;
+  --tx:#f2f2f2;--t2:#999;--t3:#555;
+  --grn:#22c55e;--gn2:rgba(34,197,94,.18);
+  --gld:#f59e0b;--gd2:rgba(245,158,11,.18);
+  --blu:#3b82f6;--bl2:rgba(59,130,246,.18);
+  --pur:#a855f7;--pu2:rgba(168,85,247,.18);
+  --cyn:#06b6d4;--cy2:rgba(6,182,212,.18);
+  --pnk:#ec4899;--pk2:rgba(236,72,153,.18);
+  --red:#ef4444;--rd2:rgba(239,68,68,.18);
+  --ora:#f97316;--or2:rgba(249,115,22,.18);
+  --lim:#c8f135;--li2:rgba(200,241,53,.14);
+}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--tx);font-family:'Space Grotesk',sans-serif;display:flex;}
+
+/* ── AUTH ─────────────────────────────────────────────────── */
+.auth{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center;}
+.auth.hidden{display:none;}
+.auth-grid{position:absolute;inset:0;background-image:linear-gradient(var(--bd) 1px,transparent 1px),linear-gradient(90deg,var(--bd) 1px,transparent 1px);background-size:44px 44px;opacity:.5;}
+.auth-glow{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,.07),transparent 70%);top:50%;left:50%;transform:translate(-50%,-55%);}
+.auth-box{position:relative;z-index:1;width:340px;text-align:center;}
+.auth-icon{font-size:38px;margin-bottom:14px;}
+.auth-wordmark{font-size:24px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px;}
+.auth-sub{font-size:10px;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-bottom:28px;}
+.auth-form{display:flex;flex-direction:column;gap:10px;}
+.auth-inp{background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:13px 16px;color:var(--tx);font-size:14px;font-family:inherit;outline:none;text-align:center;letter-spacing:5px;}
+.auth-inp:focus{border-color:var(--grn);}
+.auth-btn{background:var(--grn);border:none;border-radius:8px;padding:13px;color:#000;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.5px;}
+.auth-btn:hover{background:#16a34a;}
+.auth-err{font-size:11px;color:var(--red);margin-top:6px;min-height:16px;}
+
+/* ── APP SHELL ────────────────────────────────────────────── */
+.app{display:none;width:100%;height:100%;}
+.app.visible{display:flex;}
+
+/* ── SIDEBAR ──────────────────────────────────────────────── */
+.sidebar{width:218px;min-width:218px;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow-y:auto;}
+.sb-logo{padding:16px;border-bottom:1px solid var(--bd);}
+.sb-logo-icon{font-size:22px;margin-bottom:6px;}
+.sb-logo-name{font-size:16px;font-weight:700;letter-spacing:-.3px;}
+.sb-logo-name em{color:var(--grn);font-style:normal;}
+.sb-logo-sub{font-size:9px;color:var(--t3);letter-spacing:1.8px;text-transform:uppercase;margin-top:2px;}
+.sb-lbl{font-size:9px;font-weight:700;color:var(--t3);letter-spacing:1.2px;text-transform:uppercase;padding:14px 16px 5px;font-family:'Space Mono',monospace;}
+.sb-nav{display:flex;flex-direction:column;gap:2px;padding:0 8px;}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:6px;border:none;background:transparent;color:var(--t2);font-size:12px;font-family:'Space Grotesk',sans-serif;cursor:pointer;text-align:left;width:100%;transition:.12s;}
+.nav-item:hover{background:var(--s2);color:var(--tx);}
+.nav-item.active{background:var(--s2);color:var(--tx);}
+.nav-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.nav-badge{margin-left:auto;font-size:10px;color:var(--t3);background:var(--s3);border-radius:4px;padding:1px 6px;font-family:'Space Mono',monospace;}
+.nav-badge.live{color:var(--grn);}
+.nav-badge.prog{color:var(--gld);}
+.nav-badge.paus{color:var(--red);}
+
+.sb-rev{margin:10px 8px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;}
+.sb-rev-row{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;}
+.sb-rev-kpi{display:flex;flex-direction:column;gap:2px;}
+.sb-rev-val{font-size:16px;font-weight:700;font-family:'Space Mono',monospace;}
+.sb-rev-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;}
+.sb-bar{height:4px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:4px;}
+.sb-bar-fill{height:4px;border-radius:4px;background:linear-gradient(90deg,var(--grn),var(--lim));transition:width .6s;}
+.sb-bar-pct{font-size:9px;color:var(--t3);}
+
+.sb-spacer{flex:1;}
+.sb-brief-btn{margin:6px 8px 0;width:calc(100%-16px);padding:9px 10px;background:var(--gd2);border:1px solid rgba(245,158,11,.3);border-radius:7px;color:var(--gld);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.sb-brief-btn:hover{background:rgba(245,158,11,.26);}
+.sb-new-btn{margin:5px 8px 0;width:calc(100%-16px);padding:9px 10px;background:var(--s2);border:1px solid var(--bd2);border-radius:7px;color:var(--tx);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.sb-new-btn:hover{background:var(--s3);}
+.sb-lock-btn{margin:4px 8px 12px;width:calc(100%-16px);padding:7px;background:transparent;border:1px solid var(--bd);border-radius:7px;color:var(--t3);font-size:10px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.sb-lock-btn:hover{color:var(--tx);border-color:var(--bd2);}
+
+/* ── MAIN ─────────────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* ── TOP BAR ──────────────────────────────────────────────── */
+.topbar{height:52px;background:var(--s1);border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;padding:0 18px;flex-shrink:0;}
+.srch-wrap{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:0 10px;width:240px;}
+.srch-icon{color:var(--t3);flex-shrink:0;}
+.srch-inp{background:transparent;border:none;outline:none;color:var(--tx);font-size:12px;font-family:inherit;width:100%;padding:8px 0;}
+.srch-inp::placeholder{color:var(--t3);}
+.srch-kbd{font-size:9px;color:var(--t3);background:var(--s3);border:1px solid var(--bd);border-radius:3px;padding:1px 5px;font-family:'Space Mono',monospace;}
+.tb-date{font-size:11px;color:var(--t3);font-family:'Space Mono',monospace;white-space:nowrap;}
+.focus-wrap{flex:1;display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:0 10px;}
+.focus-inp{background:transparent;border:none;outline:none;color:var(--tx);font-size:11px;font-family:inherit;width:100%;padding:8px 0;}
+.focus-inp::placeholder{color:var(--t3);}
+.focus-save{background:transparent;border:none;cursor:pointer;color:var(--grn);font-size:10px;font-weight:700;font-family:inherit;white-space:nowrap;}
+.kbd-hints{display:flex;gap:6px;flex-shrink:0;}
+.kbd-pill{font-size:9px;color:var(--t3);}
+.kbd-pill kbd{font-family:'Space Mono',monospace;background:var(--s3);border:1px solid var(--bd);border-radius:3px;padding:1px 4px;}
+
+/* ── SCROLL ───────────────────────────────────────────────── */
+.scroll{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:14px;}
+
+/* ── KPI STRIP ────────────────────────────────────────────── */
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.kpi-pill{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:12px 16px;}
+.kpi-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
+.kpi-val{font-size:19px;font-weight:700;font-family:'Space Mono',monospace;}
+.kpi-sub{font-size:10px;color:var(--t2);margin-top:3px;}
+
+/* ── BRIEF PANEL ──────────────────────────────────────────── */
+.brief-panel{background:var(--s1);border:1px solid rgba(245,158,11,.35);border-radius:10px;padding:16px;display:none;}
+.brief-panel.open{display:block;}
+.brief-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.brief-title{font-size:11px;font-weight:700;color:var(--gld);text-transform:uppercase;letter-spacing:1px;}
+.brief-close{background:transparent;border:none;color:var(--t3);font-size:16px;cursor:pointer;line-height:1;}
+.brief-close:hover{color:var(--tx);}
+.brief-body{font-size:12px;color:var(--t2);line-height:1.75;white-space:pre-wrap;}
+@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+.spin{display:inline-block;animation:spin .7s linear infinite;}
+
+/* ── BET TODAY ────────────────────────────────────────────── */
+.bet-today{display:flex;align-items:center;gap:16px;background:var(--s1);border:2px solid var(--gld);border-radius:10px;padding:14px 18px;text-decoration:none;color:inherit;transition:.15s;}
+.bet-today:hover{border-color:var(--lim);}
+.bet-icon{font-size:26px;flex-shrink:0;}
+.bet-info{flex:1;min-width:0;}
+.bet-tag{font-size:9px;font-weight:700;color:var(--gld);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;}
+.bet-event{font-size:13px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bet-pick{font-size:12px;color:var(--lim);font-weight:700;}
+.bet-right{text-align:right;flex-shrink:0;}
+.bet-conf{font-size:22px;font-weight:700;font-family:'Space Mono',monospace;}
+.bet-conf-lbl{font-size:9px;color:var(--t3);letter-spacing:.8px;text-transform:uppercase;}
+.bet-odds{font-size:11px;color:var(--t2);margin-top:2px;}
+.bet-strong-badge{font-size:9px;font-weight:700;color:var(--lim);background:var(--li2);border:1px solid rgba(200,241,53,.3);border-radius:4px;padding:2px 7px;margin-top:4px;display:inline-block;letter-spacing:.8px;}
+
+/* ── SEC LABEL ────────────────────────────────────────────── */
+.sec-lbl{font-size:9px;font-weight:700;color:var(--t3);letter-spacing:1.2px;text-transform:uppercase;font-family:'Space Mono',monospace;display:flex;align-items:center;gap:8px;}
+.sec-lbl::after{content:'';flex:1;height:1px;background:var(--bd);}
+
+/* ── PROJECT GRID ─────────────────────────────────────────── */
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;}
+.pcard{background:var(--s1);border:1px solid var(--bd);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:.15s;position:relative;}
+.pcard:hover{border-color:var(--bd2);transform:translateY(-2px);box-shadow:0 10px 40px rgba(0,0,0,.45);}
+.pcard.dragging{opacity:.45;border-style:dashed;}
+.pcard.drag-over{border-color:var(--grn);}
+.drag-handle{position:absolute;top:10px;right:10px;opacity:0;color:var(--t3);cursor:grab;font-size:12px;transition:.12s;z-index:2;}
+.pcard:hover .drag-handle{opacity:1;}
+.card-accent{height:3px;}
+.card-body{padding:13px 14px;flex:1;display:flex;flex-direction:column;gap:7px;}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+.card-title{font-size:14px;font-weight:700;letter-spacing:-.2px;}
+.card-cat{font-size:10px;color:var(--t3);margin-top:1px;}
+.status-badge{font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;cursor:pointer;letter-spacing:.4px;flex-shrink:0;}
+.badge-live{background:var(--gn2);color:var(--grn);}
+.badge-progress{background:var(--gd2);color:var(--gld);}
+.badge-paused{background:var(--rd2);color:var(--red);}
+.card-url{font-size:10px;}
+.card-url a{color:var(--t3);text-decoration:none;}
+.card-url a:hover{color:var(--tx);}
+.card-live{display:flex;gap:8px;flex-wrap:wrap;}
+.live-stat{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:5px 9px;flex:1;min-width:80px;}
+.ls-val{font-size:12px;font-weight:700;font-family:'Space Mono',monospace;}
+.ls-lbl{font-size:8px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-top:1px;}
+.card-notes{font-size:11px;color:var(--t2);line-height:1.5;flex:1;}
+.card-notes.empty{color:var(--t3);font-style:italic;}
+.card-rev{}.card-rev-row{display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:3px;}
+.card-rev-bar{height:3px;background:var(--s2);border-radius:3px;overflow:hidden;}
+.card-rev-fill{height:3px;border-radius:3px;transition:width .6s;}
+.deadline-pill{display:inline-block;font-size:9px;font-weight:600;padding:2px 7px;border-radius:4px;}
+.dl-overdue{background:var(--rd2);color:var(--red);}
+.dl-urgent{background:var(--gd2);color:var(--gld);}
+.dl-soon{background:var(--bl2);color:var(--blu);}
+.dl-ok{background:var(--s2);color:var(--t2);}
+.card-foot{display:flex;align-items:center;justify-content:space-between;padding-top:9px;border-top:1px solid var(--bd);margin-top:auto;}
+.open-btn{font-size:10px;font-weight:600;padding:5px 11px;border-radius:6px;border:1px solid var(--bd);color:var(--t2);background:var(--s2);text-decoration:none;transition:.12s;}
+.open-btn:hover{color:var(--tx);border-color:var(--bd2);}
+.no-url-txt{font-size:10px;color:var(--t3);}
+.card-ts{font-size:9px;color:var(--t3);}
+.card-edit-btn{background:transparent;border:none;color:var(--t3);cursor:pointer;padding:4px;border-radius:5px;font-size:14px;transition:.12s;line-height:1;}
+.card-edit-btn:hover{color:var(--tx);background:var(--s2);}
+
+/* ── EMPTY ────────────────────────────────────────────────── */
+.empty-state{display:none;text-align:center;padding:60px 20px;color:var(--t3);}
+.empty-state.show{display:block;}
+.empty-icon{font-size:32px;margin-bottom:10px;}
+
+/* ── ACTIVITY ─────────────────────────────────────────────── */
+.activity{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:14px;}
+.act-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+.act-pulse{width:6px;height:6px;border-radius:50%;background:var(--grn);animation:blink 2s ease-in-out infinite;flex-shrink:0;}
+.act-ttl{font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:1px;}
+.act-clear{margin-left:auto;font-size:10px;color:var(--t3);background:transparent;border:none;cursor:pointer;font-family:inherit;}
+.act-clear:hover{color:var(--tx);}
+.act-list{display:flex;flex-direction:column;gap:6px;}
+.act-row{display:flex;align-items:center;gap:8px;}
+.act-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.act-text{font-size:11px;color:var(--t2);flex:1;}
+.act-ts{font-size:9px;color:var(--t3);white-space:nowrap;font-family:'Space Mono',monospace;}
+.act-empty{font-size:11px;color:var(--t3);padding:8px 0;}
+
+/* ── MODAL ────────────────────────────────────────────────── */
+.modal-bg{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal-box{background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:480px;max-width:94vw;max-height:90vh;overflow-y:auto;}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--bd);}
+.modal-title{font-size:15px;font-weight:700;}
+.modal-close{background:transparent;border:none;color:var(--t3);font-size:18px;cursor:pointer;line-height:1;}
+.modal-close:hover{color:var(--tx);}
+.modal-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;}
+.field input,.field select,.field textarea{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:9px 12px;color:var(--tx);font-size:12px;font-family:inherit;outline:none;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--bd2);}
+.field textarea{resize:vertical;min-height:68px;}
+.field-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.color-row{display:flex;gap:6px;flex-wrap:wrap;}
+.color-sw{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:.12s;}
+.color-sw.active{border-color:#fff;transform:scale(1.2);}
+.modal-ft{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--bd);}
+.btn{padding:8px 16px;border-radius:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;}
+.btn-grn{background:var(--grn);color:#000;}
+.btn-grn:hover{background:#16a34a;}
+.btn-ghost{background:var(--s2);color:var(--t2);border:1px solid var(--bd);}
+.btn-ghost:hover{color:var(--tx);}
+.btn-red{background:var(--rd2);color:var(--red);border:1px solid rgba(239,68,68,.3);}
+.btn-red:hover{background:rgba(239,68,68,.25);}
+.ml-auto{margin-left:auto;}
+
+@media(max-width:680px){
+  .sidebar{display:none;}
+  .kpi-strip{grid-template-columns:1fr 1fr;}
+  .proj-grid{grid-template-columns:1fr;}
+  .field-2{grid-template-columns:1fr;}
+  .topbar{padding:0 12px;gap:8px;}
+  .srch-wrap{width:160px;}
+  .focus-wrap{display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ AUTH ══════════ -->
+<div class="auth" id="authScreen">
+  <div class="auth-grid"></div>
+  <div class="auth-glow"></div>
+  <div class="auth-box">
+    <div class="auth-icon">⚡</div>
+    <div class="auth-wordmark">COMMAND CENTCOM</div>
+    <div class="auth-sub">Authorized Access Only</div>
+    <form class="auth-form" id="authForm">
+      <input type="password" class="auth-inp" id="authInp" placeholder="••••••••••" autocomplete="current-password">
+      <button type="submit" class="auth-btn">Unlock System</button>
+    </form>
+    <p class="auth-err" id="authErr"></p>
+  </div>
+</div>
+
+<!-- ══════════ APP ══════════ -->
+<div class="app" id="appEl">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-icon">⚡</div>
+      <div class="sb-logo-name">CENT<em>COM</em></div>
+      <div class="sb-logo-sub">Command Center</div>
+    </div>
+
+    <div class="sb-lbl">Views</div>
+    <nav class="sb-nav" id="sbNav">
+      <button class="nav-item active" data-filter="all">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+        All Projects <span class="nav-badge" id="nbAll">0</span>
+      </button>
+      <button class="nav-item" data-filter="live">
+        <span class="nav-dot" style="background:var(--grn)"></span>
+        Live <span class="nav-badge live" id="nbLive">0</span>
+      </button>
+      <button class="nav-item" data-filter="progress">
+        <span class="nav-dot" style="background:var(--gld)"></span>
+        In Progress <span class="nav-badge prog" id="nbProg">0</span>
+      </button>
+      <button class="nav-item" data-filter="paused">
+        <span class="nav-dot" style="background:var(--red)"></span>
+        Paused <span class="nav-badge paus" id="nbPaused">0</span>
+      </button>
+    </nav>
+
+    <div class="sb-lbl">Revenue</div>
+    <div class="sb-rev">
+      <div class="sb-rev-row">
+        <div class="sb-rev-kpi">
+          <div class="sb-rev-val" id="sbEarned" style="color:var(--grn)">$0</div>
+          <div class="sb-rev-lbl">Earned</div>
+        </div>
+        <div class="sb-rev-kpi" style="text-align:right">
+          <div class="sb-rev-val" id="sbGoal" style="color:var(--t3)">$0</div>
+          <div class="sb-rev-lbl">Goal</div>
+        </div>
+      </div>
+      <div class="sb-bar"><div class="sb-bar-fill" id="sbBar" style="width:0%"></div></div>
+      <div class="sb-bar-pct" id="sbPct">No goal set</div>
+    </div>
+
+    <div class="sb-spacer"></div>
+
+    <button class="sb-brief-btn" id="briefBtn">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>
+      AI Morning Briefing
+    </button>
+    <button class="sb-new-btn" id="addBtn">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      New Project
+    </button>
+    <button class="sb-lock-btn" id="lockBtn">
+      <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+      Lock Session
+    </button>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="srch-wrap">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" class="srch-icon"><path d="M15.5 14h-.79l-.28-.27A6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 5L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" class="srch-inp" id="srchInp" placeholder="Search projects…">
+        <span class="srch-kbd">/</span>
+      </div>
+      <span class="tb-date" id="tbDate"></span>
+      <div class="focus-wrap">
+        <input type="text" class="focus-inp" id="focusInp" placeholder="Today's #1 priority…" maxlength="120">
+        <button class="focus-save" id="focusSave">Set</button>
+      </div>
+      <div class="kbd-hints">
+        <span class="kbd-pill"><kbd>N</kbd> New</span>
+        <span class="kbd-pill"><kbd>L</kbd> Lock</span>
+      </div>
+    </header>
+
+    <!-- SCROLL AREA -->
+    <div class="scroll">
+
+      <!-- KPI STRIP -->
+      <div class="kpi-strip">
+        <div class="kpi-pill">
+          <div class="kpi-lbl">Portfolio</div>
+          <div class="kpi-val" style="color:var(--grn)" id="kpiPort">$—</div>
+          <div class="kpi-sub" id="kpiPortSub">— assets</div>
+        </div>
+        <div class="kpi-pill">
+          <div class="kpi-lbl">Best Bet Record</div>
+          <div class="kpi-val" style="color:var(--gld)" id="kpiBet">—</div>
+          <div class="kpi-sub" id="kpiBetSub">— win rate</div>
+        </div>
+        <div class="kpi-pill">
+          <div class="kpi-lbl">Lead Pipeline</div>
+          <div class="kpi-val" style="color:var(--blu)" id="kpiPipe">$0</div>
+          <div class="kpi-sub" id="kpiPipeSub">— active leads</div>
+        </div>
+        <div class="kpi-pill">
+          <div class="kpi-lbl">Bot P&amp;L</div>
+          <div class="kpi-val" id="kpiBot">$0</div>
+          <div class="kpi-sub" id="kpiBotSub">— positions</div>
+        </div>
+      </div>
+
+      <!-- AI BRIEFING PANEL -->
+      <div class="brief-panel" id="briefPanel">
+        <div class="brief-hd">
+          <div class="brief-title">⚡ AI Morning Briefing</div>
+          <button class="brief-close" id="briefClose">✕</button>
+        </div>
+        <div class="brief-body" id="briefBody"></div>
+      </div>
+
+      <!-- TODAY'S BEST BET -->
+      <div id="betWrap"></div>
+
+      <!-- PROJECT GRID -->
+      <div class="sec-lbl" id="secLabel">Projects</div>
+      <div class="proj-grid" id="projGrid"></div>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">◈</div>
+        <div style="font-size:13px">No projects match this filter</div>
+      </div>
+
+      <!-- ACTIVITY LOG -->
+      <div class="activity">
+        <div class="act-head">
+          <div class="act-pulse"></div>
+          <div class="act-ttl">Wins &amp; Activity</div>
+          <button class="act-clear" id="actClear">Clear all</button>
+        </div>
+        <div class="act-list" id="actList"></div>
+      </div>
+
+    </div><!-- /scroll -->
+  </main>
+</div><!-- /app -->
+
+<!-- ══════════ MODAL ══════════ -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal-box">
+    <div class="modal-hd">
+      <div class="modal-title" id="modalTitle">New Project</div>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Project Name</label><input type="text" id="mName" placeholder="e.g. My Platform"></div>
+      <div class="field"><label>Live URL</label><input type="url" id="mUrl" placeholder="https://…"></div>
+      <div class="field-2">
+        <div class="field"><label>Status</label>
+          <select id="mStatus"><option value="live">Live</option><option value="progress" selected>In Progress</option><option value="paused">Paused</option></select>
+        </div>
+        <div class="field"><label>Deadline</label><input type="date" id="mDeadline"></div>
+      </div>
+      <div class="field"><label>Category</label><input type="text" id="mCat" placeholder="Finance, Music, Real Estate…"></div>
+      <div class="field"><label>Client / Team</label><input type="text" id="mClient" placeholder="Solo, Hotblock Jmoe…"></div>
+      <div class="field-2">
+        <div class="field"><label>Revenue Goal ($)</label><input type="number" id="mGoal" placeholder="0" min="0"></div>
+        <div class="field"><label>Current Revenue ($)</label><input type="number" id="mCurr" placeholder="0" min="0"></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea id="mNotes" rows="3" placeholder="Tasks, milestones, ideas…"></textarea></div>
+      <div class="field"><label>Accent Color</label>
+        <div class="color-row" id="colorRow">
+          <button class="color-sw" data-color="#C04825" style="background:#C04825"></button>
+          <button class="color-sw" data-color="#22c55e" style="background:#22c55e"></button>
+          <button class="color-sw" data-color="#1ED760" style="background:#1ED760"></button>
+          <button class="color-sw" data-color="#3b82f6" style="background:#3b82f6"></button>
+          <button class="color-sw" data-color="#a855f7" style="background:#a855f7"></button>
+          <button class="color-sw" data-color="#f59e0b" style="background:#f59e0b"></button>
+          <button class="color-sw" data-color="#ec4899" style="background:#ec4899"></button>
+          <button class="color-sw" data-color="#06b6d4" style="background:#06b6d4"></button>
+          <button class="color-sw" data-color="#f97316" style="background:#f97316"></button>
+          <button class="color-sw" data-color="#c8f135" style="background:#c8f135"></button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-red" id="modalDel" style="display:none">Delete</button>
+      <button class="btn btn-ghost ml-auto" id="modalCancel">Cancel</button>
+      <button class="btn btn-grn" id="modalSave">Save Project</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Constants ──────────────────────────────────────────── */
+var PASS_HASH='4ba14fa4812ebe6143c54a24894170d09a9fa31cace4f5382ab29718e9e25b3a';
+var STORE_KEY='cc_projects_v4';
+var AUTH_KEY='cc_authed';
+var ACT_KEY='cc_activity';
+var FOCUS_KEY='cc_focus';
+
+/* ── Default projects ───────────────────────────────────── */
+var DEFAULTS=[
+  {id:'bullruniq',name:'BULLRUNIQ',category:'Finance / Investments',
+   url:'https://www.bullruniq.com/platform.html',status:'live',client:'',
+   notes:'Full financial platform — portfolio tracker, AI Council, Best Bet 7-agent model, Long Term picks, Charts, Watchlist.',
+   color:'#C04825',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},
+  {id:'best-bet',name:'BEST BET MODEL',category:'Sports / AI Prediction',
+   url:'https://www.bullruniq.com/platform.html',status:'live',client:'',
+   notes:'7-agent council: QUANT · TRENDS · SHARP · SITUATIONAL · PUBLIC · LINE MOV · EV CALC. EV Veto + 4-agent minimum before any pick fires.',
+   color:'#f59e0b',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},
+  {id:'iwill',name:'IWILL CHALLENGE',category:'Music / TikTok',
+   url:'https://iwillchallenge.com',status:'live',client:'Hotblock Jmoe ft. Jacquees',
+   notes:'#IWill TikTok challenge — $500 × 5 winners. Firebase live. Globe participation map active.',
+   color:'#1ED760',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},
+  {id:'riley-kane',name:'RILEY KANE',category:'Artist / Music',
+   url:'https://rileykanemusic.com',status:'live',client:'Riley Kane',
+   notes:'Official artist site — music, releases, tour dates, management tools.',
+   color:'#ec4899',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},
+  {id:'velcro-records',name:'VELCRO RECORDS',category:'Music / Label',
+   url:'',status:'live',client:'',
+   notes:'Record label — artists, releases, distribution. Add live URL when ready.',
+   color:'#a855f7',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},
+  {id:'lead-tracker',name:'LEAD TRACKER',category:'CRM / Sales',
+   url:'',status:'progress',client:'',
+   notes:'Lead management CRM — contacts, pipeline stages, follow-up tracking, revenue reporting.',
+   color:'#3b82f6',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},
+  {id:'land-platform',name:'LAND PLATFORM',category:'Real Estate',
+   url:'',status:'progress',client:'',
+   notes:'Land acquisition platform — 20 pre-scored counties, deal tracker, ROI calculator, direct mail generator.',
+   color:'#22c55e',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},
+  {id:'trading-bot',name:'TRADING BOT',category:'Finance / Automation',
+   url:'',status:'progress',client:'',
+   notes:'Automated trading system — strategy, momentum screener, options signals. Paper trading first.',
+   color:'#f97316',deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()}
+];
+
+var STALE=new Set(['Add URL and client info.','Add URL and details.','Add market, strategy notes, and deployment URL.','Financial investments platform.']);
+
+/* ── Helpers ────────────────────────────────────────────── */
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function fmtD(n){n=Number(n)||0;if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return'$'+(n/1e3).toFixed(1)+'K';return'$'+n.toLocaleString('en-US');}
+function timeAgo(ts){var d=Date.now()-ts,m=Math.floor(d/6e4),h=Math.floor(d/36e5),dy=Math.floor(d/864e5);if(m<1)return'just now';if(m<60)return m+'m ago';if(h<24)return h+'h ago';if(dy<7)return dy+'d ago';return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+function todayStr(){return new Date().toISOString().split('T')[0];}
+
+/* ── SHA-256 ────────────────────────────────────────────── */
+async function sha256(s){var b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join('');}
+
+/* ── Auth ───────────────────────────────────────────────── */
+var $auth=document.getElementById('authScreen');
+var $app=document.getElementById('appEl');
+
+document.getElementById('authForm').addEventListener('submit',async function(e){
+  e.preventDefault();
+  var h=await sha256(document.getElementById('authInp').value);
+  if(h===PASS_HASH){unlock();}
+  else{document.getElementById('authErr').textContent='Incorrect password.';document.getElementById('authInp').value='';}
+});
+
+function unlock(){
+  $auth.classList.add('hidden');$app.classList.add('visible');
+  sessionStorage.setItem(AUTH_KEY,'1');
+  migrate();
+  document.getElementById('tbDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+  document.getElementById('focusInp').value=localStorage.getItem(FOCUS_KEY)||'';
+  loadKPIs();renderBetToday();renderAll();
+}
+
+function lock(){
+  sessionStorage.removeItem(AUTH_KEY);
+  $auth.classList.remove('hidden');$app.classList.remove('visible');
+  document.getElementById('authInp').value='';document.getElementById('authErr').textContent='';
+}
+
+document.getElementById('lockBtn').addEventListener('click',lock);
+if(sessionStorage.getItem(AUTH_KEY))unlock();
+
+/* ── Migration ──────────────────────────────────────────── */
+function migrate(){
+  if(localStorage.getItem(STORE_KEY))return;
+  var v3=localStorage.getItem('cc_projects_v3');
+  if(v3){
+    try{
+      var old=JSON.parse(v3);
+      var next=old.map(function(p){
+        var def=DEFAULTS.find(function(d){return d.id===p.id;});
+        return Object.assign({deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},p,{
+          url:p.url||(def?def.url:''),
+          notes:STALE.has(p.notes)?(def?def.notes:p.notes):p.notes
+        });
+      });
+      DEFAULTS.forEach(function(d){if(!next.find(function(p){return p.id===d.id;}))next.push(Object.assign({},d));});
+      localStorage.setItem(STORE_KEY,JSON.stringify(next));return;
+    }catch(e){}
+  }
+  ['cc_projects_v2','cc_projects'].forEach(function(k){
+    if(localStorage.getItem(STORE_KEY))return;
+    try{var r=localStorage.getItem(k);if(r){var o=JSON.parse(r);localStorage.setItem(STORE_KEY,JSON.stringify(o.map(function(p){return Object.assign({deadline:'',goalAmount:0,currentAmount:0,updatedAt:Date.now()},p);})));}}catch(e){}
+  });
+}
+
+/* ── Data ───────────────────────────────────────────────── */
+function getProjects(){try{var r=localStorage.getItem(STORE_KEY);return r?JSON.parse(r):DEFAULTS.map(function(d){return Object.assign({},d);});}catch(e){return DEFAULTS.map(function(d){return Object.assign({},d);});}}
+function setProjects(list){localStorage.setItem(STORE_KEY,JSON.stringify(list));}
+
+/* ── Live KPIs from platform.html's storage ─────────────── */
+function loadKPIs(){
+  // Portfolio
+  try{
+    var p=JSON.parse(localStorage.getItem('briq-p')||'[]');
+    var pr=JSON.parse(localStorage.getItem('briq-pr')||'{}');
+    if(p.length){
+      var tot=p.reduce(function(s,a){return s+((pr[a.id]||a.avgPrice||0)*(a.amount||0));},0);
+      document.getElementById('kpiPort').textContent=tot>0?'$'+Math.round(tot).toLocaleString('en-US'):'$—';
+      document.getElementById('kpiPortSub').textContent=p.length+' assets';
+    }
+  }catch(e){}
+  // Best Bet
+  try{
+    var ph=JSON.parse(localStorage.getItem('briq-ph')||'[]');
+    var grd=ph.filter(function(x){return x.outcome==='W'||x.outcome==='L';});
+    if(grd.length){
+      var w=grd.filter(function(x){return x.outcome==='W';}).length;
+      var wr=Math.round(w/grd.length*100);
+      document.getElementById('kpiBet').textContent=w+'W–'+(grd.length-w)+'L';
+      document.getElementById('kpiBet').style.color=wr>=55?'var(--grn)':wr>=50?'var(--gld)':'var(--red)';
+      document.getElementById('kpiBetSub').textContent=wr+'% win rate';
+    }
+  }catch(e){}
+  // Pipeline
+  try{
+    var leads=JSON.parse(localStorage.getItem('lt_leads')||'[]');
+    var active=leads.filter(function(l){return l.stage!=='won'&&l.stage!=='lost';});
+    var pipe=active.reduce(function(s,l){return s+(parseFloat(l.value)||0);},0);
+    document.getElementById('kpiPipe').textContent='$'+Math.round(pipe).toLocaleString('en-US');
+    document.getElementById('kpiPipeSub').textContent=active.length+' active leads';
+  }catch(e){}
+  // Bot
+  try{
+    var bot=JSON.parse(localStorage.getItem('tb_stats')||'{}');
+    var pnl=bot.totalPnl||0;
+    document.getElementById('kpiBot').textContent=(pnl>=0?'+$':'-$')+Math.abs(Math.round(pnl)).toLocaleString('en-US');
+    document.getElementById('kpiBot').style.color=pnl>=0?'var(--grn)':'var(--red)';
+    document.getElementById('kpiBotSub').textContent=(bot.positions||[]).length+' positions';
+  }catch(e){}
+}
+
+/* ── Live stats injected per card ───────────────────────── */
+function cardLiveStats(id){
+  try{
+    if(id==='bullruniq'){
+      var p=JSON.parse(localStorage.getItem('briq-p')||'[]');
+      var pr=JSON.parse(localStorage.getItem('briq-pr')||'{}');
+      if(!p.length)return[];
+      var tot=p.reduce(function(s,a){return s+((pr[a.id]||a.avgPrice||0)*(a.amount||0));},0);
+      return tot>0?[{v:'$'+Math.round(tot).toLocaleString('en-US'),l:'Portfolio',c:'var(--grn)'},{v:p.length+'',l:'Assets',c:'var(--t2)'}]:[];
+    }
+    if(id==='best-bet'){
+      var ph=JSON.parse(localStorage.getItem('briq-ph')||'[]');
+      var grd=ph.filter(function(x){return x.outcome==='W'||x.outcome==='L';});
+      if(!grd.length)return[];
+      var w=grd.filter(function(x){return x.outcome==='W';}).length;
+      var wr=Math.round(w/grd.length*100);
+      return[{v:w+'W–'+(grd.length-w)+'L',l:'Record',c:wr>=55?'var(--grn)':'var(--gld)'},{v:wr+'%',l:'Win Rate',c:wr>=55?'var(--grn)':'var(--gld)'}];
+    }
+    if(id==='lead-tracker'){
+      var leads=JSON.parse(localStorage.getItem('lt_leads')||'[]');
+      var act=leads.filter(function(l){return l.stage!=='won'&&l.stage!=='lost';});
+      var pipe=act.reduce(function(s,l){return s+(parseFloat(l.value)||0);},0);
+      return[{v:act.length+'',l:'Active Leads',c:'var(--blu)'},{v:'$'+Math.round(pipe).toLocaleString(),l:'Pipeline',c:'var(--blu)'}];
+    }
+    if(id==='land-platform'){
+      var d=JSON.parse(localStorage.getItem('lp_deals')||'[]');
+      return d.length?[{v:d.length+'',l:'Active Deals',c:'var(--grn)'}]:[];
+    }
+    if(id==='riley-kane'){
+      var rk=JSON.parse(localStorage.getItem('rk_data')||'{}');
+      var pit=(rk.pressOutreach||[]).filter(function(x){return x.status!=='not_sent';}).length;
+      var syn=(rk.syncPipeline||[]).filter(function(x){return x.stage==='placed';}).length;
+      return[{v:pit+'',l:'Pitches',c:'var(--pnk)'},{v:syn+'',l:'Syncs',c:'var(--pur)'}];
+    }
+    if(id==='trading-bot'){
+      var bot=JSON.parse(localStorage.getItem('tb_stats')||'{}');
+      var pnl=bot.totalPnl||0;
+      return[{v:(pnl>=0?'+$':'-$')+Math.abs(Math.round(pnl)).toLocaleString(),l:'Paper P&L',c:pnl>=0?'var(--grn)':'var(--red)'},{v:(bot.positions||[]).length+'',l:'Positions',c:'var(--ora)'}];
+    }
+  }catch(e){}
+  return[];
+}
+
+/* ── Today's Best Bet ───────────────────────────────────── */
+function renderBetToday(){
+  var wrap=document.getElementById('betWrap');
+  try{
+    var raw=JSON.parse(localStorage.getItem('briq-bet')||'null');
+    if(!raw||raw.loading||!raw.data||raw.data.verdict==='NO_BET'||raw.fetchedAt!==todayStr()){wrap.innerHTML='';return;}
+    var d=raw.data;
+    var isStrong=d.verdict==='STRONG_PICK';
+    var cc=d.confidence>=80?'var(--grn)':d.confidence>=65?'var(--gld)':'var(--t2)';
+    wrap.innerHTML='<a class="bet-today" href="https://www.bullruniq.com/platform.html" target="_blank" rel="noopener"'
+      +' style="border-color:'+(isStrong?'var(--lim)':'var(--gld)')+';background:'+(isStrong?'rgba(200,241,53,.04)':'var(--s1)')+'">'
+      +'<div class="bet-icon">🎯</div>'
+      +'<div class="bet-info">'
+        +'<div class="bet-tag">Today\'s Best Bet'+(isStrong?' · STRONG PICK':'')+'</div>'
+        +'<div class="bet-event">'+esc(d.event||'')+'</div>'
+        +'<div class="bet-pick">'+esc(d.pick||'')+'</div>'
+        +'<div style="font-size:9px;color:var(--t3);margin-top:3px">'+esc(d.sport||'')+' · '+esc(d.agreement||'')+'</div>'
+      +'</div>'
+      +'<div class="bet-right">'
+        +'<div class="bet-conf" style="color:'+cc+'">'+d.confidence+'%</div>'
+        +'<div class="bet-conf-lbl">Confidence</div>'
+        +'<div class="bet-odds">'+esc(d.odds||'')+'</div>'
+        +(isStrong?'<div class="bet-strong-badge">★ STRONG</div>':'')
+      +'</div>'
+      +'</a>';
+  }catch(e){wrap.innerHTML='';}
+}
+
+/* ── AI Morning Briefing ────────────────────────────────── */
+document.getElementById('briefBtn').addEventListener('click',async function(){
+  var panel=document.getElementById('briefPanel');
+  var body=document.getElementById('briefBody');
+  panel.classList.add('open');
+  body.innerHTML='<span class="spin">◎</span> Generating your briefing…';
+  try{
+    var cfg=JSON.parse(localStorage.getItem('briq-cfg')||'{}');
+    if(!cfg.ak){body.textContent='Add your Anthropic API key in BullRunIQ → Settings to use AI briefings.';return;}
+    // Gather data snapshot
+    var port=JSON.parse(localStorage.getItem('briq-p')||'[]');
+    var prices=JSON.parse(localStorage.getItem('briq-pr')||'{}');
+    var ph=JSON.parse(localStorage.getItem('briq-ph')||'[]');
+    var betRaw=JSON.parse(localStorage.getItem('briq-bet')||'null');
+    var leads=JSON.parse(localStorage.getItem('lt_leads')||'[]');
+    var rk=JSON.parse(localStorage.getItem('rk_data')||'{}');
+    var bot=JSON.parse(localStorage.getItem('tb_stats')||'{}');
+    var projects=getProjects();
+    var portVal=port.reduce(function(s,a){return s+((prices[a.id]||a.avgPrice||0)*(a.amount||0));},0);
+    var grd=ph.filter(function(x){return x.outcome==='W'||x.outcome==='L';});
+    var bWins=grd.filter(function(x){return x.outcome==='W';}).length;
+    var betStr=grd.length?bWins+'W-'+(grd.length-bWins)+'L ('+Math.round(bWins/grd.length*100)+'% win rate)':'No graded picks';
+    var lastPick=(betRaw&&betRaw.data&&betRaw.data.verdict!=='NO_BET'&&betRaw.fetchedAt===todayStr())?'TODAY: '+betRaw.data.event+' → '+betRaw.data.pick+' ('+betRaw.data.odds+', '+betRaw.data.confidence+'% conf)':'No active pick today';
+    var actLeads=leads.filter(function(l){return l.stage!=='won'&&l.stage!=='lost';});
+    var pipe=actLeads.reduce(function(s,l){return s+(parseFloat(l.value)||0);},0);
+    var botPnl=bot.totalPnl||0;
+    var snapshot='Portfolio: $'+Math.round(portVal).toLocaleString()+' ('+port.length+' assets)\n'
+      +'Best Bet: '+betStr+'\n'
+      +'Best Bet Last Pick: '+lastPick+'\n'
+      +'Lead Pipeline: '+actLeads.length+' active leads ($'+Math.round(pipe).toLocaleString()+')\n'
+      +'Riley Kane — Pitches: '+((rk.pressOutreach||[]).filter(function(x){return x.status!=='not_sent';}).length)+', Syncs Placed: '+((rk.syncPipeline||[]).filter(function(x){return x.stage==='placed';}).length)+'\n'
+      +'Trading Bot Paper P&L: $'+Math.round(botPnl).toLocaleString()+'\n'
+      +'Live Projects: '+projects.filter(function(p){return p.status==='live';}).map(function(p){return p.name;}).join(', ')+'\n'
+      +'In Progress: '+projects.filter(function(p){return p.status==='progress';}).map(function(p){return p.name;}).join(', ');
+    var aiBody={
+      model:'claude-sonnet-4-6',max_tokens:450,
+      messages:[{role:'user',content:'You are the Command Centcom briefing system for a serial entrepreneur. Generate a sharp, direct morning briefing. Format: 5-6 bullet points. Each bullet: emoji + bold category name + 1 concrete sentence. Call out wins, flag anything needing attention, end with one motivating priority for today. Under 220 words.\n\nData snapshot:\n'+snapshot+'\n\nToday: '+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}]
+    };
+    var res=cfg.ak
+      ? await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':cfg.ak,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(aiBody)})
+      : await fetch('/api/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(aiBody)});
+    var j=await res.json();
+    body.textContent=j.content&&j.content[0]?j.content[0].text:'No response received.';
+  }catch(e){body.textContent='Error generating briefing: '+e.message;}
+});
+document.getElementById('briefClose').addEventListener('click',function(){document.getElementById('briefPanel').classList.remove('open');});
+
+/* ── Focus bar ──────────────────────────────────────────── */
+document.getElementById('focusSave').addEventListener('click',function(){
+  localStorage.setItem(FOCUS_KEY,document.getElementById('focusInp').value.trim());
+  var b=document.getElementById('focusSave');b.textContent='✓';setTimeout(function(){b.textContent='Set';},1200);
+});
+document.getElementById('focusInp').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('focusSave').click();});
+
+/* ── State ──────────────────────────────────────────────── */
+var activeFilter='all';
+var srchQ='';
+
+/* ── Render All ─────────────────────────────────────────── */
+function renderAll(){
+  var projects=getProjects();
+  renderSidebar(projects);
+  renderGrid(projects);
+  renderActivity();
+}
+
+/* ── Sidebar ────────────────────────────────────────────── */
+function renderSidebar(projects){
+  var live=projects.filter(function(p){return p.status==='live';}).length;
+  var prog=projects.filter(function(p){return p.status==='progress';}).length;
+  var paus=projects.filter(function(p){return p.status==='paused';}).length;
+  document.getElementById('nbAll').textContent=projects.length;
+  document.getElementById('nbLive').textContent=live;
+  document.getElementById('nbProg').textContent=prog;
+  document.getElementById('nbPaused').textContent=paus;
+  var earned=projects.reduce(function(s,p){return s+(Number(p.currentAmount)||0);},0);
+  var goal=projects.reduce(function(s,p){return s+(Number(p.goalAmount)||0);},0);
+  var pct=goal?Math.min(100,Math.round(earned/goal*100)):0;
+  document.getElementById('sbEarned').textContent=fmtD(earned);
+  document.getElementById('sbGoal').textContent=fmtD(goal);
+  document.getElementById('sbBar').style.width=pct+'%';
+  document.getElementById('sbPct').textContent=goal?pct+'% of goal':'No goal set';
+  document.getElementById('secLabel').textContent='Projects ('+live+' live)';
+}
+
+/* ── Deadline pill ──────────────────────────────────────── */
+function deadlinePill(ds){
+  if(!ds)return'';
+  var now=new Date();now.setHours(0,0,0,0);
+  var d=Math.round((new Date(ds+'T00:00:00')-now)/86400000);
+  if(d<0)return'<span class="deadline-pill dl-overdue">⚠ '+Math.abs(d)+'d overdue</span>';
+  if(d===0)return'<span class="deadline-pill dl-urgent">Due today</span>';
+  if(d<=3)return'<span class="deadline-pill dl-urgent">'+d+'d left</span>';
+  if(d<=10)return'<span class="deadline-pill dl-soon">'+d+'d left</span>';
+  return'<span class="deadline-pill dl-ok">'+d+'d left</span>';
+}
+
+/* ── Grid ───────────────────────────────────────────────── */
+var STAT_LABELS={live:'● LIVE',progress:'◑ IN PROGRESS',paused:'○ PAUSED'};
+var STAT_CYCLE={live:'progress',progress:'paused',paused:'live'};
+var BADGE_CLS={live:'badge-live',progress:'badge-progress',paused:'badge-paused'};
+
+function renderGrid(projects){
+  var grid=document.getElementById('projGrid');
+  var empty=document.getElementById('emptyState');
+  var q=srchQ.toLowerCase();
+  var filtered=projects;
+  if(activeFilter!=='all')filtered=filtered.filter(function(p){return p.status===activeFilter;});
+  if(q)filtered=filtered.filter(function(p){return(p.name+' '+p.category+' '+p.client+' '+p.notes).toLowerCase().indexOf(q)!==-1;});
+  grid.innerHTML='';
+  if(!filtered.length){empty.classList.add('show');return;}
+  empty.classList.remove('show');
+
+  filtered.forEach(function(p){
+    var card=document.createElement('div');
+    card.className='pcard';card.draggable=true;card.dataset.id=p.id;
+    var goal=Number(p.goalAmount)||0,curr=Number(p.currentAmount)||0;
+    var pct=goal?Math.min(100,Math.round(curr/goal*100)):0;
+    var revClr=pct>=80?'var(--grn)':pct>=40?'var(--gld)':'#C04825';
+    var ua=p.updatedAt?timeAgo(p.updatedAt):'';
+    var stats=cardLiveStats(p.id);
+    card.innerHTML=
+      '<div class="card-accent" style="background:'+p.color+'"></div>'
+      +'<div class="drag-handle" title="Drag to reorder">⠿</div>'
+      +'<div class="card-body">'
+        +'<div class="card-head">'
+          +'<div><div class="card-title">'+esc(p.name)+'</div><div class="card-cat">'+esc(p.category||'—')+'</div></div>'
+          +'<span class="status-badge '+BADGE_CLS[p.status]+'" data-id="'+p.id+'">'+STAT_LABELS[p.status]+'</span>'
+        +'</div>'
+        +(p.deadline?deadlinePill(p.deadline):'')
+        +(p.url?'<div class="card-url"><a href="'+esc(p.url)+'" target="_blank" rel="noopener">'+esc(p.url.replace(/https?:\/\//,''))+'</a></div>':'')
+        +(stats.length?'<div class="card-live">'+stats.map(function(s){return'<div class="live-stat"><div class="ls-val" style="color:'+s.c+'">'+esc(s.v)+'</div><div class="ls-lbl">'+esc(s.l)+'</div></div>';}).join('')+'</div>':'')
+        +(p.notes?'<div class="card-notes">'+esc(p.notes)+'</div>':'<div class="card-notes empty">No notes yet…</div>')
+        +(goal?'<div class="card-rev"><div class="card-rev-row"><span>REVENUE '+pct+'%</span><span>'+fmtD(curr)+' / '+fmtD(goal)+'</span></div><div class="card-rev-bar"><div class="card-rev-fill" style="width:'+pct+'%;background:'+revClr+'"></div></div></div>':'')
+        +'<div class="card-foot">'
+          +(p.url?'<a class="open-btn" href="'+esc(p.url)+'" target="_blank" rel="noopener" style="border-color:'+p.color+'30;color:'+p.color+'">Open →</a>':'<span class="no-url-txt">No URL set</span>')
+          +(ua?'<span class="card-ts">'+ua+'</span>':'')
+          +'<button class="card-edit-btn" data-id="'+p.id+'" title="Edit">✎</button>'
+        +'</div>'
+      +'</div>';
+    grid.appendChild(card);
+  });
+  attachCardListeners();
+  attachDrag();
+}
+
+/* ── Card event listeners ───────────────────────────────── */
+function attachCardListeners(){
+  document.querySelectorAll('.card-edit-btn').forEach(function(btn){
+    btn.addEventListener('click',function(e){e.stopPropagation();openModal(btn.dataset.id);});
+  });
+  document.querySelectorAll('.status-badge[data-id]').forEach(function(badge){
+    badge.addEventListener('click',function(e){
+      e.stopPropagation();
+      var projects=getProjects();
+      var p=projects.find(function(x){return x.id===badge.dataset.id;});
+      if(!p)return;
+      p.status=STAT_CYCLE[p.status]||'live';p.updatedAt=Date.now();
+      setProjects(projects);
+      log('<strong>'+esc(p.name)+'</strong> → '+p.status.toUpperCase(),p.color);
+      renderAll();
+    });
+  });
+}
+
+/* ── Drag-to-reorder ────────────────────────────────────── */
+var dragId=null;
+function attachDrag(){
+  document.querySelectorAll('.pcard').forEach(function(card){
+    card.addEventListener('dragstart',function(e){dragId=card.dataset.id;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    card.addEventListener('dragend',function(){card.classList.remove('dragging');document.querySelectorAll('.pcard').forEach(function(c){c.classList.remove('drag-over');});});
+    card.addEventListener('dragover',function(e){e.preventDefault();if(card.dataset.id!==dragId){document.querySelectorAll('.pcard').forEach(function(c){c.classList.remove('drag-over');});card.classList.add('drag-over');}});
+    card.addEventListener('drop',function(e){
+      e.preventDefault();if(!dragId||card.dataset.id===dragId)return;
+      var ps=getProjects();
+      var si=ps.findIndex(function(p){return p.id===dragId;});
+      var ti=ps.findIndex(function(p){return p.id===card.dataset.id;});
+      if(si<0||ti<0)return;
+      var moved=ps.splice(si,1)[0];ps.splice(ti,0,moved);
+      setProjects(ps);renderAll();
+    });
+  });
+}
+
+/* ── Activity log ───────────────────────────────────────── */
+function getActivity(){try{return JSON.parse(localStorage.getItem(ACT_KEY)||'[]');}catch(e){return[];}}
+function log(html,color){
+  var items=getActivity();
+  items.unshift({html:html,color:color||'#555',time:Date.now()});
+  if(items.length>40)items.length=40;
+  localStorage.setItem(ACT_KEY,JSON.stringify(items));
+  renderActivity();
+}
+function renderActivity(){
+  var el=document.getElementById('actList');
+  var items=getActivity();
+  if(!items.length){el.innerHTML='<div class="act-empty">No activity yet — start building.</div>';return;}
+  el.innerHTML=items.slice(0,12).map(function(item){
+    return'<div class="act-row"><div class="act-dot" style="background:'+item.color+'"></div><span class="act-text">'+item.html+'</span><span class="act-ts">'+timeAgo(item.time)+'</span></div>';
+  }).join('');
+}
+document.getElementById('actClear').addEventListener('click',function(){localStorage.removeItem(ACT_KEY);renderActivity();});
+
+/* ── Filter nav ─────────────────────────────────────────── */
+document.getElementById('sbNav').addEventListener('click',function(e){
+  var btn=e.target.closest('.nav-item');if(!btn)return;
+  activeFilter=btn.dataset.filter;
+  document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  renderGrid(getProjects());
+});
+
+/* ── Search ─────────────────────────────────────────────── */
+document.getElementById('srchInp').addEventListener('input',function(e){srchQ=e.target.value.trim();renderGrid(getProjects());});
+
+/* ── Modal ──────────────────────────────────────────────── */
+var $modal=document.getElementById('modalBg');
+var editingId=null;
+var selColor='#C04825';
+
+function openModal(id){
+  editingId=id||null;
+  var projects=getProjects();
+  var p=id?projects.find(function(x){return x.id===id;}):null;
+  document.getElementById('modalTitle').textContent=p?'Edit Project':'New Project';
+  document.getElementById('mName').value=p?p.name:'';
+  document.getElementById('mUrl').value=p?p.url:'';
+  document.getElementById('mStatus').value=p?p.status:'progress';
+  document.getElementById('mDeadline').value=p?(p.deadline||''):'';
+  document.getElementById('mCat').value=p?p.category:'';
+  document.getElementById('mClient').value=p?p.client:'';
+  document.getElementById('mGoal').value=p?(p.goalAmount||0):0;
+  document.getElementById('mCurr').value=p?(p.currentAmount||0):0;
+  document.getElementById('mNotes').value=p?p.notes:'';
+  selColor=p?p.color:'#C04825';
+  document.querySelectorAll('.color-sw').forEach(function(s){s.classList.toggle('active',s.dataset.color===selColor);});
+  document.getElementById('modalDel').style.display=p?'inline-flex':'none';
+  $modal.classList.add('open');
+  setTimeout(function(){document.getElementById('mName').focus();},60);
+}
+function closeModal(){$modal.classList.remove('open');editingId=null;}
+
+document.getElementById('modalClose').addEventListener('click',closeModal);
+document.getElementById('modalCancel').addEventListener('click',closeModal);
+$modal.addEventListener('click',function(e){if(e.target===$modal)closeModal();});
+
+document.getElementById('colorRow').addEventListener('click',function(e){
+  var sw=e.target.closest('.color-sw');if(!sw)return;
+  selColor=sw.dataset.color;
+  document.querySelectorAll('.color-sw').forEach(function(s){s.classList.toggle('active',s===sw);});
+});
+
+document.getElementById('modalSave').addEventListener('click',function(){
+  var name=document.getElementById('mName').value.trim();
+  if(!name){alert('Project name is required.');return;}
+  var projects=getProjects();
+  var data={
+    id:editingId||'p_'+Date.now(),
+    name:name.toUpperCase(),
+    url:document.getElementById('mUrl').value.trim(),
+    status:document.getElementById('mStatus').value,
+    deadline:document.getElementById('mDeadline').value,
+    category:document.getElementById('mCat').value.trim(),
+    client:document.getElementById('mClient').value.trim(),
+    goalAmount:Number(document.getElementById('mGoal').value)||0,
+    currentAmount:Number(document.getElementById('mCurr').value)||0,
+    notes:document.getElementById('mNotes').value.trim(),
+    color:selColor,updatedAt:Date.now()
+  };
+  if(editingId){
+    var i=projects.findIndex(function(p){return p.id===editingId;});
+    if(i!==-1)projects[i]=data;
+    log('Updated <strong>'+esc(data.name)+'</strong>',data.color);
+  }else{
+    projects.push(data);
+    log('Added <strong>'+esc(data.name)+'</strong>',data.color);
+  }
+  setProjects(projects);renderAll();closeModal();
+});
+
+document.getElementById('modalDel').addEventListener('click',function(){
+  if(!editingId)return;
+  var projects=getProjects();
+  var p=projects.find(function(x){return x.id===editingId;});
+  if(!confirm('Delete "'+(p?p.name:'this project')+'"?'))return;
+  setProjects(projects.filter(function(x){return x.id!==editingId;}));
+  if(p)log('Deleted <strong>'+esc(p.name)+'</strong>','#ef4444');
+  renderAll();closeModal();
+});
+
+document.getElementById('addBtn').addEventListener('click',function(){openModal(null);});
+
+/* ── Keyboard shortcuts ─────────────────────────────────── */
+document.addEventListener('keydown',function(e){
+  if(!sessionStorage.getItem(AUTH_KEY))return;
+  var tag=document.activeElement.tagName.toLowerCase();
+  if($modal.classList.contains('open')){if(e.key==='Escape')closeModal();return;}
+  if(tag==='input'||tag==='textarea'||tag==='select')return;
+  if(e.key==='n'||e.key==='N'){e.preventDefault();openModal(null);}
+  if(e.key==='l'||e.key==='L'){e.preventDefault();lock();}
+  if(e.key==='/'||e.key==='f'){e.preventDefault();document.getElementById('srchInp').focus();}
+});
+
+/* ── Auto-refresh KPIs + Best Bet every 30s ─────────────── */
+setInterval(function(){
+  if(sessionStorage.getItem(AUTH_KEY)){loadKPIs();renderBetToday();}
+},30000);
+</script>
+</body>
+</html>
