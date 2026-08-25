@@ -1009,7 +1009,7 @@ function v(id){var el=document.getElementById(id);return el?el.value.trim():'';}
 // ── Tab ──────────────────────────────────────────────────────
 // ── Navigation: 5 plain-language destinations (Robinhood-style) ──
 var NAV_GROUPS=[
-  {id:'home',label:'Home',views:['dash']},
+  {id:'home',label:'Home',views:['dash','plan']},
   {id:'invest',label:'Invest',views:['port','watch','alloc','connect','import']},
   {id:'ai',label:'AI Advisor',views:['opps','chat','council','lt','chart','record']},
   {id:'goals',label:'Goals',views:['goal']},
@@ -1026,10 +1026,11 @@ function _icon(id,sz){
   };
   return '<svg viewBox="0 0 24 24" width="'+sz+'" height="'+sz+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px">'+(paths[id]||'')+'</svg>';
 }
-var VIEW_LABELS={dash:'Home',port:'My Holdings',watch:'Watchlist',alloc:'Balance & Risk',connect:'Add Accounts',import:'Import File',
+var VIEW_LABELS={dash:'Home',plan:'Today\'s Plan',port:'My Holdings',watch:'Watchlist',alloc:'Balance & Risk',connect:'Add Accounts',import:'Import File',
   opps:'Buy / Sell Signals',chat:'Ask AI',council:'Deep Analysis',lt:'Long-Term Picks',chart:'Charts',record:'Track Record',
   goal:'My Goal',pro:'Upgrade',cfg:'Settings'};
 var VIEW_INTROS={
+  plan:'Your automated daily checklist — every action ranked by impact. Work top to bottom.',
   port:'Everything you own in one list. Add, edit, or remove investments here.',
   watch:'Assets you\'re keeping an eye on — set a target price and we\'ll alert you.',
   alloc:'How balanced your money is, and exactly what to buy or trim to fix it.',
@@ -1888,6 +1889,7 @@ function render(){
   renderNav();
   var m=document.getElementById('main');
   if(tab==='dash'){m.innerHTML=rDash();setTimeout(initDashChart,50);}
+  else if(tab==='plan')m.innerHTML=rPlan();
   else if(tab==='port')m.innerHTML=rPort();
   else if(tab==='alloc')m.innerHTML=rAlloc();
   else if(tab==='goal')m.innerHTML=rGoal();
@@ -1979,6 +1981,12 @@ function rDash(){
 
   // Demo banner + one-click assessment
   html+=demoBanner();
+
+  // Autopilot banner — today's remaining actions, one tap away
+  if(a.length||port.cash>0){
+    var _pp=buildPlan().filter(function(i){return planDoneIds().indexOf(i.id)<0;});
+    if(_pp.length)html+='<div class="card" style="margin-bottom:14px;padding:12px 16px;border-color:var(--g15);cursor:pointer;display:flex;align-items:center;gap:10px" onclick="go(\'plan\',null)"><span style="font-size:16px">⚡</span><div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--gold)">Autopilot: '+_pp.length+' action'+(_pp.length>1?'s':'')+' waiting today</div><div style="font-size:11px;color:var(--t2);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_pp[0].title+'</div></div><span style="color:var(--gold)">→</span></div>';
+  }
   if(a.length){
     html+='<button class="btn btn-g" style="width:100%;margin-bottom:14px;padding:13px;font-size:13px;font-weight:700" onclick="assessAll()">Assess My Portfolio — buy &amp; sell signals in one click</button>';
   }
@@ -2245,9 +2253,16 @@ function holdTbl(list,type){
     var actBtns='<button class="btn btn-o btn-sm" style="padding:5px 10px;font-size:10px" onclick="startEditHold(\''+type+'\','+h.id+')">Edit</button> <button class="del-btn" onclick="delHolding(\''+type+'\','+h.id+')" title="Delete holding">✕</button>';
     var ico='<div class="aico" style="background:'+col+'22;color:'+col+'">'+h.ticker.slice(0,4)+'</div>';
 
+    // Stop-loss / take-profit badges — loud when breached, quiet when armed
+    var stopHit=h.stop&&p<=h.stop,tpHit=h.tp&&p>=h.tp;
+    var lvlBadge='';
+    if(stopHit)lvlBadge='<span style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--red);background:var(--r8);border:1px solid var(--r2);border-radius:3px;padding:1px 5px;margin-left:6px">⛔ STOP HIT</span>';
+    else if(tpHit)lvlBadge='<span style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--grn);background:var(--gn8);border:1px solid var(--gn2);border-radius:3px;padding:1px 5px;margin-left:6px">🎯 TARGET HIT</span>';
+    else if(h.stop||h.tp)lvlBadge='<span style="font-size:9px;color:var(--t3);margin-left:6px" title="Stop-loss / take-profit armed">'+(h.stop?'S '+fp(h.stop):'')+(h.stop&&h.tp?' · ':'')+(h.tp?'T '+fp(h.tp):'')+'</span>';
+
     // ── table row ──
     tbl+='<tr>';
-    tbl+='<td><div class="ac">'+ico+'<div><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+'</div></div></div></td>';
+    tbl+='<td><div class="ac">'+ico+'<div><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+lvlBadge+'</div></div></div></td>';
     if(editing){
       tbl+='<td>'+qtyIn.replace('class="inp eh-qty"','class="inp eh-qty" style="width:86px;padding:6px 8px"')+'</td>';
       tbl+='<td>'+avgIn.replace('class="inp eh-avg"','class="inp eh-avg" style="width:94px;padding:6px 8px"')+'</td>';
@@ -2261,15 +2276,23 @@ function holdTbl(list,type){
     tbl+='<td class="mono '+plCls+'">'+(pl>=0?'+':'')+f$(pl)+' <span style="font-size:10px">('+(plp==null?'—':fpc(plp))+')</span></td>';
     tbl+='<td class="act-col" style="white-space:nowrap">'+(editing?editBtns:actBtns)+'</td>';
     tbl+='</tr>';
+    if(editing){
+      tbl+='<tr><td colspan="8" style="background:var(--s1);padding:8px 14px 12px;border-bottom:1px solid var(--b1)">';
+      tbl+='<span style="font-size:10px;color:var(--t3)">Stop-loss $ <input class="inp eh-stop" type="number" step="any" min="0" placeholder="none" value="'+(h.stop||'')+'" style="width:100px;padding:6px 8px" onkeydown="'+onEnter+'"></span>';
+      tbl+='<span style="font-size:10px;color:var(--t3);margin-left:14px">Take-profit $ <input class="inp eh-tp" type="number" step="any" min="0" placeholder="none" value="'+(h.tp||'')+'" style="width:100px;padding:6px 8px" onkeydown="'+onEnter+'"></span>';
+      tbl+='<span style="font-size:10px;color:var(--t3);margin-left:12px">You get an email the moment price crosses either level.</span></td></tr>';
+    }
 
     // ── mobile card ──
     cards+='<div class="hcard">';
-    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span></div></div>';
+    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span>'+lvlBadge+'</div></div>';
     cards+='<div class="hcard-val"><div style="font-weight:600;font-family:DM Mono,monospace">'+f$(val)+'</div><div style="font-size:11px" class="'+plCls+'">'+(pl>=0?'+':'')+f$(pl)+' ('+(plp==null?'—':fpc(plp))+')</div></div></div>';
     if(editing){
       cards+='<div style="border-top:1px solid var(--b1);padding-top:9px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">';
       cards+='<label style="font-size:10px;color:var(--t3)">Quantity<br>'+qtyIn.replace('class="inp eh-qty"','class="inp eh-qty" style="width:110px;margin-top:3px"')+'</label>';
       cards+='<label style="font-size:10px;color:var(--t3)">Avg buy $<br>'+avgIn.replace('class="inp eh-avg"','class="inp eh-avg" style="width:110px;margin-top:3px"')+'</label>';
+      cards+='<label style="font-size:10px;color:var(--t3)">Stop-loss $<br><input class="inp eh-stop" type="number" step="any" min="0" placeholder="none" value="'+(h.stop||'')+'" style="width:110px;margin-top:3px" onkeydown="'+onEnter+'"></label>';
+      cards+='<label style="font-size:10px;color:var(--t3)">Take-profit $<br><input class="inp eh-tp" type="number" step="any" min="0" placeholder="none" value="'+(h.tp||'')+'" style="width:110px;margin-top:3px" onkeydown="'+onEnter+'"></label>';
       cards+='<span style="margin-left:auto;display:flex;gap:6px;align-self:center">'+editBtns+'</span></div>';
     } else {
       cards+='<div style="border-top:1px solid var(--b1);padding-top:8px;display:flex;align-items:center;gap:14px;font-size:11px;color:var(--t2)">';
@@ -2295,8 +2318,102 @@ function saveEditHold(type,id){
   if(!h){editHoldId=null;render();return;}
   if(!isNaN(qty)&&qty>0)h.qty=qty;
   if(!isNaN(avg)&&avg>=0)h.avg=avg; // 0 allowed = unknown cost basis
+  var st=parseFloat(_ehVal('eh-stop')),tp=parseFloat(_ehVal('eh-tp'));
+  h.stop=(!isNaN(st)&&st>0)?st:0;h.tp=(!isNaN(tp)&&tp>0)?tp:0; // 0 = level not set
   editHoldId=null;
   savePort();refreshAll();
+}
+
+// ── Autopilot: automated daily plan ──────────────────────────
+// Profit-lock ladder: for any holding up 20%+, tiered sells at +25/+50/+100%
+// from cost basis — 25% of the position at each rung, rest rides.
+function ladderFor(h){
+  var p=pof(h);if(!h.avg||h.avg<=0)return null;
+  var g=(p-h.avg)/h.avg*100;if(g<20)return null;
+  var rungs=[25,50,100].map(function(pc){var lp=h.avg*(1+pc/100);return{pct:pc,price:lp,qty:h.qty*0.25,usd:h.qty*0.25*lp,hit:p>=lp};});
+  return{gain:g,rungs:rungs,hits:rungs.filter(function(r){return r.hit;}),next:rungs.filter(function(r){return !r.hit;})[0]||null};
+}
+// Cash deployment: splits 80% of idle cash across the watchlist entries closest
+// to (within 10% of) their buy targets; always keeps a 20% reserve.
+function deployPlan(){
+  var cash=port.cash||0;if(cash<100)return null;
+  var reserve=Math.round(cash*0.2),deploy=cash-reserve;
+  var near=wl.filter(function(w){return w.targetPrice&&prices[w.ticker];})
+    .map(function(w){var p=prices[w.ticker].price;return{ticker:w.ticker,price:p,target:w.targetPrice,dist:(p-w.targetPrice)/w.targetPrice*100};})
+    .filter(function(x){return x.dist<=10;})
+    .sort(function(a,b){return a.dist-b.dist;}).slice(0,3);
+  var per=near.length?Math.max(0,Math.floor(deploy/near.length)):0;
+  return{cash:cash,reserve:reserve,deploy:deploy,buys:near.map(function(x){x.usd=per;return x;})};
+}
+function buildPlan(){
+  var items=[],a=all(),t=totals();
+  // 1 — breached stops (protect capital first, always)
+  a.forEach(function(h){
+    var p=pof(h);
+    if(h.stop&&p<=h.stop)items.push({id:'stop-'+h.ticker,pri:1,icon:'⛔',color:'var(--red)',title:h.ticker+' hit your stop-loss',detail:'Now '+fp(p)+', below your stop of '+fp(h.stop)+'. Cut the loss or consciously re-commit — don\'t just watch it fall.',view:'port'});
+    else if(h.tp&&p>=h.tp)items.push({id:'tp-'+h.ticker,pri:2,icon:'🎯',color:'var(--grn)',title:h.ticker+' hit your take-profit',detail:'Now '+fp(p)+', at your target of '+fp(h.tp)+'. Sell at least some — locked-in gains are the only real ones.',view:'port'});
+  });
+  // 2 — profit ladder rungs
+  a.forEach(function(h){
+    var l=ladderFor(h);
+    if(l&&l.hits.length){var r=l.hits[l.hits.length-1];
+      items.push({id:'lad-'+h.ticker+'-'+r.pct,pri:2,icon:'🪜',color:'var(--gold)',title:'Profit ladder: trim '+h.ticker,detail:h.ticker+' is up '+Math.round(l.gain)+'% on your cost. The +'+r.pct+'% rung says sell 25% ('+(+r.qty.toFixed(4))+' ≈ '+f$(r.qty*pof(h))+') and let the rest ride'+(l.next?' toward '+fp(l.next.price):'')+'.',view:'port'});
+    }
+  });
+  // 3 — deploy idle cash into buy zones
+  var dp=deployPlan();
+  if(dp&&dp.buys.length)dp.buys.forEach(function(b){
+    items.push({id:'buy-'+b.ticker,pri:3,icon:'🛒',color:'var(--blue)',title:'Deploy cash: '+b.ticker+' near your buy zone',detail:b.ticker+' is '+(b.dist<=0?'at/below':Math.round(b.dist)+'% above')+' your target of '+fp(b.target)+'. Suggested buy: '+f$(b.usd)+' — keeps a '+f$(dp.reserve)+' cash reserve.',view:'watch'});
+  });
+  // 4 — concentration & idle-cash risk
+  if(t.tv>0){
+    a.forEach(function(h){var sh=pof(h)*h.qty/t.tv*100;
+      if(sh>40)items.push({id:'conc-'+h.ticker,pri:4,icon:'⚠️',color:'var(--ora)',title:h.ticker+' is '+Math.round(sh)+'% of your portfolio',detail:'One bad week in '+h.ticker+' moves your whole net worth. Trim toward 25–30% and spread the difference.',view:'alloc'});
+    });
+    var cp=(port.cash||0)/t.tv*100;
+    if(cp>40)items.push({id:'cash-high',pri:4,icon:'💤',color:'var(--ora)',title:Math.round(cp)+'% of your money is idle cash',detail:'Cash loses to inflation. Park it in a HYSA or T-bills, and set watchlist buy targets so Autopilot tells you when to deploy.',view:'port'});
+  }
+  // 5 — today's technical signals (or run the scan)
+  var fresh=opps.scannedAt&&(Date.now()-opps.scannedAt)<20*3600e3;
+  if(fresh&&opps.items&&opps.items.length){
+    opps.items.filter(function(r){return !r.limited&&Math.abs(r.score)>=3;}).slice(0,3).forEach(function(r){
+      items.push({id:'sig-'+r.ticker+'-'+r.action.label,pri:5,icon:r.action.type==='buy'?'📈':'📉',color:r.action.color,title:'Signal: '+r.action.label+' '+r.ticker,detail:r.rationale+(r.action.type==='buy'?' · Entry zone '+fp(r.buyLo)+'–'+fp(r.buyHi):' · Target '+fp(r.target)+', stop '+fp(r.stop)),view:'opps'});
+    });
+  } else if(a.length){
+    items.push({id:'scan',pri:5,icon:'🔍',color:'var(--t2)',title:'Run today\'s signal scan',detail:'Fresh RSI, band and momentum reads on every holding — the results feed straight into this plan.',view:'opps',run:true});
+  }
+  // 6 — holdings with no exit plan
+  a.forEach(function(h){
+    if(!h.stop&&!h.tp)items.push({id:'setlvl-'+h.ticker,pri:6,icon:'🛡️',color:'var(--t2)',title:'Set a stop & target for '+h.ticker,detail:'No exit plan means emotional decisions later. Open '+h.ticker+' → Edit, set a stop-loss and take-profit, and the server emails you the moment either one hits.',view:'port'});
+  });
+  items.sort(function(x,y){return x.pri-y.pri;});
+  return items.slice(0,8);
+}
+function _planKey(){var d=new Date();return'briq-plan-'+d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+function planDoneIds(){try{return JSON.parse(localStorage.getItem(_planKey())||'[]');}catch(e){return[];}}
+function planMark(id){try{var d=planDoneIds();if(d.indexOf(id)<0)d.push(id);localStorage.setItem(_planKey(),JSON.stringify(d));}catch(e){}render();}
+function planGo(view,doScan){go(view,null);if(doScan)setTimeout(function(){if(!opps.loading)scanOpportunities(true);},80);}
+function rPlan(){
+  if(!all().length&&!(port.cash>0))return'<div class="sh gold">Autopilot</div><div class="empty">Add holdings or cash first — Autopilot builds your daily plan from what you own.</div>';
+  var items=buildPlan(),done=planDoneIds();
+  var pend=items.filter(function(i){return done.indexOf(i.id)<0;});
+  var doneN=items.length-pend.length;
+  var html='<div class="sh gold">Autopilot — '+today()+'</div>';
+  html+='<div class="card" style="padding:14px 18px;margin-bottom:14px">';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px"><div style="font-size:12px;color:var(--t2);min-width:0">'+(pend.length?('Next action: <b style="color:var(--t)">'+pend[0].title+'</b>'):'All clear — today\'s plan is complete 🎉')+'</div><div style="font-size:11px;color:var(--t3);font-family:DM Mono,monospace;white-space:nowrap">'+doneN+'/'+items.length+' done</div></div>';
+  html+='<div style="height:5px;background:var(--b1);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+(items.length?Math.round(doneN/items.length*100):100)+'%;background:var(--gold);transition:width .3s"></div></div></div>';
+  items.forEach(function(it){
+    var isDone=done.indexOf(it.id)>=0,isNext=pend.length&&pend[0].id===it.id;
+    html+='<div class="card" style="padding:13px 16px;margin-bottom:9px'+(isDone?';opacity:.45':'')+(isNext?';border-color:var(--gold)':'')+'">';
+    html+='<div style="display:flex;gap:11px;align-items:flex-start">';
+    html+='<div style="font-size:17px;line-height:1.3">'+it.icon+'</div>';
+    html+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:'+(isDone?'var(--t3)':it.color)+(isDone?';text-decoration:line-through':'')+'">'+(isNext?'<span style="font-size:9px;letter-spacing:1px;color:var(--gold);border:1px solid var(--g15);border-radius:3px;padding:1px 5px;margin-right:7px;vertical-align:1px">NEXT</span>':'')+it.title+'</div>';
+    html+='<div style="font-size:11.5px;color:var(--t2);line-height:1.55;margin-top:3px">'+it.detail+'</div>';
+    if(!isDone)html+='<div style="margin-top:9px;display:flex;gap:7px;flex-wrap:wrap"><button class="btn btn-g btn-sm" style="padding:6px 13px;font-size:10.5px" onclick="planGo(\''+it.view+'\','+(it.run?'true':'false')+')">Take me there →</button><button class="btn btn-o btn-sm" style="padding:6px 13px;font-size:10.5px" onclick="planMark(\''+it.id+'\')">Done ✓</button></div>';
+    html+='</div></div></div>';
+  });
+  html+='<div style="font-size:10px;color:var(--t3);margin-top:6px">Rebuilds automatically every day from your live holdings, watchlist, cash and signals. Educational, not financial advice.</div>';
+  return html;
 }
 
 // ── Signals: buy/sell opportunities across your holdings ──────
@@ -2330,7 +2447,7 @@ function _oppRationale(rsi,pctB,pnl){
   else if(pnl>=25)b.push('up '+Math.round(pnl)+'% — protect gains');
   return b.join(' · ');
 }
-async function scanOpportunities(){
+async function scanOpportunities(noAI){ // noAI: automated runs skip the AI pass so they never spend credits
   var a=all();
   if(!a.length){opps.error='Add holdings in the Portfolio tab first.';opps.items=[];render();return;}
   opps.loading=true;opps.error=null;opps.ai=null;render();
@@ -2394,7 +2511,7 @@ async function scanOpportunities(){
     else if(r2.action.type==='sell'&&r2.score<=-3)recordCall('signals',r2.ticker,'sell',r2.price,r2.stop,r2.target,r2.action.label);
   });
   opps.items=items;opps.scannedAt=Date.now();opps.loading=false;render();
-  runOppsAI(items);
+  if(!noAI)runOppsAI(items);
 }
 async function runOppsAI(items){
   if(!aiUnlimited()){_ensureWeek();if(usage.count>=FREE_WEEKLY_AI){opps.ai={locked:true};render();return;}_spendAI();}
