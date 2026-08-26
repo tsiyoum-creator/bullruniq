@@ -11,7 +11,42 @@
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network",
+  POL:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos",
+  SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism",
+  ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin",
+  TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network",
+  AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin",
+  ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", S:"fantom",
+  CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox",
+  MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x",
+  BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana",
+  PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet",
+  TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki",
+  WLD:"worldcoin-wld", POPCAT:"popcat", MEW:"cat-in-a-dogs-world",
+  BRETT:"based-brett", MOG:"mog-coin", NOT:"notcoin", DOGS:"dogs-brc-20",
+  EIGEN:"eigenlayer", PENDLE:"pendle", ZK:"zksync", ZKSYNC:"zksync",
+  TIA:"celestia", DYDX:"dydx-chain", MANTA:"manta-network", ALT:"altlayer",
+  PIXEL:"pixels", PORTAL:"portal-fantasy", BEAM:"beam-2", SAGA:"saga-2",
+  OMNI:"omni-network", REZ:"renzo", ETHX:"stader-matic", ARKM:"arkham",
+  PYUSD:"paypal-usd", USDC:"usd-coin", USDT:"tether", DAI:"dai",
+  GRT:"the-graph", MKR:"maker", SNX:"synthetix-network-token", AAVE:"aave",
+  CRV:"curve-dao-token", CVX:"convex-finance", BAL:"balancer", COMP:"compound-governance-token",
+  SUSHI:"sushi", YFI:"yearn-finance", FXS:"frax-share", RPL:"rocket-pool",
+  SSV:"ssv-network", LPT:"livepeer", MASK:"mask-network", DENT:"dent",
+  CHZ:"chiliz", ENJ:"enjincoin", FLOW:"flow", MINA:"mina-protocol",
+  ZIL:"zilliqa", ONE:"harmony", KAVA:"kava", BAND:"band-protocol",
+  SKL:"skale", CELO:"celo", ROSE:"oasis-network", CFX:"conflux-token",
+  KSM:"kusama", ZEN:"zencash", RVN:"ravencoin", DCR:"decred",
+  DGB:"digibyte", SC:"siacoin", XMR:"monero", ZEC:"zcash",
+  DASH:"dash", BCH:"bitcoin-cash", BSV:"bitcoin-cash-sv", BTG:"bitcoin-gold",
+  HNT:"helium", MOBILE:"helium-mobile", IOT:"helium-iot",
+  RNDR:"render-token", AKT:"akash-network", OCEAN:"ocean-protocol",
+  FET:"fetch-ai", AGIX:"singularitynet", NMR:"numeraire", AI16Z:"ai16z",
+  VIRTUAL:"virtual-protocol", AIXBT:"aixbt-by-virtuals", ZEREBRO:"zerebro",
+};
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -56,6 +91,23 @@ function stopAlertHtml(h, price, email) {
     + (lossPct !== null ? "<div style='font-size:13px;color:#e05555;margin-bottom:22px'>Position is at <b>" + pct(lossPct) + "</b> vs your avg buy of " + fp(h.avg) + "</div>" : "<div style='margin-bottom:22px'></div>")
     + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#e05555;color:#fff;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review the position now →</a>"
     + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a stop-loss in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + "</body></html>";
+}
+
+function ladderAlertHtml(h, price, rung, email) {
+  const name = esc(h.name || h.ticker);
+  const ticker = esc(h.ticker);
+  const gainPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
+  const sellQty = (h.qty || 0) * 0.25;
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#4ade80;margin-bottom:10px'>📊 Profit-lock rung +" + rung.pct + "%</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " — lock in some gains</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b>."
+    + (gainPct !== null ? " Your position is <b style='color:#4ade80'>+" + gainPct.toFixed(1) + "%</b> vs your avg buy of " + fp(h.avg) + "." : "")
+    + " Consider selling <b style='color:#f0ece4'>~25%</b> (" + (sellQty > 0 ? sellQty.toFixed(4) + " " + ticker : "25% of position") + ") to lock profits at this rung.</div>"
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Lock in profits →</a>"
+    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you have holdings tracked in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
     + "</body></html>";
 }
 
@@ -169,6 +221,33 @@ exports.handler = async function (event) {
         } catch (e) {}
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
+      }
+
+      // Profit-lock ladder: alert at +25%, +50%, +100% gain rungs (sell 25% at each)
+      if (h.avg && h.avg > 0 && !h.tp && sent < MAX_EMAILS_PER_RUN) {
+        const gainPct = (p - h.avg) / h.avg * 100;
+        const RUNGS = [{ pct: 25, key: "ladder25" }, { pct: 50, key: "ladder50" }, { pct: 100, key: "ladder100" }];
+        for (const rung of RUNGS) {
+          const rungPrice = h.avg * (1 + rung.pct / 100);
+          const alertedKey = "server" + rung.key + "Alerted";
+          if (p >= rungPrice && !h[alertedKey]) {
+            try {
+              const r = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+                  to: email,
+                  subject: "📊 " + h.ticker + " +" + rung.pct + "% — profit-lock rung reached",
+                  html: ladderAlertHtml(h, p, { pct: rung.pct, price: rungPrice }, email),
+                }),
+              });
+              if (r.ok) { sent++; h[alertedKey] = true; changed = true; console.log("[alerts] ladder+" + rung.pct + " " + email + " " + h.ticker + " @ " + p); }
+            } catch (e) {}
+          } else if (p < rungPrice * 0.95 && h[alertedKey]) {
+            h[alertedKey] = false; changed = true; // re-arm if price retraces below the rung
+          }
+        }
       }
     }
 

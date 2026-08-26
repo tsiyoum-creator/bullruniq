@@ -13,6 +13,8 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const DAILY_USER_CAP = 1000;
+const MAX_MSG_CONTENT_BYTES = 8000;
+const MAX_MESSAGES = 20;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -108,17 +110,28 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Invalid JSON body" } }) };
   }
 
-  let { system, messages, prompt, model, max_tokens } = payload;
+  let { messages, prompt, model, max_tokens } = payload;
   if (!messages && prompt) messages = [{ role: "user", content: String(prompt) }];
   if (!Array.isArray(messages) || !messages.length) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing messages or prompt" } }) };
+  }
+  if (messages.length > MAX_MESSAGES) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Too many messages" } }) };
+  }
+  for (const msg of messages) {
+    if (!msg || (msg.role !== "user" && msg.role !== "assistant")) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Invalid message role" } }) };
+    }
+    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    if (Buffer.byteLength(content, "utf8") > MAX_MSG_CONTENT_BYTES) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Message content too large" } }) };
+    }
   }
 
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
   const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

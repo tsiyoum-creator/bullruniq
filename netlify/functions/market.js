@@ -1,12 +1,13 @@
 // BullrunIQ — market data proxy (/api/market).
 
 const TTL_MS = 10 * 60000;
+const TTL_FG = 15 * 60000;
 const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
-async function fetchJson(url) {
-  const r = await fetch(url, { headers: UA });
+async function fetchJson(url, extraHeaders) {
+  const r = await fetch(url, { headers: { ...UA, ...(extraHeaders || {}) } });
   const data = await r.json();
   if (!r.ok) throw new Error("upstream " + r.status);
   return data;
@@ -16,7 +17,40 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   let upstream, key, ttl = TTL_MS, transform;
 
-  if (q.kind === "top50") {
+  if (q.kind === "fear-greed") {
+    const blobs = require("@netlify/blobs");
+    try { blobs.connectLambda(event); } catch (e) {}
+    let cache = null;
+    try { cache = blobs.getStore("cache"); } catch (e) {}
+    if (cache) {
+      try {
+        const c = await cache.get("mkt:fear-greed", { type: "json" });
+        if (c && Date.now() - c.at < TTL_FG) {
+          return { statusCode: 200, headers: CORS, body: JSON.stringify(c.data) };
+        }
+      } catch (e) {}
+    }
+    try {
+      const [fgRes, btcRes] = await Promise.allSettled([
+        fetch("https://api.alternative.me/fng/?limit=1"),
+        fetch(CG_BASE + "/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_market_cap=true", { headers: UA }),
+      ]);
+      const fg = fgRes.status === "fulfilled" ? await fgRes.value.json() : null;
+      const btc = btcRes.status === "fulfilled" ? await btcRes.value.json() : null;
+      const payload = {
+        fear_greed: fg && fg.data && fg.data[0] ? { value: +fg.data[0].value, label: fg.data[0].value_classification } : null,
+        bitcoin: btc && btc.bitcoin ? {
+          usd: btc.bitcoin.usd,
+          change_24h: btc.bitcoin.usd_24h_change,
+          market_cap: btc.bitcoin.usd_market_cap,
+        } : null,
+      };
+      if (cache) { try { await cache.setJSON("mkt:fear-greed", { at: Date.now(), data: payload }); } catch (e) {} }
+      return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
+    } catch (err) {
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: "market data unavailable" }) };
+    }
+  } else if (q.kind === "top50") {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:top50";
   } else if (q.kind === "top100") {
@@ -57,7 +91,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear-greed or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");
