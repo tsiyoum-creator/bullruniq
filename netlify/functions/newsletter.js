@@ -31,6 +31,9 @@ function emailHtml(briefHtml, btc, fg, email, dateStr) {
     + "</div></div></body></html>";
 }
 
+const BRIEF_MODEL = process.env.NEWSLETTER_MODEL || "claude-sonnet-4-6";
+const BRIEF_BATCH = 10;
+
 exports.handler = async function (event) {
   try { require("@netlify/blobs").connectLambda(event); } catch (e) {}
   const RESEND = process.env.RESEND_API_KEY;
@@ -41,7 +44,7 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: "not configured" };
   }
 
-  var btc = "n/a", fg = "n/a";
+  let btc = "n/a", fg = "n/a";
   try {
     const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
     const d = await r.json();
@@ -53,13 +56,13 @@ exports.handler = async function (event) {
     if (d.data && d.data[0]) fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
   } catch (e) {}
 
-  var brief = "";
+  let brief = "";
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTH, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: BRIEF_MODEL,
         max_tokens: 500,
         messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with one action to consider today. Under 160 words. Educational, not financial advice. Live data: BTC " + btc + ", Fear & Greed " + fg + ". Date " + new Date().toUTCString() }],
       }),
@@ -72,7 +75,7 @@ exports.handler = async function (event) {
     console.log("[newsletter] using fallback brief");
   }
 
-  var subs = [];
+  let subs = [];
   try {
     const { getStore } = require("@netlify/blobs");
     const list = await getStore("subscribers").list();
@@ -80,15 +83,14 @@ exports.handler = async function (event) {
   } catch (e) { console.log("[newsletter] subscriber list failed:", e.message); }
   if (!subs.length) { console.log("[newsletter] no subscribers yet"); return { statusCode: 200, body: "no subscribers" }; }
 
-  var dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  var subject = "BullrunIQ Daily Brief — " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  var briefHtml = briefToHtml(brief);
-  var BATCH = 10;
-  var sent = 0, failed = 0;
-  var batch = subs.slice(0, MAX_SEND);
-  for (var i = 0; i < batch.length; i += BATCH) {
-    var chunk = batch.slice(i, i + BATCH);
-    var results = await Promise.allSettled(chunk.map(function (email) {
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const subject = "BullrunIQ Daily Brief — " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const briefHtml = briefToHtml(brief);
+  let sent = 0, failed = 0;
+  const batch = subs.slice(0, MAX_SEND);
+  for (let i = 0; i < batch.length; i += BRIEF_BATCH) {
+    const chunk = batch.slice(i, i + BRIEF_BATCH);
+    const results = await Promise.allSettled(chunk.map(function (email) {
       return fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },

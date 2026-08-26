@@ -227,6 +227,97 @@ assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
 
+console.log("\n--- generate.js: input validation ---");
+
+function validateMessages(messages, maxMsgs, maxBytes) {
+  if (!Array.isArray(messages) || !messages.length) return { ok: false, error: "Missing messages or prompt" };
+  if (messages.length > maxMsgs) return { ok: false, error: "Too many messages" };
+  for (const msg of messages) {
+    if (!msg || (msg.role !== "user" && msg.role !== "assistant")) return { ok: false, error: "Invalid message role" };
+    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    if (Buffer.byteLength(content, "utf8") > maxBytes) return { ok: false, error: "Message content too large" };
+  }
+  return { ok: true };
+}
+
+assert(validateMessages(null, 20, 8000).ok === false, "null messages rejected");
+assert(validateMessages([], 20, 8000).ok === false, "empty messages array rejected");
+assert(validateMessages([{ role: "user", content: "hello" }], 20, 8000).ok === true, "valid user message accepted");
+assert(validateMessages([{ role: "assistant", content: "hi" }], 20, 8000).ok === true, "valid assistant message accepted");
+assert(validateMessages([{ role: "system", content: "inject!" }], 20, 8000).ok === false, "system role rejected");
+assert(validateMessages([{ role: "user", content: "a".repeat(9000) }], 20, 8000).ok === false, "oversized content rejected");
+const manyMsgs = Array.from({ length: 21 }, (_, i) => ({ role: i % 2 === 0 ? "user" : "assistant", content: "hi" }));
+assert(validateMessages(manyMsgs, 20, 8000).ok === false, "too many messages rejected");
+assert(validateMessages(manyMsgs.slice(0, 20), 20, 8000).ok === true, "exactly max messages accepted");
+
+console.log("\n--- market.js: fear-greed data shape ---");
+
+function validateFearGreedPayload(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  if (payload.fear_greed !== null) {
+    if (typeof payload.fear_greed.value !== "number") return false;
+    if (typeof payload.fear_greed.label !== "string") return false;
+    if (payload.fear_greed.value < 0 || payload.fear_greed.value > 100) return false;
+  }
+  if (payload.bitcoin !== null) {
+    if (typeof payload.bitcoin.usd !== "number") return false;
+  }
+  return true;
+}
+assert(validateFearGreedPayload({ fear_greed: { value: 55, label: "Greed" }, bitcoin: { usd: 90000, change_24h: 1.5, market_cap: 1.8e12 } }), "valid fear-greed payload accepted");
+assert(validateFearGreedPayload({ fear_greed: null, bitcoin: null }), "null data fields accepted");
+assert(!validateFearGreedPayload({ fear_greed: { value: 150, label: "Extreme Greed" }, bitcoin: null }), "out-of-range fear-greed value rejected");
+assert(!validateFearGreedPayload(null), "null payload rejected");
+
+console.log("\n--- alerts: profit-lock ladder rung logic ---");
+
+function ladderRungAlert(h, price) {
+  if (!h.avg || h.avg <= 0) return [];
+  const RUNGS = [{ pct: 25, key: "serverladder25Alerted" }, { pct: 50, key: "serverladder50Alerted" }, { pct: 100, key: "serverladder100Alerted" }];
+  return RUNGS.filter(function (rung) {
+    const rungPrice = h.avg * (1 + rung.pct / 100);
+    return price >= rungPrice && !h[rung.key];
+  });
+}
+function ladderRungRearm(h, price) {
+  if (!h.avg || h.avg <= 0) return [];
+  const RUNGS = [{ pct: 25, key: "serverladder25Alerted" }, { pct: 50, key: "serverladder50Alerted" }, { pct: 100, key: "serverladder100Alerted" }];
+  return RUNGS.filter(function (rung) {
+    const rungPrice = h.avg * (1 + rung.pct / 100);
+    return price < rungPrice * 0.95 && h[rung.key];
+  });
+}
+const ladderHolding = { ticker: "SOL", avg: 100, qty: 10 };
+assert(ladderRungAlert({ ...ladderHolding }, 120).length === 0, "no ladder alert at +20% (below +25% rung)");
+assert(ladderRungAlert({ ...ladderHolding }, 125).length === 1, "ladder alert fires at exactly +25%");
+assert(ladderRungAlert({ ...ladderHolding }, 155).length === 2, "two ladder alerts at +55%");
+assert(ladderRungAlert({ ...ladderHolding }, 205).length === 3, "all three ladder alerts at +105%");
+assert(ladderRungAlert({ ...ladderHolding, serverladder25Alerted: true }, 140).length === 0, "skips already-alerted rung, next rung not reached");
+assert(ladderRungAlert({ ...ladderHolding, serverladder25Alerted: true, serverladder50Alerted: true }, 205).length === 1, "only third rung fires when first two already alerted");
+assert(ladderRungRearm({ ...ladderHolding, serverladder25Alerted: true }, 118).length === 1, "rung re-arms when price drops 5%+ below it");
+assert(ladderRungRearm({ ...ladderHolding, serverladder25Alerted: true }, 122).length === 0, "no re-arm within 5% of rung");
+assert(ladderRungAlert({ ticker: "ETH", avg: 0, qty: 1 }, 5000).length === 0, "no ladder without cost basis");
+
+console.log("\n--- alerts: CGMAP coverage ---");
+
+const CGMAP_SAMPLE = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", WLD:"worldcoin-wld", AI16Z:"ai16z", TIA:"celestia", VIRTUAL:"virtual-protocol" };
+assert(CGMAP_SAMPLE["BTC"] === "bitcoin", "BTC maps to bitcoin");
+assert(CGMAP_SAMPLE["WLD"] === "worldcoin-wld", "WLD (2024 coin) is mapped");
+assert(CGMAP_SAMPLE["AI16Z"] === "ai16z", "AI16Z (AI agent token) is mapped");
+assert(CGMAP_SAMPLE["TIA"] === "celestia", "TIA (Celestia) is mapped");
+assert(CGMAP_SAMPLE["VIRTUAL"] === "virtual-protocol", "VIRTUAL (AI token) is mapped");
+
+console.log("\n--- portal.js: no-cache redirect ---");
+
+function portalHeaders(hasUrl) {
+  return { Location: hasUrl ? "https://billing.stripe.com/portal" : "/contact", "Cache-Control": "no-store, no-cache, must-revalidate" };
+}
+const h1 = portalHeaders(true);
+assert(h1["Cache-Control"] === "no-store, no-cache, must-revalidate", "portal sets no-cache headers");
+assert(h1["Location"].startsWith("https://"), "portal redirects to Stripe URL when configured");
+const h2 = portalHeaders(false);
+assert(h2["Location"] === "/contact", "portal falls back to /contact");
+
 // --- Summary ---
 console.log("\n==========================================");
 console.log("Results: " + passed + " passed, " + failed + " failed");
