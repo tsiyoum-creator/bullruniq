@@ -227,6 +227,94 @@ assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
 
+console.log("\n--- signed unsubscribe tokens (_shared.js) ---");
+
+// Inline the helpers from _shared.js for isolated testing
+function makeShared(secret) {
+  function signUnsub(email) {
+    if (!secret) return null;
+    return crypto.createHmac("sha256", secret).update("unsub:" + email).digest("base64url");
+  }
+  function verifyUnsub(email, token) {
+    const expected = signUnsub(email);
+    if (!expected || !token) return false;
+    try {
+      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
+    } catch (e) { return false; }
+  }
+  function unsubUrl(email) {
+    const tok = signUnsub(email);
+    const base = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
+    return tok ? base + "&tok=" + encodeURIComponent(tok) : base;
+  }
+  return { signUnsub, verifyUnsub, unsubUrl };
+}
+
+const sh = makeShared("test-unsub-secret");
+
+const unsubToken = sh.signUnsub("subscriber@example.com");
+assert(typeof unsubToken === "string" && unsubToken.length > 10, "signUnsub produces a token");
+assert(sh.verifyUnsub("subscriber@example.com", unsubToken), "valid token verifies");
+assert(!sh.verifyUnsub("other@example.com", unsubToken), "token is email-specific — wrong email fails");
+assert(!sh.verifyUnsub("subscriber@example.com", unsubToken + "X"), "tampered token fails");
+assert(!sh.verifyUnsub("subscriber@example.com", ""), "empty token fails");
+assert(!sh.verifyUnsub("subscriber@example.com", null), "null token fails");
+
+const noSecretSh = makeShared(null);
+assert(noSecretSh.signUnsub("x@y.com") === null, "null secret → null token");
+assert(!noSecretSh.verifyUnsub("x@y.com", "anything"), "null secret → verify fails safely");
+
+const url = sh.unsubUrl("user@example.com");
+assert(url.includes("email=user%40example.com"), "unsubUrl includes encoded email");
+assert(url.includes("&tok="), "unsubUrl includes signed tok parameter");
+
+const sh2 = makeShared("different-secret");
+const tok2 = sh2.signUnsub("subscriber@example.com");
+assert(!sh.verifyUnsub("subscriber@example.com", tok2), "token from different secret fails");
+
+console.log("\n--- generate.js: model allowlist ---");
+
+const ALLOWED_MODELS = new Set(["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
+const DEFAULT_MODEL = "claude-sonnet-4-6";
+
+function resolveModel(m) {
+  return ALLOWED_MODELS.has(m) ? m : DEFAULT_MODEL;
+}
+assert(resolveModel("claude-sonnet-4-6") === "claude-sonnet-4-6", "allowed model passes through");
+assert(resolveModel("claude-opus-4-8") === "claude-opus-4-8", "opus passes through");
+assert(resolveModel("gpt-4") === DEFAULT_MODEL, "disallowed model falls back to default");
+assert(resolveModel("") === DEFAULT_MODEL, "empty model falls back to default");
+assert(resolveModel(null) === DEFAULT_MODEL, "null model falls back to default");
+
+console.log("\n--- generate.js: max_tokens cap ---");
+
+const MAX_TOKENS_CAP = 1500;
+function resolveMaxTokens(v) {
+  return Math.min(Math.max(parseInt(v, 10) || 800, 1), MAX_TOKENS_CAP);
+}
+assert(resolveMaxTokens(500) === 500, "500 passes through");
+assert(resolveMaxTokens(0) === 800, "0 is falsy → treated as omitted → defaults to 800");
+assert(resolveMaxTokens(9999) === MAX_TOKENS_CAP, "9999 is capped at 1500");
+assert(resolveMaxTokens("abc") === 800, "non-numeric defaults to 800");
+assert(resolveMaxTokens(null) === 800, "null defaults to 800");
+
+console.log("\n--- sync.js: payload validation ---");
+
+function validateSyncPayload(body, maxBytes) {
+  if ((body || "").length > maxBytes) return { err: "State too large." };
+  let p;
+  try { p = JSON.parse(body || "{}"); } catch (e) { return { err: "Bad JSON" }; }
+  if (!p.data || typeof p.data !== "object") return { err: "Missing data" };
+  return { ok: true, data: p.data };
+}
+
+const MAX_BYTES = 256 * 1024;
+assert(validateSyncPayload(JSON.stringify({ data: { x: 1 } }), MAX_BYTES).ok, "valid payload accepted");
+assert(validateSyncPayload("{}", MAX_BYTES).err === "Missing data", "missing data field rejected");
+assert(validateSyncPayload('{"data": null}', MAX_BYTES).err === "Missing data", "null data rejected");
+assert(validateSyncPayload("not-json", MAX_BYTES).err === "Bad JSON", "bad JSON rejected");
+assert(validateSyncPayload("x".repeat(MAX_BYTES + 1), MAX_BYTES).err === "State too large.", "oversized payload rejected");
+
 // --- Summary ---
 console.log("\n==========================================");
 console.log("Results: " + passed + " passed, " + failed + " failed");
