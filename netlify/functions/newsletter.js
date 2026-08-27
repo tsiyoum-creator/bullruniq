@@ -1,5 +1,7 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
+const { unsubUrl } = require("./_shared");
+
 const MAX_SEND = 1000;
 
 function esc(s) {
@@ -14,7 +16,7 @@ function briefToHtml(text) {
     .join("");
 }
 function emailHtml(briefHtml, btc, fg, email, dateStr) {
-  var unsub = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
+  var unsub = unsubUrl(email);
   return "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;background:#050505;padding:0'>"
     + "<div style='max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system,Segoe UI,Helvetica,sans-serif'>"
     + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:4px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
@@ -97,7 +99,10 @@ exports.handler = async function (event) {
           to: email,
           subject: subject,
           html: emailHtml(briefHtml, btc, fg, email, dateStr),
-          headers: { "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + ">" },
+          headers: {
+            "List-Unsubscribe": "<" + unsubUrl(email) + ">",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         }),
       }).then(function (r) { return r.ok ? "ok" : "err"; });
     }));

@@ -4090,7 +4090,7 @@ if(auth.token)pullSync(); // logged in → adopt cloud state + authoritative pla
 // Stripe checkout return
 (function(){
   var q=new URLSearchParams(location.search);
-  if(q.get('upgrade')==='success'){var tr=(q.get('tier')||'pro').toLowerCase();cfg.plan=tr;saveCfg();track('checkout_success',{tier:tr});setTimeout(function(){alert('Welcome to BullrunIQ '+tr.toUpperCase()+'! Your subscription is active — AI is now unlimited.');},400);}
+  if(q.get('upgrade')==='success'){var tr=(q.get('tier')||'pro').toLowerCase();track('checkout_success',{tier:tr});pullSync();setTimeout(function(){alert('Welcome to BullrunIQ '+(cfg.plan||tr).toUpperCase()+'! Your subscription is active — AI is now unlimited.');},1000);}
 })();
 document.getElementById('hDate').textContent=today();
 render();
