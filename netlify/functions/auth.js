@@ -2,40 +2,14 @@
 //   POST {action:"request", email}        → emails a 6-digit code (Resend), valid 15 min
 //   POST {action:"verify",  email, code}  → returns a signed 30-day token + plan
 // Token: base64url(email|exp) + "." + HMAC-SHA256 signature.
-// Secret: AUTH_SECRET env var, else derived from ANTHROPIC_API_KEY (zero extra config;
-// rotating that key just logs everyone out, which is safe).
+// Secret: AUTH_SECRET env var, else derived from ANTHROPIC_API_KEY (zero extra config).
 
 const crypto = require("crypto");
+const { cors, secretKey, signToken, planFor, signUnsubToken, json } = require("./shared");
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const CORS = cors("POST, OPTIONS");
 
-function secretKey() {
-  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  if (process.env.ANTHROPIC_API_KEY) {
-    return crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-  }
-  return null;
-}
-function signToken(email, days) {
-  const exp = Date.now() + (days || 30) * 864e5;
-  const p = Buffer.from(email + "|" + exp).toString("base64url");
-  const sig = crypto.createHmac("sha256", secretKey()).update(p).digest("base64url");
-  return p + "." + sig;
-}
 function sha(s) { return crypto.createHash("sha256").update(s).digest("hex"); }
-function json(code, obj) { return { statusCode: code, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify(obj) }; }
-
-async function planFor(email, getStore) {
-  try {
-    const rec = await getStore("customers").get(email, { type: "json" });
-    if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "pro";
-  } catch (e) {}
-  return "free";
-}
 
 exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
