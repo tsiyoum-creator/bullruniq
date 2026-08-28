@@ -5,47 +5,10 @@
 // it comes from the "customers" store maintained by the Stripe webhook, so a
 // canceled subscription drops to "free" on the next sync — auto-revoke.
 
-const crypto = require("crypto");
+const { cors, verifyToken, planFor, json } = require("./shared");
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
+const CORS = cors("GET, POST, OPTIONS");
 const MAX_BYTES = 256 * 1024;
-
-function secretKey() {
-  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  if (process.env.ANTHROPIC_API_KEY) {
-    return crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-  }
-  return null;
-}
-function verifyToken(tok) {
-  try {
-    const key = secretKey();
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
-function json(code, obj) { return { statusCode: code, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify(obj) }; }
-
-async function planFor(email, getStore) {
-  try {
-    const rec = await getStore("customers").get(email, { type: "json" });
-    if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "pro";
-  } catch (e) {}
-  return "free";
-}
 
 exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
