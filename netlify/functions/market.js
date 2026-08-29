@@ -48,6 +48,13 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "sentiment") {
+    upstream = "https://api.alternative.me/fng/?limit=30";
+    key = "mkt:sentiment";
+    ttl = 3600000; // Fear & Greed updates once per day; cache 1 hour
+    transform = function (data) {
+      return (data && data.data) || [];
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -57,7 +64,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|sentiment or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");
