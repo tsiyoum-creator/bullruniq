@@ -5,6 +5,11 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # app.js contains the Firebase client-side API key for the #IWill project.
+  # Firebase client keys are public project identifiers, not server secrets —
+  # access control is enforced by Firebase Security Rules server-side.
+  # See: https://firebase.google.com/docs/projects/api-keys
+  SECRETS_SCAN_OMIT_PATHS = "app.js"
 
 # ── Scheduled: Daily Brief newsletter (13:00 UTC ≈ 8–9am ET) ──
 [functions."newsletter"]
