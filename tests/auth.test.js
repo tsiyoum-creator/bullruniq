@@ -163,12 +163,13 @@ assert(!isHttpUrl(""), "empty URL blocked");
 
 console.log("\n--- alerts: HTML escaping in emails ---");
 
-function esc(s) {
+// alerts.js esc() does not escape single-quotes (email HTML context only)
+function alertsEsc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
-assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
-assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(alertsEsc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
+assert(alertsEsc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
+assert(alertsEsc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -226,6 +227,72 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+
+console.log("\n--- sync.js: payload size guard ---");
+
+const MAX_BYTES = 256 * 1024;
+function payloadOk(body) { return (body || "").length <= MAX_BYTES; }
+assert(payloadOk("{}"), "empty payload accepted");
+assert(payloadOk("x".repeat(MAX_BYTES)), "max-size payload accepted");
+assert(!payloadOk("x".repeat(MAX_BYTES + 1)), "over-limit payload rejected");
+
+console.log("\n--- sync.js: token forwarding ---");
+
+function extractBearer(header) {
+  if (!header) return null;
+  return header.replace(/^Bearer\s+/i, "").trim() || null;
+}
+assert(extractBearer("Bearer abc.def.ghi") === "abc.def.ghi", "Bearer token extracted");
+assert(extractBearer("bearer ABC") === "ABC", "case-insensitive Bearer prefix");
+assert(extractBearer("") === null, "empty header returns null");
+assert(extractBearer(null) === null, "null header returns null");
+
+console.log("\n--- generate.js: model allow-list ---");
+
+const ALLOWED_MODELS = new Set([
+  "claude-opus-4-8",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5-20251001",
+]);
+const DEFAULT_MODEL = "claude-sonnet-4-6";
+function resolveModel(m) { return ALLOWED_MODELS.has(m) ? m : DEFAULT_MODEL; }
+assert(resolveModel("claude-sonnet-4-6") === "claude-sonnet-4-6", "allowed model passes through");
+assert(resolveModel("claude-opus-4-8") === "claude-opus-4-8", "opus passes through");
+assert(resolveModel("gpt-4o") === DEFAULT_MODEL, "disallowed model falls back to default");
+assert(resolveModel("") === DEFAULT_MODEL, "empty string falls back to default");
+assert(resolveModel(undefined) === DEFAULT_MODEL, "undefined falls back to default");
+
+console.log("\n--- generate.js: max_tokens cap ---");
+
+const MAX_TOKENS_CAP = 1500;
+function resolveTokens(v) { return Math.min(Math.max(parseInt(v, 10) || 800, 1), MAX_TOKENS_CAP); }
+assert(resolveTokens(800) === 800, "normal value passes through");
+assert(resolveTokens(0) === 800, "zero (falsy) falls back to default 800");
+assert(resolveTokens(9999) === MAX_TOKENS_CAP, "value above cap is clamped");
+assert(resolveTokens("bad") === 800, "non-numeric falls back to 800");
+assert(resolveTokens(-100) === 1, "negative is clamped to 1");
+
+console.log("\n--- generate.js: burst rate limiter ---");
+
+// Lightweight in-memory implementation of the burst checker logic
+function makeBurstCheck(maxN, windowMs) {
+  const state = new Map();
+  return function burstOk(ip, now) {
+    const e = state.get(ip);
+    if (!e || now - e.t > windowMs) { state.set(ip, { t: now, n: 1 }); return true; }
+    e.n++;
+    return e.n <= maxN;
+  };
+}
+
+const burstOk = makeBurstCheck(3, 60000);
+const t0 = Date.now();
+assert(burstOk("127.0.0.1", t0), "first request allowed");
+assert(burstOk("127.0.0.1", t0 + 100), "second request allowed");
+assert(burstOk("127.0.0.1", t0 + 200), "third (max) request allowed");
+assert(!burstOk("127.0.0.1", t0 + 300), "fourth request blocked (burst exceeded)");
+assert(burstOk("10.0.0.1", t0), "different IP is not affected");
+assert(burstOk("127.0.0.1", t0 + 70000), "request after window reset is allowed");
 
 // --- Summary ---
 console.log("\n==========================================");

@@ -417,12 +417,16 @@ async function fetchCrypto(force){
   var portfolioTicks=port.crypto.map(function(h){return h.ticker.toUpperCase();});
   var ticks=[...new Set(ANCHORS.concat(portfolioTicks))];
   var ids=[...new Set(ticks.map(function(t){return CGMAP[t]||t.toLowerCase();}))];
-  try{
-    var r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+ids.join(',')+'&vs_currencies=usd&include_24hr_change=true');
-    var d=await r.json();
-    ticks.forEach(function(t){var id=CGMAP[t]||t.toLowerCase();if(d[id])prices[t]={price:d[id].usd,change24:d[id].usd_24h_change||0};});
-    _cryptoAt=Date.now();savePr();
-  }catch(e){}
+  var url='https://api.coingecko.com/api/v3/simple/price?ids='+ids.join(',')+'&vs_currencies=usd&include_24hr_change=true';
+  for(var _attempt=0;_attempt<3;_attempt++){
+    try{
+      var r=await fetch(url);
+      if(!r.ok&&_attempt<2){await new Promise(function(res){setTimeout(res,(_attempt+1)*1500);});continue;}
+      var d=await r.json();
+      ticks.forEach(function(t){var id=CGMAP[t]||t.toLowerCase();if(d[id])prices[t]={price:d[id].usd,change24:d[id].usd_24h_change||0};});
+      _cryptoAt=Date.now();savePr();break;
+    }catch(e){if(_attempt<2)await new Promise(function(res){setTimeout(res,(_attempt+1)*1500);});}
+  }
 }
 
 // ── Fetch: Stock prices ───────────────────────────────────────
@@ -541,11 +545,9 @@ async function anthropicCall(body){
       body:JSON.stringify(body)
     });
   }
-  return fetch('/api/generate',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body)
-  });
+  var hdrs={'Content-Type':'application/json'};
+  if(auth.token)hdrs['Authorization']='Bearer '+auth.token;
+  return fetch('/api/generate',{method:'POST',headers:hdrs,body:JSON.stringify(body)});
 }
 function _aiErr(status,raw){
   var msg='HTTP '+status+' — '+raw.slice(0,400);
@@ -746,7 +748,7 @@ function rWatchlist(){
     var hitTarget=distPct!==null&&Math.abs(distPct)<2;
     html+='<div class="wl-row" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0;align-items:center">';
     // Asset
-    html+='<div><div style="font-weight:700;font-size:12px;color:var(--gold)">'+w.ticker+'</div><div style="font-size:10px;color:var(--t3)">'+w.name+'</div></div>';
+    html+='<div><div style="font-weight:700;font-size:12px;color:var(--gold)">'+escHtml(w.ticker)+'</div><div style="font-size:10px;color:var(--t3)">'+escHtml(w.name)+'</div></div>';
     // 24h
     html+='<div style="font-size:12px;font-family:DM Mono,monospace;color:'+(ch===null?'var(--t3)':ch>=0?'var(--grn)':'var(--red)')+'">'+(ch!==null?fpc(ch):'—')+'</div>';
     // Price
@@ -2068,8 +2070,8 @@ function rDash(){
       else if(ch>=-5){bg='rgba(224,85,85,0.14)';bc='rgba(224,85,85,0.28)';}
       else{bg='rgba(224,85,85,0.26)';bc='rgba(224,85,85,0.5)';}
       var clr=ch>=0?'var(--grn)':'var(--red)';
-      html+='<div class="heat-cell" style="background:'+bg+';border:1px solid '+bc+'" onclick="chartAsset=\''+h.ticker+'\';go(\'chart\',document.querySelectorAll(\'.tab\')[5])">';
-      html+='<div class="heat-cell-tick">'+h.ticker+'</div>';
+      html+='<div class="heat-cell" style="background:'+bg+';border:1px solid '+bc+'" data-tick="'+escHtml(h.ticker)+'" onclick="chartAsset=this.dataset.tick;go(\'chart\',document.querySelectorAll(\'.tab\')[5])">';
+      html+='<div class="heat-cell-tick">'+escHtml(h.ticker)+'</div>';
       html+='<div class="heat-cell-pct" style="color:'+clr+'">'+(ch>=0?'+':'')+ch.toFixed(2)+'%</div>';
       html+='<div class="heat-cell-val">'+f$(val)+'</div>';
       html+='</div>';
@@ -2097,13 +2099,13 @@ function rDash(){
     html+='<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;margin-bottom:10px">';
     a.forEach(function(h,i){
       var pct=(pof(h)*h.qty/totalV*100).toFixed(1);
-      html+='<div style="flex:'+pct+';background:'+HCOLS[i%HCOLS.length]+';opacity:.8;border-radius:2px" title="'+h.ticker+' '+pct+'%"></div>';
+      html+='<div style="flex:'+pct+';background:'+HCOLS[i%HCOLS.length]+';opacity:.8;border-radius:2px" title="'+escHtml(h.ticker)+' '+pct+'%"></div>';
     });
     html+='</div>';
     html+='<div style="display:flex;flex-wrap:wrap;gap:10px">';
     a.forEach(function(h,i){
       var pct=(pof(h)*h.qty/totalV*100).toFixed(1);
-      html+='<div style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:'+HCOLS[i%HCOLS.length]+';display:inline-block"></span><span style="font-size:10px;color:var(--t2)">'+h.ticker+' <span style="color:var(--t3)">'+pct+'%</span></span></div>';
+      html+='<div style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:'+HCOLS[i%HCOLS.length]+';display:inline-block"></span><span style="font-size:10px;color:var(--t2)">'+escHtml(h.ticker)+' <span style="color:var(--t3)">'+pct+'%</span></span></div>';
     });
     html+='</div></div>';
   } else {
@@ -2138,7 +2140,7 @@ function dashTable(list){
     var chc=ch===null?'':ch>=0?'pos':'neg';
     var arrow=ch===null?'':ch>=0?'▲':'▼';
     html+='<tr>';
-    html+='<td><div class="ac"><div class="aico" style="background:'+col+'22;color:'+col+'">'+h.ticker.slice(0,4)+'</div><div><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+'</div></div></div></td>';
+    html+='<td><div class="ac"><div class="aico" style="background:'+col+'22;color:'+col+'">'+escHtml(h.ticker.slice(0,4))+'</div><div><div class="anm">'+escHtml(h.name)+'</div><div class="atk">'+escHtml(h.ticker)+'</div></div></div></td>';
     html+='<td class="mono" style="font-size:13px;font-weight:500">'+fp(p)+'</td>';
     html+='<td class="mono '+chc+'" style="font-size:12px">'+arrow+' '+fpc(ch)+'</td>';
     html+='<td class="mono" style="color:var(--t2)">'+h.qty+'</td>';
@@ -2151,9 +2153,10 @@ function dashTable(list){
   return html;
 }
 
-function lastUpdatedStr(){
-  if(!window._lastRefresh)return'Never';
-  var d=new Date(window._lastRefresh);
+function lastUpdatedStr(ts){
+  var t=ts||window._lastRefresh;
+  if(!t)return'Never';
+  var d=new Date(t);
   return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 
@@ -2251,7 +2254,7 @@ function holdTbl(list,type){
     var avgIn='<input class="inp eh-avg" type="number" step="any" min="0" value="'+h.avg+'" onkeydown="'+onEnter+'">';
     var editBtns='<button class="btn btn-g btn-sm" style="padding:5px 11px;font-size:10px" onclick="saveEditHold(\''+type+'\','+h.id+')">Save</button> <button class="btn btn-o btn-sm" style="padding:5px 9px;font-size:10px" onclick="cancelEditHold()">Cancel</button>';
     var actBtns='<button class="btn btn-o btn-sm" style="padding:5px 10px;font-size:10px" onclick="startEditHold(\''+type+'\','+h.id+')">Edit</button> <button class="del-btn" onclick="delHolding(\''+type+'\','+h.id+')" title="Delete holding">✕</button>';
-    var ico='<div class="aico" style="background:'+col+'22;color:'+col+'">'+h.ticker.slice(0,4)+'</div>';
+    var ico='<div class="aico" style="background:'+col+'22;color:'+col+'">'+escHtml(h.ticker.slice(0,4))+'</div>';
 
     // Stop-loss / take-profit badges — loud when breached, quiet when armed
     var stopHit=h.stop&&p<=h.stop,tpHit=h.tp&&p>=h.tp;
@@ -2262,7 +2265,7 @@ function holdTbl(list,type){
 
     // ── table row ──
     tbl+='<tr>';
-    tbl+='<td><div class="ac">'+ico+'<div><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+lvlBadge+'</div></div></div></td>';
+    tbl+='<td><div class="ac">'+ico+'<div><div class="anm">'+escHtml(h.name)+'</div><div class="atk">'+escHtml(h.ticker)+lvlBadge+'</div></div></div></td>';
     if(editing){
       tbl+='<td>'+qtyIn.replace('class="inp eh-qty"','class="inp eh-qty" style="width:86px;padding:6px 8px"')+'</td>';
       tbl+='<td>'+avgIn.replace('class="inp eh-avg"','class="inp eh-avg" style="width:94px;padding:6px 8px"')+'</td>';
@@ -2285,7 +2288,7 @@ function holdTbl(list,type){
 
     // ── mobile card ──
     cards+='<div class="hcard">';
-    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span>'+lvlBadge+'</div></div>';
+    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+escHtml(h.name)+'</div><div class="atk">'+escHtml(h.ticker)+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span>'+lvlBadge+'</div></div>';
     cards+='<div class="hcard-val"><div style="font-weight:600;font-family:DM Mono,monospace">'+f$(val)+'</div><div style="font-size:11px" class="'+plCls+'">'+(pl>=0?'+':'')+f$(pl)+' ('+(plp==null?'—':fpc(plp))+')</div></div></div>';
     if(editing){
       cards+='<div style="border-top:1px solid var(--b1);padding-top:9px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">';

@@ -2,6 +2,9 @@
    #IWill — app.js
    ================================================================ */
 
+// Firebase client config is intentionally public — it is a project identifier,
+// not a secret. Access is controlled by Firebase Security Rules on the server.
+// See: https://firebase.google.com/docs/projects/api-keys
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAn0deVxcR66YOEiIYD05hyDnzrrroUUvM",
   authDomain:        "iwill-challenge.firebaseapp.com",
