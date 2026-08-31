@@ -1,9 +1,9 @@
-// Unit tests for auth.js logic (token signing, verification, validation).
+// Unit tests for BullrunIQ logic.
 // Run with: node tests/auth.test.js
 
 const crypto = require("crypto");
 
-// --- Inline the token helpers (copied from auth.js / sync.js) ---
+// --- Inline the token helpers (mirrors _shared.js) ---
 
 const TEST_SECRET = "test-secret-key-for-unit-tests";
 
@@ -20,8 +20,9 @@ function verifyToken(tok, secret) {
     const i = tok.lastIndexOf(".");
     if (i < 1) return null;
     const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", secret).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
+    const expected = crypto.createHmac("sha256", secret).update(p).digest("base64url");
+    if (expected.length !== sig.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) return null;
     const raw = Buffer.from(p, "base64url").toString("utf8");
     const j = raw.lastIndexOf("|");
     const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
@@ -57,7 +58,7 @@ assert(verifyToken(null, TEST_SECRET) === null, "null token returns null");
 console.log("\n--- auth token: expiry ---");
 
 function signExpired(email, secret) {
-  const exp = Date.now() - 1000; // already expired
+  const exp = Date.now() - 1000;
   const p = Buffer.from(email + "|" + exp).toString("base64url");
   const sig = crypto.createHmac("sha256", secret).update(p).digest("base64url");
   return p + "." + sig;
@@ -72,6 +73,14 @@ for (const em of emails) {
   const t = signToken(em.toLowerCase(), 1, TEST_SECRET);
   assert(verifyToken(t, TEST_SECRET) === em.toLowerCase(), "round-trips: " + em);
 }
+
+console.log("\n--- auth token: length mismatch guard ---");
+
+// A token whose sig is a different length should not be timingSafeEqual'd
+const shortToken = signToken("a@b.com", 1, TEST_SECRET);
+const parts = shortToken.split(".");
+const truncatedSig = parts[1].slice(0, 10);
+assert(verifyToken(parts[0] + "." + truncatedSig, TEST_SECRET) === null, "truncated sig returns null");
 
 console.log("\n--- unsubscribe: email validation ---");
 
@@ -108,6 +117,8 @@ assert(validateIds("bitcoin,ethereum").length === 2, "two valid ids pass");
 assert(validateIds("bitcoin; DROP TABLE").length === 0, "injection string rejected");
 assert(validateIds("a".repeat(51)).length === 0, "too-long id rejected");
 assert(validateIds(",,,").length === 0, "empty ids rejected");
+assert(validateIds("bitcoin,ethereum,solana").length === 3, "three valid ids pass");
+assert(validateIds("BITCOIN").length === 1, "uppercase input is lowercased and accepted");
 
 console.log("\n--- alerts: sell alert logic ---");
 
@@ -163,12 +174,10 @@ assert(!isHttpUrl(""), "empty URL blocked");
 
 console.log("\n--- alerts: HTML escaping in emails ---");
 
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
 assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
 assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
 assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(esc("'; DROP TABLE--") === "&#x27;; DROP TABLE--", "single quote escaped");
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -211,6 +220,8 @@ assert(lad.rungs[0].price === 125 && lad.rungs[1].price === 150 && lad.rungs[2].
 assert(lad.hits.length === 2, "at +60%, first two rungs are hit");
 assert(lad.rungs[0].qty === 2.5, "each rung sells 25% of the position");
 assert(ladderFor(100, 10, 250).hits.length === 3, "at +150%, all rungs hit");
+assert(ladderFor(100, 10, 120) !== null, "ladder created at +20%");
+assert(ladderFor(100, 10, 119) === null, "no ladder just under +20%");
 
 console.log("\n--- cash deployment engine ---");
 
@@ -226,6 +237,87 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+assert(deployPlan(100, ["BTC"]) !== null, "exactly $100 triggers plan");
+assert(deployPlan(99, ["BTC"]) === null, "under $100 no plan");
+
+console.log("\n--- newsletter: null-safe BTC formatting ---");
+
+function formatBtcLine(d) {
+  if (!d || d.usd == null) return "n/a";
+  const change = d.usd_24h_change;
+  const changeStr = (change != null && isFinite(change))
+    ? " (" + (change >= 0 ? "+" : "") + change.toFixed(1) + "%)"
+    : "";
+  return "$" + Math.round(d.usd).toLocaleString() + changeStr;
+}
+assert(formatBtcLine(null) === "n/a", "null data returns n/a");
+assert(formatBtcLine({}) === "n/a", "missing usd returns n/a");
+assert(formatBtcLine({ usd: 100000, usd_24h_change: 3.5 }) === "$100,000 (+3.5%)", "positive change formatted");
+assert(formatBtcLine({ usd: 95000, usd_24h_change: -2.1 }) === "$95,000 (-2.1%)", "negative change formatted");
+assert(formatBtcLine({ usd: 80000, usd_24h_change: null }) === "$80,000", "null change omitted");
+assert(formatBtcLine({ usd: 80000, usd_24h_change: NaN }) === "$80,000", "NaN change omitted");
+assert(formatBtcLine({ usd: 80000, usd_24h_change: Infinity }) === "$80,000", "Infinity change omitted");
+
+console.log("\n--- generate.js: message sanitization ---");
+
+function sanitizeMessages(messages, maxLen) {
+  return messages.map(function (m) {
+    const role = m.role === "assistant" ? "assistant" : "user";
+    let content = m.content;
+    if (typeof content === "string") {
+      content = content.slice(0, maxLen);
+    } else if (Array.isArray(content)) {
+      content = content.slice(0, 20).map(function (block) {
+        if (block && typeof block.text === "string") {
+          return { ...block, text: block.text.slice(0, maxLen) };
+        }
+        return block;
+      });
+    }
+    return { role, content };
+  });
+}
+const longMsg = "x".repeat(10000);
+const sanitized = sanitizeMessages([{ role: "user", content: longMsg }], 8000);
+assert(sanitized[0].content.length === 8000, "string content truncated to maxLen");
+assert(sanitized[0].role === "user", "user role preserved");
+
+const badRole = sanitizeMessages([{ role: "admin", content: "hi" }], 8000);
+assert(badRole[0].role === "user", "unknown role coerced to user");
+
+const assistantMsg = sanitizeMessages([{ role: "assistant", content: "hello" }], 8000);
+assert(assistantMsg[0].role === "assistant", "assistant role preserved");
+
+const arrayContent = sanitizeMessages([{ role: "user", content: [{ type: "text", text: "x".repeat(10000) }] }], 8000);
+assert(arrayContent[0].content[0].text.length === 8000, "array block text truncated");
+
+console.log("\n--- generate.js: system prompt cap ---");
+
+const MAX_SYSTEM_LEN = 2000;
+const longSystem = "s".repeat(5000);
+const cappedSystem = String(longSystem).slice(0, MAX_SYSTEM_LEN);
+assert(cappedSystem.length === MAX_SYSTEM_LEN, "system prompt capped at MAX_SYSTEM_LEN");
+
+console.log("\n--- sync.js: authorization ---");
+
+// A request without a valid token should be rejected
+function syncAuthCheck(authHeader, secret) {
+  const tok = (authHeader || "").replace(/^Bearer\s+/i, "").trim();
+  return verifyToken(tok, secret);
+}
+assert(syncAuthCheck("", TEST_SECRET) === null, "empty auth header rejected");
+assert(syncAuthCheck("Bearer invalid", TEST_SECRET) === null, "invalid token rejected");
+const goodToken = signToken("user@example.com", 1, TEST_SECRET);
+assert(syncAuthCheck("Bearer " + goodToken, TEST_SECRET) === "user@example.com", "valid bearer token accepted");
+assert(syncAuthCheck("bearer " + goodToken, TEST_SECRET) === "user@example.com", "case-insensitive Bearer prefix");
+
+console.log("\n--- market.js: kind validation ---");
+
+const VALID_KINDS = new Set(["top50", "top100", "gainers", "losers", "trending", "fear-greed", "global"]);
+assert(VALID_KINDS.has("fear-greed"), "fear-greed is a valid kind");
+assert(VALID_KINDS.has("global"), "global is a valid kind");
+assert(!VALID_KINDS.has("invalid"), "invalid kind is rejected");
+assert(!VALID_KINDS.has(""), "empty kind is rejected");
 
 // --- Summary ---
 console.log("\n==========================================");

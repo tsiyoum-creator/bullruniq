@@ -1,10 +1,9 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
+const { esc } = require("./_shared");
+
 const MAX_SEND = 1000;
 
-function esc(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 function briefToHtml(text) {
   return esc(text)
     .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
@@ -13,6 +12,7 @@ function briefToHtml(text) {
     .map(function (l) { return "<p style='margin:0 0 12px;color:#c8c4bc;font-size:15px;line-height:1.7'>" + l.trim() + "</p>"; })
     .join("");
 }
+
 function emailHtml(briefHtml, btc, fg, email, dateStr) {
   var unsub = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
   return "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;background:#050505;padding:0'>"
@@ -31,6 +31,15 @@ function emailHtml(briefHtml, btc, fg, email, dateStr) {
     + "</div></div></body></html>";
 }
 
+function formatBtcLine(d) {
+  if (!d || d.usd == null) return "n/a";
+  const change = d.usd_24h_change;
+  const changeStr = (change != null && isFinite(change))
+    ? " (" + (change >= 0 ? "+" : "") + change.toFixed(1) + "%)"
+    : "";
+  return "$" + Math.round(d.usd).toLocaleString() + changeStr;
+}
+
 exports.handler = async function (event) {
   try { require("@netlify/blobs").connectLambda(event); } catch (e) {}
   const RESEND = process.env.RESEND_API_KEY;
@@ -45,13 +54,14 @@ exports.handler = async function (event) {
   try {
     const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
     const d = await r.json();
-    if (d.bitcoin) btc = "$" + Math.round(d.bitcoin.usd).toLocaleString() + " (" + (d.bitcoin.usd_24h_change >= 0 ? "+" : "") + d.bitcoin.usd_24h_change.toFixed(1) + "%)";
-  } catch (e) {}
+    if (d && d.bitcoin) btc = formatBtcLine(d.bitcoin);
+  } catch (e) { console.log("[newsletter] BTC fetch failed:", e.message); }
+
   try {
     const r = await fetch("https://api.alternative.me/fng/?limit=1");
     const d = await r.json();
-    if (d.data && d.data[0]) fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
-  } catch (e) {}
+    if (d && d.data && d.data[0]) fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
+  } catch (e) { console.log("[newsletter] F&G fetch failed:", e.message); }
 
   var brief = "";
   try {
@@ -67,6 +77,7 @@ exports.handler = async function (event) {
     const d = await r.json();
     brief = (d.content && d.content[0] && d.content[0].text) || "";
   } catch (e) { console.log("[newsletter] brief generation failed:", e.message); }
+
   if (!brief) {
     brief = "📊 **Market check** — AI brief generation failed today; check your portfolio in the command center.\n💡 **Tip** — Review your watchlist targets and ensure your stop-losses are current.\n⚠️ **Reminder** — This is an educational newsletter, not financial advice.";
     console.log("[newsletter] using fallback brief");

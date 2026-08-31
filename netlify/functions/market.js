@@ -5,16 +5,15 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
-async function fetchJson(url) {
-  const r = await fetch(url, { headers: UA });
-  const data = await r.json();
+async function fetchJson(url, opts) {
+  const r = await fetch(url, { headers: UA, ...opts });
   if (!r.ok) throw new Error("upstream " + r.status);
-  return data;
+  return r.json();
 }
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  let upstream, key, ttl = TTL_MS, transform;
+  let upstream, key, ttl = TTL_MS, transform, externalBase;
 
   if (q.kind === "top50") {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=30d,200d,1y";
@@ -48,6 +47,38 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "fear-greed") {
+    // Fear & Greed index from alternative.me
+    upstream = "https://api.alternative.me/fng/?limit=7";
+    key = "mkt:fear-greed";
+    ttl = 60 * 60000; // 1 hour
+    externalBase = true;
+    transform = function (data) {
+      const entries = (data && data.data) || [];
+      return entries.map(function (e) {
+        return {
+          value: parseInt(e.value, 10),
+          classification: e.value_classification,
+          timestamp: parseInt(e.timestamp, 10) * 1000,
+        };
+      });
+    };
+  } else if (q.kind === "global") {
+    // Global crypto market stats (BTC dominance, total market cap)
+    upstream = CG_BASE + "/global";
+    key = "mkt:global";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      const d = (data && data.data) || {};
+      return {
+        total_market_cap_usd: d.total_market_cap && d.total_market_cap.usd,
+        total_volume_usd: d.total_volume && d.total_volume.usd,
+        btc_dominance: d.market_cap_percentage && d.market_cap_percentage.btc,
+        eth_dominance: d.market_cap_percentage && d.market_cap_percentage.eth,
+        active_cryptocurrencies: d.active_cryptocurrencies,
+        market_cap_change_percentage_24h: d.market_cap_change_percentage_24h_usd,
+      };
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -57,8 +88,10 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear-greed|global or ids=..." }) };
   }
+
+  const fetchOpts = externalBase ? {} : undefined;
 
   const blobs = require("@netlify/blobs");
   try { blobs.connectLambda(event); } catch (e) {}
@@ -76,7 +109,7 @@ exports.handler = async function (event) {
   }
 
   try {
-    const data = await fetchJson(upstream);
+    const data = await fetchJson(upstream, fetchOpts);
     if (cache) { try { await cache.setJSON(key, { at: Date.now(), data: data }); } catch (e) {} }
     const payload = transform ? transform(data) : data;
     return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };

@@ -1,6 +1,6 @@
 // BullrunIQ — Secure Anthropic proxy
 
-const crypto = require("crypto");
+const { CORS_POST, verifyToken } = require("./_shared");
 
 const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
@@ -13,32 +13,10 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const DAILY_USER_CAP = 1000;
+const MAX_SYSTEM_LEN = 2000;
+const MAX_MSG_CONTENT_LEN = 8000;
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function verifyToken(tok) {
-  try {
-    let key = process.env.AUTH_SECRET;
-    if (!key && process.env.ANTHROPIC_API_KEY) {
-      key = crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-    }
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
+const CORS = CORS_POST;
 
 const _burst = new Map();
 
@@ -73,6 +51,24 @@ async function dailyOk(key, cap) {
     await store.setJSON(storeKey, cur);
     return true;
   } catch (e) { return true; }
+}
+
+function sanitizeMessages(messages) {
+  return messages.map(function (m) {
+    const role = m.role === "assistant" ? "assistant" : "user";
+    let content = m.content;
+    if (typeof content === "string") {
+      content = content.slice(0, MAX_MSG_CONTENT_LEN);
+    } else if (Array.isArray(content)) {
+      content = content.slice(0, 20).map(function (block) {
+        if (block && typeof block.text === "string") {
+          return { ...block, text: block.text.slice(0, MAX_MSG_CONTENT_LEN) };
+        }
+        return block;
+      });
+    }
+    return { role, content };
+  });
 }
 
 exports.handler = async function (event) {
@@ -117,8 +113,8 @@ exports.handler = async function (event) {
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
-  const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
+  const body = { model, max_tokens, messages: sanitizeMessages(messages) };
+  if (system) body.system = String(system).slice(0, MAX_SYSTEM_LEN);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
