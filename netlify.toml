@@ -5,6 +5,11 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # app.js is a legacy #IWill-challenge file that contains a public Firebase API key.
+  # Firebase API keys are intentionally public (security is enforced by Firebase security rules,
+  # not by keeping the key secret). Netlify's scanner cannot distinguish this, so we exclude
+  # it to prevent false-positive build failures.
+  SECRETS_SCAN_OMIT_PATHS = "app.js"
 
 # ── Scheduled: Daily Brief newsletter (13:00 UTC ≈ 8–9am ET) ──
 [functions."newsletter"]
