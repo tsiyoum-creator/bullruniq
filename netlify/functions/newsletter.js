@@ -41,6 +41,7 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: "not configured" };
   }
 
+  const MODEL = process.env.NEWSLETTER_MODEL || "claude-sonnet-4-6";
   var btc = "n/a", fg = "n/a";
   try {
     const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
@@ -59,7 +60,7 @@ exports.handler = async function (event) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTH, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: MODEL,
         max_tokens: 500,
         messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with one action to consider today. Under 160 words. Educational, not financial advice. Live data: BTC " + btc + ", Fear & Greed " + fg + ". Date " + new Date().toUTCString() }],
       }),

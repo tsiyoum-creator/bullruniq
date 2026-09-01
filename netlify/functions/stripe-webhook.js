@@ -13,7 +13,10 @@ function verifyStripe(rawBody, sigHeader, secret) {
   const signed = parts.t + "." + rawBody;
   const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
   try {
-    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
+    const expBuf = Buffer.from(expected);
+    const gotBuf = Buffer.from(parts.v1);
+    if (expBuf.length !== gotBuf.length) return false;
+    if (!crypto.timingSafeEqual(expBuf, gotBuf)) return false;
   } catch (e) { return false; }
   const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
   return age <= 300;
