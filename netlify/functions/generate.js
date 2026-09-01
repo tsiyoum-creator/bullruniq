@@ -1,11 +1,13 @@
 // BullrunIQ — Secure Anthropic proxy
 
-const crypto = require("crypto");
+const { verifyToken } = require("./_auth");
 
 const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
   "claude-sonnet-4-6",
   "claude-haiku-4-5-20251001",
+  "claude-opus-5",
+  "claude-sonnet-5",
 ]);
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS_CAP = 1500;
@@ -19,26 +21,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-function verifyToken(tok) {
-  try {
-    let key = process.env.AUTH_SECRET;
-    if (!key && process.env.ANTHROPIC_API_KEY) {
-      key = crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-    }
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
 
 const _burst = new Map();
 

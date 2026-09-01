@@ -1,12 +1,13 @@
 // BullrunIQ — market data proxy (/api/market).
 
 const TTL_MS = 10 * 60000;
-const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
+const CORS_HEADERS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
-async function fetchJson(url) {
-  const r = await fetch(url, { headers: UA });
+async function fetchJson(url, extraHeaders) {
+  const headers = Object.assign({}, UA, extraHeaders || {});
+  const r = await fetch(url, { headers });
   const data = await r.json();
   if (!r.ok) throw new Error("upstream " + r.status);
   return data;
@@ -48,16 +49,31 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "fear-greed") {
+    // Crypto Fear & Greed index — last 7 days from alternative.me
+    upstream = "https://api.alternative.me/fng/?limit=7";
+    key = "mkt:fear-greed";
+    ttl = 60 * 60000; // 1 hour — index updates once per day
+    transform = function (data) {
+      const d = (data && data.data) || [];
+      return d.map(function (x) {
+        return {
+          value: parseInt(x.value, 10),
+          classification: x.value_classification,
+          timestamp: parseInt(x.timestamp, 10),
+        };
+      });
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
       .filter(function (s) { return /^[a-z0-9-]{1,50}$/.test(s); })
       .slice(0, 25);
-    if (!ids.length) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "no valid ids" }) };
+    if (!ids.length) return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "no valid ids" }) };
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear-greed or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");
@@ -70,26 +86,29 @@ exports.handler = async function (event) {
       const c = await cache.get(key, { type: "json" });
       if (c && Date.now() - c.at < ttl) {
         const payload = transform ? transform(c.data) : c.data;
-        return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
+        return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify(payload) };
       }
     } catch (e) {}
   }
 
   try {
-    const data = await fetchJson(upstream);
+    // Pass CoinGecko demo key if configured, for higher rate limits
+    const cgKey = process.env.COINGECKO_API_KEY;
+    const extraHeaders = cgKey ? { "x-cg-demo-api-key": cgKey } : {};
+    const data = await fetchJson(upstream, extraHeaders);
     if (cache) { try { await cache.setJSON(key, { at: Date.now(), data: data }); } catch (e) {} }
     const payload = transform ? transform(data) : data;
-    return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
+    return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify(payload) };
   } catch (err) {
     if (cache) {
       try {
         const c = await cache.get(key, { type: "json" });
         if (c) {
           const payload = transform ? transform(c.data) : c.data;
-          return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
+          return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify(payload) };
         }
       } catch (e) {}
     }
-    return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: "market data unavailable" }) };
+    return { statusCode: 502, headers: CORS_HEADERS, body: JSON.stringify({ error: "market data unavailable" }) };
   }
 };
