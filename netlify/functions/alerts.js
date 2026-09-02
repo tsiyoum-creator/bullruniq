@@ -10,8 +10,36 @@
 // No-ops gracefully until RESEND_API_KEY is set.
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
+const PRICE_FETCH_TIMEOUT_MS = 10000;
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  // Large-cap
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network",
+  LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu",
+  UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum",
+  SUI:"sui", INJ:"injective-protocol", TON:"the-open-network", XLM:"stellar",
+  HBAR:"hedera-hashgraph", QNT:"quant-network", ALGO:"algorand", VET:"vechain",
+  FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom",
+  CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", TAO:"bittensor",
+  // DeFi blue chips
+  AAVE:"aave", MKR:"maker", CRV:"curve-dao-token", SNX:"havven", GMX:"gmx",
+  DYDX:"dydx", PENDLE:"pendle", JUP:"jupiter-exchange-solana", ONDO:"ondo-finance",
+  AERO:"aerodrome-finance", ETHFI:"ether-fi", ENA:"ethena",
+  // L2 / infra
+  STRK:"starknet", ZK:"zksync", ZRO:"layerzero", W:"wormhole",
+  TIA:"celestia", DYM:"dymension", SEI:"sei-network", EIGEN:"eigenlayer",
+  // Oracles / data
+  PYTH:"pyth-network", BAND:"band-protocol",
+  // Solana ecosystem
+  JTO:"jito-governance-token", BONK:"bonk", WIF:"dogwifcoin",
+  POPCAT:"popcat", BOME:"book-of-meme", KMNO:"kamino",
+  // Meme / trending
+  PEPE:"pepe", FLOKI:"floki",
+  // GameFi / metaverse
+  SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala",
+  IMX:"immutable-x", BLUR:"blur",
+};
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -118,7 +146,10 @@ exports.handler = async function (event) {
   // One batched price call
   let prices = {};
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd");
+    const ac = new AbortController();
+    const timer = setTimeout(function () { ac.abort(); }, PRICE_FETCH_TIMEOUT_MS);
+    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd", { signal: ac.signal });
+    clearTimeout(timer);
     prices = await r.json();
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 

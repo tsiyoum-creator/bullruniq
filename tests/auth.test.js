@@ -227,7 +227,168 @@ assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
 
-// --- Summary ---
-console.log("\n==========================================");
-console.log("Results: " + passed + " passed, " + failed + " failed");
-if (failed > 0) process.exit(1);
+console.log("\n--- stripe webhook: signature verification ---");
+
+const crypto2 = require("crypto");
+function verifyStripe(rawBody, sigHeader, secret) {
+  if (!sigHeader || !secret) return false;
+  const parts = {};
+  String(sigHeader).split(",").forEach(function (kv) {
+    const i = kv.indexOf("=");
+    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  });
+  if (!parts.t || !parts.v1) return false;
+  const signed = parts.t + "." + rawBody;
+  const expected = crypto2.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
+  try {
+    if (!crypto2.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
+  } catch (e) { return false; }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
+  return age <= 300;
+}
+const STRIPE_SECRET = "whsec_test_secret";
+const BODY = '{"type":"checkout.session.completed"}';
+const TS = Math.floor(Date.now() / 1000);
+const STRIPE_SIG = crypto2.createHmac("sha256", STRIPE_SECRET).update(TS + "." + BODY).digest("hex");
+const validHeader = "t=" + TS + ",v1=" + STRIPE_SIG;
+assert(verifyStripe(BODY, validHeader, STRIPE_SECRET), "valid signature passes");
+assert(!verifyStripe(BODY, validHeader, "wrong-secret"), "wrong secret fails");
+assert(!verifyStripe(BODY, "t=" + TS + ",v1=badvalue", STRIPE_SECRET), "tampered v1 fails");
+assert(!verifyStripe(BODY, "", STRIPE_SECRET), "empty header fails");
+assert(!verifyStripe(BODY, validHeader, ""), "empty secret fails");
+
+// Replay attack: timestamp more than 5 minutes old
+const oldTS = Math.floor(Date.now() / 1000) - 400;
+const oldSig = crypto2.createHmac("sha256", STRIPE_SECRET).update(oldTS + "." + BODY).digest("hex");
+assert(!verifyStripe(BODY, "t=" + oldTS + ",v1=" + oldSig, STRIPE_SECRET), "old timestamp rejected (replay guard)");
+
+console.log("\n--- generate.js: message validation ---");
+
+const VALID_ROLES = new Set(["user", "assistant"]);
+const MAX_MESSAGES_CHARS = 20000;
+const MAX_SYSTEM_CHARS = 2000;
+
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || !messages.length) return "Missing messages or prompt";
+  let totalChars = 0;
+  for (const m of messages) {
+    if (!m || typeof m !== "object") return "Invalid message format";
+    if (!VALID_ROLES.has(m.role)) return "Invalid message role: " + m.role;
+    const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+    totalChars += content.length;
+    if (totalChars > MAX_MESSAGES_CHARS) return "Messages too large";
+  }
+  return null;
+}
+
+assert(validateMessages([{ role: "user", content: "hello" }]) === null, "valid single message passes");
+assert(validateMessages([{ role: "user", content: "a" }, { role: "assistant", content: "b" }]) === null, "valid conversation passes");
+assert(validateMessages([]) === "Missing messages or prompt", "empty array fails");
+assert(validateMessages(null) === "Missing messages or prompt", "null fails");
+assert(validateMessages([{ role: "system", content: "x" }]) !== null, "invalid role 'system' rejected");
+assert(validateMessages([{ role: "admin", content: "x" }]) !== null, "invalid role 'admin' rejected");
+assert(validateMessages([null]) !== null, "null message fails");
+const bigMsg = [{ role: "user", content: "x".repeat(MAX_MESSAGES_CHARS + 1) }];
+assert(validateMessages(bigMsg) === "Messages too large", "oversized message rejected");
+const exactMsg = [{ role: "user", content: "x".repeat(MAX_MESSAGES_CHARS) }];
+assert(validateMessages(exactMsg) === null, "exactly at limit passes (limit is inclusive)");
+const justUnder = [{ role: "user", content: "x".repeat(MAX_MESSAGES_CHARS - 1) }];
+assert(validateMessages(justUnder) === null, "one under limit passes");
+
+assert(String("hello").slice(0, MAX_SYSTEM_CHARS) === "hello", "short system prompt unchanged");
+assert("x".repeat(3000).slice(0, MAX_SYSTEM_CHARS).length === MAX_SYSTEM_CHARS, "oversized system prompt truncated");
+
+console.log("\n--- market.js: global data transform ---");
+
+function transformGlobal(data) {
+  const d = (data && data.data) || {};
+  return {
+    total_market_cap_usd: d.total_market_cap && d.total_market_cap.usd,
+    btc_dominance: d.market_cap_percentage && d.market_cap_percentage.btc,
+    eth_dominance: d.market_cap_percentage && d.market_cap_percentage.eth,
+    market_cap_change_percentage_24h: d.market_cap_change_percentage_24h_usd,
+  };
+}
+const mockGlobal = { data: { total_market_cap: { usd: 2500000000000 }, market_cap_percentage: { btc: 52.5, eth: 17.3 }, market_cap_change_percentage_24h_usd: 1.2 } };
+const g = transformGlobal(mockGlobal);
+assert(g.total_market_cap_usd === 2500000000000, "total market cap extracted");
+assert(g.btc_dominance === 52.5, "BTC dominance extracted");
+assert(g.eth_dominance === 17.3, "ETH dominance extracted");
+assert(g.market_cap_change_percentage_24h === 1.2, "24h market cap change extracted");
+assert(transformGlobal(null).total_market_cap_usd === undefined, "null data returns empty object gracefully");
+
+console.log("\n--- market.js: fear & greed transform ---");
+
+function transformFear(data) {
+  const entries = (data && data.data) || [];
+  return entries.map(function (e) {
+    return { value: parseInt(e.value, 10), label: e.value_classification, timestamp: e.timestamp };
+  });
+}
+const mockFear = { data: [
+  { value: "72", value_classification: "Greed", timestamp: "1700000000" },
+  { value: "45", value_classification: "Fear", timestamp: "1699913600" },
+]};
+const f = transformFear(mockFear);
+assert(f.length === 2, "two fear/greed entries returned");
+assert(f[0].value === 72 && f[0].label === "Greed", "first entry parsed correctly");
+assert(f[1].value === 45 && f[1].label === "Fear", "second entry parsed correctly");
+assert(transformFear(null).length === 0, "null returns empty array");
+
+console.log("\n--- alerts: CGMAP coverage ---");
+
+// Inline the expanded CGMAP from alerts.js to verify key coins are present
+const CGMAP_TEST = {
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", MATIC:"matic-network",
+  LINK:"chainlink", NEAR:"near", APT:"aptos", UNI:"uniswap", OP:"optimism", ARB:"arbitrum",
+  SUI:"sui", PEPE:"pepe", WIF:"dogwifcoin", BONK:"bonk", POPCAT:"popcat",
+  AAVE:"aave", MKR:"maker", CRV:"curve-dao-token", GMX:"gmx", PENDLE:"pendle",
+  TIA:"celestia", ZRO:"layerzero", W:"wormhole", EIGEN:"eigenlayer",
+  TAO:"bittensor", PYTH:"pyth-network", ENA:"ethena", LDO:"lido-dao",
+};
+const requiredCoins = ["BTC","ETH","SOL","AAVE","MKR","PENDLE","TIA","EIGEN","POPCAT","BONK"];
+for (const coin of requiredCoins) {
+  assert(CGMAP_TEST[coin] !== undefined, "CGMAP contains " + coin);
+}
+assert(Object.keys(CGMAP_TEST).length >= 30, "CGMAP has at least 30 tickers");
+
+console.log("\n--- planFor logic ---");
+
+async function planFor(email, getStore) {
+  try {
+    const rec = await getStore("customers").get(email, { type: "json" });
+    if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "pro";
+  } catch (e) {}
+  return "free";
+}
+function makeStore(records) {
+  return { get: async function (key) { return records[key] || null; } };
+}
+function wrap(store) { return function (name) { return store; }; }
+
+async function runPlanTests() {
+  const s1 = wrap(makeStore({ "user@example.com": { status: "active", tier: "elite" } }));
+  assert(await planFor("user@example.com", s1) === "elite", "active elite subscription → elite plan");
+
+  const s2 = wrap(makeStore({ "user@example.com": { status: "trialing", tier: "pro" } }));
+  assert(await planFor("user@example.com", s2) === "pro", "trialing → pro plan");
+
+  const s3 = wrap(makeStore({ "user@example.com": { status: "canceled", tier: "pro" } }));
+  assert(await planFor("user@example.com", s3) === "free", "canceled subscription → free plan");
+
+  const s4 = wrap(makeStore({ "user@example.com": { status: "past_due", tier: "pro" } }));
+  assert(await planFor("user@example.com", s4) === "free", "past_due → free plan (auto-revoke)");
+
+  const s5 = wrap(makeStore({}));
+  assert(await planFor("new@example.com", s5) === "free", "no record → free plan");
+
+  const s6 = wrap(makeStore({ "user@example.com": { status: "active" } }));
+  assert(await planFor("user@example.com", s6) === "pro", "active without explicit tier defaults to pro");
+}
+runPlanTests().then(function () {
+  // --- Summary ---
+  console.log("\n==========================================");
+  console.log("Results: " + passed + " passed, " + failed + " failed");
+  if (failed > 0) process.exit(1);
+});

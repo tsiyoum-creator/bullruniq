@@ -1,6 +1,6 @@
 // BullrunIQ — Secure Anthropic proxy
 
-const crypto = require("crypto");
+const { verifyToken } = require("./_util");
 
 const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
@@ -13,32 +13,16 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const DAILY_USER_CAP = 1000;
+// Input size guards prevent quota abuse via large prompts.
+const MAX_SYSTEM_CHARS = 2000;
+const MAX_MESSAGES_CHARS = 20000;
+const VALID_ROLES = new Set(["user", "assistant"]);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-function verifyToken(tok) {
-  try {
-    let key = process.env.AUTH_SECRET;
-    if (!key && process.env.ANTHROPIC_API_KEY) {
-      key = crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-    }
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
 
 const _burst = new Map();
 
@@ -73,6 +57,19 @@ async function dailyOk(key, cap) {
     await store.setJSON(storeKey, cur);
     return true;
   } catch (e) { return true; }
+}
+
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || !messages.length) return "Missing messages or prompt";
+  let totalChars = 0;
+  for (const m of messages) {
+    if (!m || typeof m !== "object") return "Invalid message format";
+    if (!VALID_ROLES.has(m.role)) return "Invalid message role: " + m.role;
+    const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+    totalChars += content.length;
+    if (totalChars > MAX_MESSAGES_CHARS) return "Messages too large";
+  }
+  return null;
 }
 
 exports.handler = async function (event) {
@@ -110,15 +107,17 @@ exports.handler = async function (event) {
 
   let { system, messages, prompt, model, max_tokens } = payload;
   if (!messages && prompt) messages = [{ role: "user", content: String(prompt) }];
-  if (!Array.isArray(messages) || !messages.length) {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing messages or prompt" } }) };
+
+  const msgErr = validateMessages(messages);
+  if (msgErr) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: msgErr } }) };
   }
 
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
   const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
+  if (system) body.system = String(system).slice(0, MAX_SYSTEM_CHARS);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
