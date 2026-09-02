@@ -6,6 +6,7 @@
 // rotating that key just logs everyone out, which is safe).
 
 const crypto = require("crypto");
+const { secretKey, signToken, planFor } = require("./_util");
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -13,29 +14,8 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function secretKey() {
-  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  if (process.env.ANTHROPIC_API_KEY) {
-    return crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-  }
-  return null;
-}
-function signToken(email, days) {
-  const exp = Date.now() + (days || 30) * 864e5;
-  const p = Buffer.from(email + "|" + exp).toString("base64url");
-  const sig = crypto.createHmac("sha256", secretKey()).update(p).digest("base64url");
-  return p + "." + sig;
-}
 function sha(s) { return crypto.createHash("sha256").update(s).digest("hex"); }
 function json(code, obj) { return { statusCode: code, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify(obj) }; }
-
-async function planFor(email, getStore) {
-  try {
-    const rec = await getStore("customers").get(email, { type: "json" });
-    if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "pro";
-  } catch (e) {}
-  return "free";
-}
 
 exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
