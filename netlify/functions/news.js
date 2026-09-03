@@ -52,11 +52,12 @@ exports.handler = async function (event) {
   const results = await Promise.allSettled([
     fetchFeed("https://www.coindesk.com/arc/outboundfeeds/rss/", "CoinDesk"),
     fetchFeed("https://cointelegraph.com/rss", "Cointelegraph"),
+    fetchFeed("https://decrypt.co/feed", "Decrypt"),
   ]);
   let items = results.filter(function (r) { return r.status === "fulfilled"; })
     .flatMap(function (r) { return r.value; })
     .sort(function (a, b) { return b.at - a.at; })
-    .slice(0, 14);
+    .slice(0, 18);
 
   if (!items.length && cache) {
     try {

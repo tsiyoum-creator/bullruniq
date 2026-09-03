@@ -227,6 +227,105 @@ assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
 
+console.log("\n--- generate.js: message sanitization ---");
+
+const VALID_ROLES = new Set(["user", "assistant"]);
+const MAX_MSG_CONTENT_LEN = 8000;
+
+function sanitizeMessages(msgs) {
+  if (!Array.isArray(msgs)) return null;
+  const out = [];
+  for (const m of msgs) {
+    if (!m || typeof m !== "object") return null;
+    const role = String(m.role || "");
+    if (!VALID_ROLES.has(role)) return null;
+    const content = String(m.content || "").slice(0, MAX_MSG_CONTENT_LEN);
+    if (!content.trim()) return null;
+    out.push({ role, content });
+  }
+  return out.length ? out : null;
+}
+
+assert(sanitizeMessages([{ role: "user", content: "hello" }]) !== null, "valid user message passes");
+assert(sanitizeMessages([{ role: "assistant", content: "hi" }]) !== null, "valid assistant message passes");
+assert(sanitizeMessages([{ role: "system", content: "hack" }]) === null, "system role rejected");
+assert(sanitizeMessages([{ role: "user", content: "" }]) === null, "empty content rejected");
+assert(sanitizeMessages([{ role: "user", content: "   " }]) === null, "whitespace-only content rejected");
+assert(sanitizeMessages("not an array") === null, "non-array rejected");
+assert(sanitizeMessages([]) === null, "empty array rejected");
+assert(sanitizeMessages([null]) === null, "null message entry rejected");
+const longContent = "a".repeat(MAX_MSG_CONTENT_LEN + 100);
+const truncated = sanitizeMessages([{ role: "user", content: longContent }]);
+assert(truncated !== null && truncated[0].content.length === MAX_MSG_CONTENT_LEN, "oversized content truncated to cap");
+
+console.log("\n--- generate.js: body size guard ---");
+
+const MAX_BODY_BYTES = 32 * 1024;
+function bodyTooBig(body) { return body.length > MAX_BODY_BYTES; }
+assert(!bodyTooBig("{}"), "small body allowed");
+assert(!bodyTooBig("x".repeat(MAX_BODY_BYTES)), "exactly max allowed");
+assert(bodyTooBig("x".repeat(MAX_BODY_BYTES + 1)), "over max rejected");
+
+console.log("\n--- market.js: fear-greed transform ---");
+
+function fearGreedTransform(data) {
+  const arr = (data && Array.isArray(data.data)) ? data.data : [];
+  return arr.map(function (d) {
+    return {
+      value: parseInt(d.value, 10),
+      classification: d.value_classification,
+      timestamp: parseInt(d.timestamp, 10) * 1000,
+    };
+  });
+}
+const fgRaw = { data: [{ value: "72", value_classification: "Greed", timestamp: "1700000000" }] };
+const fgResult = fearGreedTransform(fgRaw);
+assert(fgResult.length === 1, "fear-greed transform returns one item");
+assert(fgResult[0].value === 72, "value parsed as integer");
+assert(fgResult[0].timestamp === 1700000000000, "timestamp converted to ms");
+assert(fearGreedTransform({}).length === 0, "empty data returns empty array");
+
+console.log("\n--- market.js: global transform ---");
+
+function globalTransform(data) {
+  const d = (data && data.data) || {};
+  return {
+    total_market_cap_usd: d.total_market_cap && d.total_market_cap.usd,
+    btc_dominance: d.market_cap_percentage && d.market_cap_percentage.btc,
+    eth_dominance: d.market_cap_percentage && d.market_cap_percentage.eth,
+    market_cap_change_24h_pct: d.market_cap_change_percentage_24h_usd,
+  };
+}
+const globalRaw = { data: { total_market_cap: { usd: 2e12 }, market_cap_percentage: { btc: 52.3, eth: 17.1 }, market_cap_change_percentage_24h_usd: -1.2 } };
+const globalResult = globalTransform(globalRaw);
+assert(globalResult.total_market_cap_usd === 2e12, "total market cap extracted");
+assert(globalResult.btc_dominance === 52.3, "BTC dominance extracted");
+assert(globalResult.market_cap_change_24h_pct === -1.2, "24h change extracted");
+assert(globalTransform({}).total_market_cap_usd === undefined, "empty data handled gracefully");
+
+console.log("\n--- alerts: CGMAP coverage ---");
+
+const CGMAP_KEYS = ["BTC","ETH","SOL","BNB","XRP","ADA","DOGE","AVAX","DOT","MATIC","LINK","LTC","NEAR","APT","SHIB","UNI","ATOM","TRX","OP","ARB","SUI","INJ","TON","XLM","HBAR","QNT","ALGO","VET","FIL","ICP","FTM","CRO","LDO","RUNE","AAVE","MKR","GMX","RENDER","TAO","FET","OCEAN","GRT","PEPE","WIF","BONK","FLOKI","SAND","MANA","AXS","GALA","IMX","SEI","BLUR","STRK","ONDO","JUP","PYTH","JTO","ETHFI","ENA","PENDLE","DYDX","AERO"];
+assert(CGMAP_KEYS.includes("AAVE"), "AAVE in expanded CGMAP");
+assert(CGMAP_KEYS.includes("GMX"), "GMX in expanded CGMAP");
+assert(CGMAP_KEYS.includes("TAO"), "TAO (Bittensor AI) in expanded CGMAP");
+assert(CGMAP_KEYS.includes("FET"), "FET (Fetch.ai) in expanded CGMAP");
+assert(CGMAP_KEYS.includes("PENDLE"), "PENDLE in expanded CGMAP");
+assert(CGMAP_KEYS.includes("DYDX"), "DYDX in expanded CGMAP");
+assert(CGMAP_KEYS.length >= 60, "at least 60 coins mapped");
+
+console.log("\n--- sync.js: data validation ---");
+
+function validateSyncBody(body) {
+  if (!body || typeof body !== "object") return false;
+  if (!body.data || typeof body.data !== "object") return false;
+  return true;
+}
+assert(validateSyncBody({ data: { wl: [] } }), "valid data object passes");
+assert(!validateSyncBody({ data: null }), "null data rejected");
+assert(!validateSyncBody({}), "missing data key rejected");
+assert(!validateSyncBody(null), "null body rejected");
+
 // --- Summary ---
 console.log("\n==========================================");
 console.log("Results: " + passed + " passed, " + failed + " failed");
