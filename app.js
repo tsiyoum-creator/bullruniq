@@ -423,7 +423,7 @@ function restartTikTokIframe(iframe) {
 }
 
 window.addEventListener('message', e => {
-  if (!String(e.origin).includes('tiktok.com')) return;
+  if (e.origin !== 'https://www.tiktok.com') return;
   try {
     const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
     const str = JSON.stringify(raw).toLowerCase();

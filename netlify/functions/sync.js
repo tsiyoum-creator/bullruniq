@@ -7,12 +7,57 @@
 
 const crypto = require("crypto");
 
+// Restrict CORS to the app's own origin (S-2 fix).
+const ALLOWED_ORIGIN = process.env.SITE_URL || "https://bullruniq.com";
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Vary": "Origin",
 };
 const MAX_BYTES = 256 * 1024;
+
+// Regex matching safe CoinGecko coin IDs — same as market.js (S-8 fix).
+const VALID_COIN_ID = /^[a-z0-9-]{1,50}$/;
+
+function isFinitePositive(v) { return typeof v === "number" && isFinite(v) && v > 0; }
+
+// Validate watchlist and portfolio entries before persisting them (S-8 fix).
+// Rejects ticker strings that could later be injected into CoinGecko URLs,
+// and ensures numeric fields are actually finite positive numbers.
+function validateData(data) {
+  if (!data || typeof data !== "object") return "data must be an object";
+  if (data.wl !== undefined) {
+    if (!Array.isArray(data.wl)) return "data.wl must be an array";
+    for (const w of data.wl) {
+      if (!w || typeof w !== "object") continue;
+      if (w.ticker !== undefined) {
+        const t = String(w.ticker).toUpperCase().trim();
+        if (t.length > 20) return "ticker too long: " + t.slice(0, 20);
+      }
+      for (const field of ["targetPrice", "sellTarget"]) {
+        if (w[field] !== undefined && !isFinitePositive(w[field])) {
+          return field + " must be a positive number";
+        }
+      }
+    }
+  }
+  if (data.port !== undefined) {
+    if (typeof data.port !== "object") return "data.port must be an object";
+    if (data.port.crypto !== undefined) {
+      if (!Array.isArray(data.port.crypto)) return "data.port.crypto must be an array";
+      for (const h of data.port.crypto) {
+        if (!h || typeof h !== "object") continue;
+        for (const field of ["avg", "qty", "stop", "tp"]) {
+          if (h[field] !== undefined && !isFinitePositive(h[field])) {
+            return field + " must be a positive number";
+          }
+        }
+      }
+    }
+  }
+  return null; // valid
+}
 
 function secretKey() {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
@@ -72,6 +117,8 @@ exports.handler = async function (event) {
     let p = {};
     try { p = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Bad JSON" }); }
     if (!p.data || typeof p.data !== "object") return json(400, { error: "Missing data" });
+    const validationError = validateData(p.data);
+    if (validationError) return json(400, { error: "Invalid data: " + validationError });
     await store.setJSON(email, { data: p.data, updatedAt: new Date().toISOString() });
     return json(200, { ok: true, plan: await planFor(email, getStore) });
   }
@@ -79,7 +126,7 @@ exports.handler = async function (event) {
   return { statusCode: 405, headers: CORS, body: "Method Not Allowed" };
 
   } catch (e) {
-    console.log("[sync] error:", e.message);
+    console.error("[sync] error:", e.message);
     return json(500, { error: "Sync hiccup — try again shortly." });
   }
 };

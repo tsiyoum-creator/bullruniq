@@ -7,10 +7,14 @@
 
 const crypto = require("crypto");
 
+// Restrict CORS to the app's own origin (S-2 fix).
+// Wildcarding an auth endpoint allows any site to trigger magic-code requests.
+const ALLOWED_ORIGIN = process.env.SITE_URL || "https://bullruniq.com";
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Vary": "Origin",
 };
 
 function secretKey() {
@@ -62,11 +66,14 @@ exports.handler = async function (event) {
     const prev = await store.get(email, { type: "json" });
     if (prev && prev.sent >= 3 && Date.now() < prev.exp) return json(429, { error: "Too many codes requested — try again in a few minutes." });
     const code = String(crypto.randomInt(100000, 1000000));
+    const windowExp = Date.now() + 15 * 60000;
     await store.setJSON(email, {
       hash: sha(email + ":" + code),
-      exp: Date.now() + 15 * 60000,
+      exp: windowExp,
       tries: 0,
+      // Only increment sent counter within an active window; start a fresh window otherwise.
       sent: (prev && Date.now() < prev.exp ? (prev.sent || 1) : 0) + 1,
+      windowExp,
     });
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -104,14 +111,14 @@ exports.handler = async function (event) {
       if (!(await subs.get(email, { type: "json" }))) {
         await subs.setJSON(email, { email: email, source: "account", joinedAt: new Date().toISOString() });
       }
-    } catch (e) {}
+    } catch (e) { console.error("[auth] subscriber upsert failed:", e.message); }
     return json(200, { token: signToken(email, 30), email: email, plan: plan });
   }
 
   return json(400, { error: "Unknown action" });
 
   } catch (e) {
-    console.log("[auth] error:", e.message);
+    console.error("[auth] error:", e.message);
     return json(500, { error: "Login service hiccup — try again shortly." });
   }
 };
