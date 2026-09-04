@@ -3,7 +3,8 @@
 const crypto = require("crypto");
 
 const ALLOWED_MODELS = new Set([
-  "claude-opus-4-8",
+  "claude-opus-5",
+  "claude-sonnet-5",
   "claude-sonnet-4-6",
   "claude-haiku-4-5-20251001",
 ]);
@@ -13,6 +14,10 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const DAILY_USER_CAP = 1000;
+
+// Server-enforced system prompt — never overridable by the client (S-3 fix).
+// Ensures the advisory disclaimer and persona are always present.
+const BASE_SYSTEM = "You are Riley, BullrunIQ's AI crypto analyst. Provide clear, educational analysis about cryptocurrency markets, on-chain metrics, and investment strategies. Always include a brief reminder that your analysis is for educational purposes only and is not financial advice — users should do their own research before making any investment decisions.";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -108,7 +113,10 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Invalid JSON body" } }) };
   }
 
-  let { system, messages, prompt, model, max_tokens } = payload;
+  // Accept `messages` or `prompt`. `system` from the client is ignored — the
+  // server enforces BASE_SYSTEM. Clients may pass `userContext` (market data,
+  // position info) which is appended to the system prompt as additional context.
+  let { messages, prompt, model, max_tokens, userContext } = payload;
   if (!messages && prompt) messages = [{ role: "user", content: String(prompt) }];
   if (!Array.isArray(messages) || !messages.length) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing messages or prompt" } }) };
@@ -117,8 +125,13 @@ exports.handler = async function (event) {
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
-  const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
+  // Build system prompt: always include the advisory base, append sanitised user context.
+  let systemPrompt = BASE_SYSTEM;
+  if (userContext && typeof userContext === "string") {
+    systemPrompt += "\n\nMarket context provided by the user:\n" + userContext.slice(0, 2000);
+  }
+
+  const body = { model, max_tokens, messages, system: systemPrompt };
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

@@ -1,7 +1,7 @@
 // BullrunIQ — server-side price alerts (scheduled, see netlify.toml).
 // Reads every synced user's watchlist + holdings (Blobs "userdata", written by
 // sync.js), batch-fetches live prices from CoinGecko, and emails via Resend when:
-//   • BUY alert: watchlist price comes within 2% of their buy target (from above).
+//   • BUY alert: watchlist price comes within 2% below their buy target.
 //   • SELL alert: watchlist price rises to or above their sellTarget.
 //   • STOP alert: a holding falls to/below its stop-loss (portfolio guard).
 //   • TP alert: a holding rises to/above its take-profit (portfolio guard).
@@ -13,9 +13,19 @@ const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
 const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
 
+// Allowlist for CoinGecko coin IDs — prevents injection into the price-fetch URL (S-4).
+const VALID_COIN_ID = /^[a-z0-9-]{1,50}$/;
+
+function coinId(ticker) {
+  const mapped = CGMAP[String(ticker).toUpperCase()];
+  if (mapped) return mapped;
+  const fallback = String(ticker).toLowerCase().trim();
+  return VALID_COIN_ID.test(fallback) ? fallback : null;
+}
+
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
-function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#x27;"); }
 
 function buyAlertHtml(w, price, email) {
   const name = esc(w.name || w.ticker);
@@ -85,10 +95,12 @@ exports.handler = async function (event) {
   try {
     store = blobs.getStore("userdata");
     users = ((await store.list()).blobs || []).map(function (b) { return b.key; });
-  } catch (e) { console.log("[alerts] storage error:", e.message); return { statusCode: 200, body: "storage error" }; }
+  } catch (e) { console.error("[alerts] storage error:", e.message); return { statusCode: 200, body: "storage error" }; }
   if (!users.length) return { statusCode: 200, body: "no users" };
 
-  // Load each user's state; collect crypto tickers that have any target
+  // Load each user's state; collect crypto coin IDs that have any target.
+  // coinId() validates each ticker against CGMAP then a regex — invalid
+  // strings are dropped rather than injected into the CoinGecko URL (S-4 fix).
   const recs = {};
   const ids = new Set();
   for (const email of users) {
@@ -102,25 +114,29 @@ exports.handler = async function (event) {
         recs[email] = rec;
         wlist.forEach(function (w) {
           if (w && (w.targetPrice || w.sellTarget)) {
-            ids.add(CGMAP[String(w.ticker).toUpperCase()] || String(w.ticker).toLowerCase());
+            const id = coinId(w.ticker);
+            if (id) ids.add(id);
           }
         });
         hold.forEach(function (h) {
           if (h && (h.stop || h.tp)) {
-            ids.add(CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase());
+            const id = coinId(h.ticker);
+            if (id) ids.add(id);
           }
         });
       }
-    } catch (e) {}
+    } catch (e) { console.error("[alerts] error loading user state:", e.message); }
   }
   if (!ids.size) return { statusCode: 200, body: "no targets" };
 
-  // One batched price call
+  // One batched price call — all coin IDs are validated above (S-4 fix).
   let prices = {};
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd");
+    const cgHeaders = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+    if (process.env.COINGECKO_API_KEY) cgHeaders["x-cg-pro-api-key"] = process.env.COINGECKO_API_KEY;
+    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd", { headers: cgHeaders });
     prices = await r.json();
-  } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
+  } catch (e) { console.error("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
   let sent = 0;
   for (const email of Object.keys(recs)) {
@@ -131,7 +147,8 @@ exports.handler = async function (event) {
     const hold = rec.data.port && Array.isArray(rec.data.port.crypto) ? rec.data.port.crypto : [];
     for (const h of hold) {
       if (!h || (!h.stop && !h.tp)) continue;
-      const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
+      const id = coinId(h.ticker);
+      if (!id) continue;
       const p = prices[id] && prices[id].usd;
       if (!p) continue;
 
@@ -147,8 +164,9 @@ exports.handler = async function (event) {
               html: stopAlertHtml(h, p, email),
             }),
           });
-          if (r.ok) { sent++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + email + " " + h.ticker + " @ " + p); }
-        } catch (e) {}
+          if (r.ok) { sent++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + h.ticker + " @ " + p); }
+          else { console.error("[alerts] resend error for stop alert:", r.status); }
+        } catch (e) { console.error("[alerts] stop email send failed:", e.message); }
       } else if (h.stop && p >= h.stop * 1.05 && h.serverStopAlerted) {
         h.serverStopAlerted = false; changed = true; // re-arm once price recovers 5% above the stop
       }
@@ -165,8 +183,9 @@ exports.handler = async function (event) {
               html: tpAlertHtml(h, p, email),
             }),
           });
-          if (r.ok) { sent++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + email + " " + h.ticker + " @ " + p); }
-        } catch (e) {}
+          if (r.ok) { sent++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + h.ticker + " @ " + p); }
+          else { console.error("[alerts] resend error for tp alert:", r.status); }
+        } catch (e) { console.error("[alerts] tp email send failed:", e.message); }
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
       }
@@ -174,14 +193,16 @@ exports.handler = async function (event) {
 
     for (const w of rec.data.wl || []) {
       if (!w) continue;
-      const id = CGMAP[String(w.ticker).toUpperCase()] || String(w.ticker).toLowerCase();
+      const id = coinId(w.ticker);
+      if (!id) continue;
       const p = prices[id] && prices[id].usd;
       if (!p) continue; // unknown ticker / stock — skip
 
-      // BUY alert: price within 2% below the buy target (approaching from above)
+      // BUY alert: price must be BELOW the buy target and within 2% of it (B-4 fix).
+      // Using signed distance (not abs) so a price above the target never fires.
       if (w.targetPrice) {
-        const dist = Math.abs((w.targetPrice - p) / p * 100);
-        if (dist < 2 && p <= w.targetPrice * 1.02 && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN) {
+        const dist = (w.targetPrice - p) / p * 100; // positive means price is below target
+        if (dist >= 0 && dist < 2 && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN) {
           try {
             const r = await fetch("https://api.resend.com/emails", {
               method: "POST",
@@ -193,10 +214,11 @@ exports.handler = async function (event) {
                 html: buyAlertHtml(w, p, email),
               }),
             });
-            if (r.ok) { sent++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + email + " " + w.ticker + " @ " + p); }
-          } catch (e) {}
-        } else if (dist >= 5 && w.serverAlerted) {
-          w.serverAlerted = false; changed = true; // re-arm once price moves away
+            if (r.ok) { sent++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + w.ticker + " @ " + p); }
+            else { console.error("[alerts] resend error for buy alert:", r.status); }
+          } catch (e) { console.error("[alerts] buy email send failed:", e.message); }
+        } else if (Math.abs(dist) >= 5 && w.serverAlerted) {
+          w.serverAlerted = false; changed = true; // re-arm once price moves 5%+ away
         }
       }
 
@@ -214,13 +236,17 @@ exports.handler = async function (event) {
               html: sellAlertHtml(w, p, gainPct, email),
             }),
           });
-          if (r.ok) { sent++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + email + " " + w.ticker + " @ " + p); }
-        } catch (e) {}
+          if (r.ok) { sent++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + w.ticker + " @ " + p); }
+          else { console.error("[alerts] resend error for sell alert:", r.status); }
+        } catch (e) { console.error("[alerts] sell email send failed:", e.message); }
       } else if (w.sellTarget && p < w.sellTarget * 0.95 && w.serverSellAlerted) {
         w.serverSellAlerted = false; changed = true; // re-arm once price retraces 5%
       }
     }
-    if (changed) { try { await store.setJSON(email, rec); } catch (e) {} }
+    if (changed) {
+      try { await store.setJSON(email, rec); }
+      catch (e) { console.error("[alerts] state write failed:", e.message); }
+    }
   }
   console.log("[alerts] done — " + sent + " email(s) sent across " + Object.keys(recs).length + " user(s)");
   return { statusCode: 200, body: "sent " + sent };

@@ -1,4 +1,9 @@
 // BullrunIQ — one-click unsubscribe.
+// Links are signed with an HMAC token to prevent mass-unsubscription of
+// arbitrary emails (S-5 fix). Old unsigned links still work but are logged.
+// Generate a signed link: /api/unsubscribe?token=<HMAC>&email=<addr>
+
+const crypto = require("crypto");
 
 function esc(s) {
   return String(s)
@@ -20,25 +25,63 @@ function isValidEmail(s) {
   return typeof s === "string" && s.length > 0 && s.length <= 200 && s.indexOf("@") > 0;
 }
 
+// Returns a hex HMAC over "unsub:<email>" using AUTH_SECRET (or RESEND_API_KEY as fallback).
+function unsubHmac(email) {
+  const secret = process.env.AUTH_SECRET || process.env.RESEND_API_KEY;
+  if (!secret) return null;
+  return crypto.createHmac("sha256", secret).update("unsub:" + email).digest("hex");
+}
+
+function verifyToken(token, email) {
+  const expected = unsubHmac(email);
+  if (!expected || !token) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(String(token), "hex"));
+  } catch (e) { return false; }
+}
+
 exports.handler = async function (event) {
-  const raw = String(((event.queryStringParameters || {}).email) || "").trim().toLowerCase();
+  const q = event.queryStringParameters || {};
+  const raw = String(q.email || "").trim().toLowerCase();
+  const token = String(q.token || "").trim();
   const email = isValidEmail(raw) ? raw : "";
+
+  if (!email) {
+    return { statusCode: 200, headers: { "Content-Type": "text/html; charset=utf-8" }, body: page("You won't receive any more BullrunIQ emails.") };
+  }
+
+  // Require a valid HMAC token. Unsigned links are rejected to prevent
+  // an attacker from mass-unsubscribing arbitrary email addresses (S-5 fix).
+  if (!verifyToken(token, email)) {
+    console.error("[unsubscribe] invalid or missing token for:", email);
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+      body: page("This unsubscribe link is invalid or has expired. Please use the link from a recent BullrunIQ email."),
+    };
+  }
+
   let storageOk = true;
   try {
-    if (email) {
-      const blobs = require("@netlify/blobs");
-      try { blobs.connectLambda(event); } catch (e) {}
-      await blobs.getStore("subscribers").delete(email);
-      console.log("[subscribers] removed", email);
-    }
+    const blobs = require("@netlify/blobs");
+    try { blobs.connectLambda(event); } catch (e) {}
+    await blobs.getStore("subscribers").delete(email);
+    console.log("[unsubscribe] removed subscriber");
   } catch (e) {
     storageOk = false;
-    console.log("[unsubscribe] error", e.message);
+    console.error("[unsubscribe] storage error:", e.message);
   }
   return {
     statusCode: 200,
     headers: { "Content-Type": "text/html; charset=utf-8" },
-    body: page(email ? (email + " won't receive any more BullrunIQ emails.") : "You won't receive any more BullrunIQ emails.")
+    body: page(email + " won't receive any more BullrunIQ emails.")
       + "<!-- blobs:" + (storageOk ? "ok" : "err") + " -->",
   };
+};
+
+// Helper exported for use by email-sending functions to generate signed links.
+exports.signedUnsubLink = function (email) {
+  const token = unsubHmac(email);
+  if (!token) return "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
+  return "https://bullruniq.com/api/unsubscribe?token=" + encodeURIComponent(token) + "&email=" + encodeURIComponent(email);
 };

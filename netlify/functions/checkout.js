@@ -34,7 +34,9 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Unknown or unconfigured tier: " + tier }) };
   }
 
-  const origin = process.env.SITE_URL || (event.headers && (event.headers.origin || ("https://" + event.headers.host))) || "https://bullruniq.com";
+  // Use SITE_URL as the authoritative app origin — never fall back to the
+  // request Host header, which can be spoofed (S-7 fix).
+  const origin = process.env.SITE_URL || "https://bullruniq.com";
 
   const params = new URLSearchParams();
   params.append("mode", "subscription");
