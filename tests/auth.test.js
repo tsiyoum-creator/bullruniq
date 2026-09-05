@@ -1,9 +1,9 @@
-// Unit tests for auth.js logic (token signing, verification, validation).
+// Unit tests for BullrunIQ server-side logic.
 // Run with: node tests/auth.test.js
 
 const crypto = require("crypto");
 
-// --- Inline the token helpers (copied from auth.js / sync.js) ---
+// ─── Token helpers (mirrors _auth.js) ───────────────────────────────────────
 
 const TEST_SECRET = "test-secret-key-for-unit-tests";
 
@@ -19,18 +19,23 @@ function verifyToken(tok, secret) {
     if (!secret || !tok) return null;
     const i = tok.lastIndexOf(".");
     if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
+    const p = tok.slice(0, i);
+    const sig = tok.slice(i + 1);
     const expect = crypto.createHmac("sha256", secret).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
+    const expectBuf = Buffer.from(expect);
+    const sigBuf = Buffer.from(sig);
+    if (expectBuf.length !== sigBuf.length) return null;
+    if (!crypto.timingSafeEqual(expectBuf, sigBuf)) return null;
     const raw = Buffer.from(p, "base64url").toString("utf8");
     const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
+    const email = raw.slice(0, j);
+    const exp = parseInt(raw.slice(j + 1), 10);
     if (!email || !exp || Date.now() > exp) return null;
     return email;
   } catch (e) { return null; }
 }
 
-// --- Tests ---
+// ─── Test harness ────────────────────────────────────────────────────────────
 
 let passed = 0, failed = 0;
 
@@ -44,6 +49,8 @@ function assert(condition, label) {
   }
 }
 
+// ─── Auth token: sign + verify ───────────────────────────────────────────────
+
 console.log("\n--- auth token: sign + verify ---");
 
 const token = signToken("user@example.com", 30, TEST_SECRET);
@@ -53,17 +60,27 @@ assert(verifyToken(token, "wrong-secret") === null, "wrong secret returns null")
 assert(verifyToken("", TEST_SECRET) === null, "empty token returns null");
 assert(verifyToken("invalid.token", TEST_SECRET) === null, "tampered token returns null");
 assert(verifyToken(null, TEST_SECRET) === null, "null token returns null");
+assert(verifyToken(undefined, TEST_SECRET) === null, "undefined token returns null");
+assert(verifyToken("nodot", TEST_SECRET) === null, "token with no dot returns null");
+
+// ─── Auth token: expiry ──────────────────────────────────────────────────────
 
 console.log("\n--- auth token: expiry ---");
 
 function signExpired(email, secret) {
-  const exp = Date.now() - 1000; // already expired
+  const exp = Date.now() - 1000;
   const p = Buffer.from(email + "|" + exp).toString("base64url");
   const sig = crypto.createHmac("sha256", secret).update(p).digest("base64url");
   return p + "." + sig;
 }
 const expiredToken = signExpired("user@example.com", TEST_SECRET);
 assert(verifyToken(expiredToken, TEST_SECRET) === null, "expired token returns null");
+
+// Token expiring far in the future should remain valid
+const longToken = signToken("user@example.com", 365, TEST_SECRET);
+assert(verifyToken(longToken, TEST_SECRET) === "user@example.com", "1-year token is valid");
+
+// ─── Auth token: email embedding ─────────────────────────────────────────────
 
 console.log("\n--- auth token: email embedding ---");
 
@@ -72,6 +89,23 @@ for (const em of emails) {
   const t = signToken(em.toLowerCase(), 1, TEST_SECRET);
   assert(verifyToken(t, TEST_SECRET) === em.toLowerCase(), "round-trips: " + em);
 }
+
+// Pipe character in email — token parsing uses lastIndexOf("|") so it handles this
+const pipeEmail = "user|test@example.com";
+const pipeToken = signToken(pipeEmail, 1, TEST_SECRET);
+assert(verifyToken(pipeToken, TEST_SECRET) === pipeEmail, "email with pipe char round-trips");
+
+// ─── Auth token: timing-safe comparison ──────────────────────────────────────
+
+console.log("\n--- auth token: timing-safe comparison ---");
+
+// Tokens with mismatched HMAC length should not throw, just return null
+// (this guards the timingSafeEqual length mismatch path in _auth.js)
+const validPayload = Buffer.from("test@example.com|" + (Date.now() + 864e5)).toString("base64url");
+const shortSig = "x"; // far shorter than a real base64url HMAC-SHA256
+assert(verifyToken(validPayload + "." + shortSig, TEST_SECRET) === null, "length-mismatch sig returns null");
+
+// ─── Unsubscribe: email validation ───────────────────────────────────────────
 
 console.log("\n--- unsubscribe: email validation ---");
 
@@ -84,6 +118,8 @@ assert(!isValidEmail("notanemail"), "missing @ fails");
 assert(!isValidEmail("@nodomain"), "@ at start fails");
 assert(!isValidEmail("a".repeat(201) + "@b.com"), "too long fails");
 
+// ─── HTML escaping (XSS guard) ────────────────────────────────────────────────
+
 console.log("\n--- HTML escaping (XSS guard) ---");
 
 function esc(s) {
@@ -95,6 +131,9 @@ assert(esc("<script>alert(1)</script>") === "&lt;script&gt;alert(1)&lt;/script&g
 assert(esc('"><img src=x onerror=alert(1)>') === "&quot;&gt;&lt;img src=x onerror=alert(1)&gt;", "attribute injection escaped");
 assert(esc("safe text") === "safe text", "safe text unchanged");
 assert(esc("a&b") === "a&amp;b", "ampersand escaped");
+assert(esc("it's") === "it&#x27;s", "apostrophe escaped");
+
+// ─── market.js: id validation ─────────────────────────────────────────────────
 
 console.log("\n--- market.js: id validation ---");
 
@@ -108,6 +147,27 @@ assert(validateIds("bitcoin,ethereum").length === 2, "two valid ids pass");
 assert(validateIds("bitcoin; DROP TABLE").length === 0, "injection string rejected");
 assert(validateIds("a".repeat(51)).length === 0, "too-long id rejected");
 assert(validateIds(",,,").length === 0, "empty ids rejected");
+assert(validateIds("bitcoin,".repeat(30)).length === 25, "capped at 25 ids");
+assert(validateIds("BITCOIN").length === 1 && validateIds("BITCOIN")[0] === "bitcoin", "uppercase ids normalised to lowercase");
+assert(validateIds("coin-gecko-id").length === 1, "hyphenated id passes");
+
+// ─── market.js: kind validation ──────────────────────────────────────────────
+
+console.log("\n--- market.js: kind validation ---");
+
+const VALID_KINDS = new Set(["top50", "top100", "gainers", "losers", "trending", "fear-greed", "dominance"]);
+
+function isValidKind(kind) {
+  return VALID_KINDS.has(kind);
+}
+assert(isValidKind("top50"), "top50 is valid");
+assert(isValidKind("fear-greed"), "fear-greed is valid");
+assert(isValidKind("dominance"), "dominance is valid");
+assert(!isValidKind(""), "empty kind rejected");
+assert(!isValidKind("BITCOIN"), "random string rejected");
+assert(!isValidKind("top500"), "top500 rejected");
+
+// ─── alerts.js: sell alert logic ─────────────────────────────────────────────
 
 console.log("\n--- alerts: sell alert logic ---");
 
@@ -125,6 +185,9 @@ assert(shouldSendSellAlert({ ...watchlistEntry }, 75000), "sell alert above targ
 assert(!shouldSendSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 75000), "no duplicate sell alert");
 assert(shouldRearmSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 60000), "re-arm when price drops 5%+ below sell");
 assert(!shouldRearmSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 67000), "no re-arm within 5% of sell");
+assert(!shouldSendSellAlert({ ticker: "BTC" }, 999999), "no sell alert without sellTarget set");
+
+// ─── alerts.js: buy alert logic ──────────────────────────────────────────────
 
 console.log("\n--- alerts: buy alert logic ---");
 
@@ -138,6 +201,9 @@ assert(shouldSendBuyAlert({ ...buyEntry }, 1990), "buy alert within 1%");
 assert(shouldSendBuyAlert({ ...buyEntry }, 2000), "buy alert at exact target");
 assert(!shouldSendBuyAlert({ ...buyEntry }, 2200), "no buy alert 10% above target");
 assert(!shouldSendBuyAlert({ ...buyEntry, serverAlerted: true }, 1990), "no duplicate buy alert");
+assert(!shouldSendBuyAlert({ ...buyEntry }, 1500), "no buy alert 25% below target (past it by too much)");
+
+// ─── submission-created: contact form filter ──────────────────────────────────
 
 console.log("\n--- submission-created: contact form filter ---");
 
@@ -150,6 +216,8 @@ assert(shouldSubscribe("tier-signup"), "tier-signup form gets subscribed");
 assert(!shouldSubscribe("contact"), "contact form is skipped");
 assert(!shouldSubscribe("contact-form"), "contact-form variant is skipped");
 
+// ─── news.js: URL scheme validation ──────────────────────────────────────────
+
 console.log("\n--- news.js: URL scheme validation ---");
 
 function isHttpUrl(url) {
@@ -160,15 +228,20 @@ assert(isHttpUrl("http://cointelegraph.com/news/test"), "http URL passes");
 assert(!isHttpUrl("javascript:alert(1)"), "javascript: URL blocked");
 assert(!isHttpUrl("data:text/html,<h1>xss</h1>"), "data: URL blocked");
 assert(!isHttpUrl(""), "empty URL blocked");
+assert(!isHttpUrl("ftp://example.com"), "ftp: URL blocked");
+
+// ─── alerts.js: HTML escaping in emails ──────────────────────────────────────
 
 console.log("\n--- alerts: HTML escaping in emails ---");
 
-function esc(s) {
+function escAlerts(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
-assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
-assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(escAlerts("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
+assert(escAlerts("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
+assert(escAlerts('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+
+// ─── portfolio guard: stop-loss / take-profit ─────────────────────────────────
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -191,6 +264,8 @@ assert(!shouldTpAlert({ ...holding, serverTpAlerted: true }, 90000), "no duplica
 assert(shouldRearmTp({ ...holding, serverTpAlerted: true }, 75000), "tp re-arms 5% below");
 assert(!shouldStopAlert({ ticker: "ETH", avg: 2000, qty: 1 }, 100), "no levels set → no alert");
 
+// ─── profit-lock ladder ───────────────────────────────────────────────────────
+
 console.log("\n--- profit-lock ladder ---");
 
 function ladderFor(avg, qty, price) {
@@ -211,6 +286,9 @@ assert(lad.rungs[0].price === 125 && lad.rungs[1].price === 150 && lad.rungs[2].
 assert(lad.hits.length === 2, "at +60%, first two rungs are hit");
 assert(lad.rungs[0].qty === 2.5, "each rung sells 25% of the position");
 assert(ladderFor(100, 10, 250).hits.length === 3, "at +150%, all rungs hit");
+assert(ladderFor(100, 10, 120).hits.length === 0, "at +20%, no rungs hit yet");
+
+// ─── cash deployment engine ───────────────────────────────────────────────────
 
 console.log("\n--- cash deployment engine ---");
 
@@ -226,8 +304,116 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+assert(deployPlan(99, ["BTC"]) === null, "$99 is below minimum");
+assert(deployPlan(100, ["BTC"]).reserve === 20, "$100 keeps $20 reserve");
 
-// --- Summary ---
+// ─── stripe-webhook: signature verification ───────────────────────────────────
+
+console.log("\n--- stripe-webhook: signature verification ---");
+
+function verifyStripe(rawBody, sigHeader, secret) {
+  if (!sigHeader || !secret) return false;
+  const parts = {};
+  String(sigHeader).split(",").forEach(function (kv) {
+    const i = kv.indexOf("=");
+    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  });
+  if (!parts.t || !parts.v1) return false;
+  const signed = parts.t + "." + rawBody;
+  const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
+  } catch (e) { return false; }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
+  return age <= 300;
+}
+
+function makeStripeSig(body, secret, ts) {
+  ts = ts || Math.floor(Date.now() / 1000);
+  const signed = ts + "." + body;
+  const sig = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
+  return "t=" + ts + ",v1=" + sig;
+}
+
+const STRIPE_SECRET = "whsec_test_secret";
+const body = JSON.stringify({ type: "invoice.paid" });
+const goodSig = makeStripeSig(body, STRIPE_SECRET);
+assert(verifyStripe(body, goodSig, STRIPE_SECRET), "valid stripe signature passes");
+assert(!verifyStripe(body, goodSig, "wrong_secret"), "wrong secret fails");
+assert(!verifyStripe(body, null, STRIPE_SECRET), "null sig-header fails");
+assert(!verifyStripe(body, "", STRIPE_SECRET), "empty sig-header fails");
+assert(!verifyStripe(body, goodSig, null), "null secret fails");
+assert(!verifyStripe(body, "t=123,v1=bad", STRIPE_SECRET), "bad v1 value fails");
+assert(!verifyStripe(body, "t=123", STRIPE_SECRET), "missing v1 field fails");
+
+// Stale timestamp (> 5 min old) should fail
+const staleTs = Math.floor(Date.now() / 1000) - 400;
+const staleSig = makeStripeSig(body, STRIPE_SECRET, staleTs);
+assert(!verifyStripe(body, staleSig, STRIPE_SECRET), "stale timestamp (>300s) fails");
+
+// Fresh timestamp right on the 300-second boundary
+const borderTs = Math.floor(Date.now() / 1000) - 299;
+const borderSig = makeStripeSig(body, STRIPE_SECRET, borderTs);
+assert(verifyStripe(body, borderSig, STRIPE_SECRET), "299-second-old timestamp passes");
+
+// ─── checkout.js: tier validation ────────────────────────────────────────────
+
+console.log("\n--- checkout: tier validation ---");
+
+const PRICE_ENV = { pro: "STRIPE_PRICE_PRO", elite: "STRIPE_PRICE_ELITE", advisor: "STRIPE_PRICE_ADVISOR" };
+
+function resolveTier(tier) {
+  const t = String(tier || "").toLowerCase();
+  return PRICE_ENV[t] || null;
+}
+
+assert(resolveTier("pro") === "STRIPE_PRICE_PRO", "pro tier resolves");
+assert(resolveTier("elite") === "STRIPE_PRICE_ELITE", "elite tier resolves");
+assert(resolveTier("advisor") === "STRIPE_PRICE_ADVISOR", "advisor tier resolves");
+assert(resolveTier("FREE") === null, "free tier not a checkout tier");
+assert(resolveTier("") === null, "empty string returns null");
+assert(resolveTier("PRO") === "STRIPE_PRICE_PRO", "case-insensitive tier match");
+assert(resolveTier(null) === null, "null tier returns null");
+assert(resolveTier("admin") === null, "unknown tier returns null");
+
+// ─── newsletter.js: briefToHtml ───────────────────────────────────────────────
+
+console.log("\n--- newsletter: briefToHtml ---");
+
+function escHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function briefToHtml(text) {
+  return escHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
+    .split(/\n+/)
+    .filter(function (l) { return l.trim(); })
+    .map(function (l) { return "<p style='margin:0 0 12px;color:#c8c4bc;font-size:15px;line-height:1.7'>" + l.trim() + "</p>"; })
+    .join("");
+}
+
+const briefOut = briefToHtml("📊 **Market** — BTC at $50k.\n\n⚠️ Risk: <volatility>");
+assert(briefOut.includes("<strong"), "bold markdown converted to <strong>");
+assert(briefOut.includes("&lt;volatility&gt;"), "HTML in brief is escaped");
+assert(!briefOut.includes("**"), "markdown asterisks not present in output");
+assert(briefOut.split("<p ").length > 1, "paragraphs split on newlines");
+const emptyBrief = briefToHtml("   \n  ");
+assert(emptyBrief === "", "whitespace-only brief produces empty output");
+
+// ─── sync.js: data validation ─────────────────────────────────────────────────
+
+console.log("\n--- sync: data validation ---");
+
+function validateSyncData(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  return true;
+}
+assert(validateSyncData({ wl: [], port: {} }), "object data passes");
+assert(!validateSyncData(null), "null data fails");
+assert(!validateSyncData([1, 2, 3]), "array data fails");
+assert(!validateSyncData("string"), "string data fails");
+assert(!validateSyncData(42), "number data fails");
+assert(validateSyncData({}), "empty object data passes");
+
+// ─── Summary ─────────────────────────────────────────────────────────────────
 console.log("\n==========================================");
 console.log("Results: " + passed + " passed, " + failed + " failed");
 if (failed > 0) process.exit(1);

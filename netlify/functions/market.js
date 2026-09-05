@@ -1,15 +1,15 @@
 // BullrunIQ — market data proxy (/api/market).
 
 const TTL_MS = 10 * 60000;
+const TTL_FEAR_GREED = 60 * 60000;   // fear & greed only updates hourly
 const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
-async function fetchJson(url) {
-  const r = await fetch(url, { headers: UA });
-  const data = await r.json();
+async function fetchJson(url, opts) {
+  const r = await fetch(url, Object.assign({ headers: UA }, opts));
   if (!r.ok) throw new Error("upstream " + r.status);
-  return data;
+  return r.json();
 }
 
 exports.handler = async function (event) {
@@ -48,6 +48,35 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "fear-greed") {
+    // Fear & Greed Index — cached for 1 hour since it only updates daily
+    upstream = "https://api.alternative.me/fng/?limit=7";
+    key = "mkt:fear-greed";
+    ttl = TTL_FEAR_GREED;
+    transform = function (data) {
+      const arr = (data && data.data) || [];
+      return {
+        current: arr[0] || null,
+        history: arr,
+      };
+    };
+  } else if (q.kind === "dominance") {
+    // BTC dominance + global market cap
+    upstream = CG_BASE + "/global";
+    key = "mkt:dominance";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      const d = (data && data.data) || {};
+      return {
+        btc_dominance: d.market_cap_percentage && d.market_cap_percentage.btc,
+        eth_dominance: d.market_cap_percentage && d.market_cap_percentage.eth,
+        total_market_cap_usd: d.total_market_cap && d.total_market_cap.usd,
+        total_volume_24h_usd: d.total_volume && d.total_volume.usd,
+        market_cap_change_percentage_24h: d.market_cap_change_percentage_24h_usd,
+        active_cryptocurrencies: d.active_cryptocurrencies,
+        updated_at: d.updated_at,
+      };
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -57,7 +86,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear-greed|dominance or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");

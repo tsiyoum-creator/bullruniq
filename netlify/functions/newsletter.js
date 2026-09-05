@@ -55,15 +55,20 @@ exports.handler = async function (event) {
 
   var brief = "";
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 20000);
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTH, "anthropic-version": "2023-06-01" },
+      signal: controller.signal,
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 500,
-        messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with one action to consider today. Under 160 words. Educational, not financial advice. Live data: BTC " + btc + ", Fear & Greed " + fg + ". Date " + new Date().toUTCString() }],
+        max_tokens: 600,
+        system: "You are the BullrunIQ Daily Brief writer. You write concise, actionable crypto market updates for retail investors. Always include a disclaimer. Never give personal financial advice.",
+        messages: [{ role: "user", content: "Write today's BullrunIQ Daily Brief as 5 bullet points. Format each as: emoji + **Bold Label** + one concrete, specific sentence (no vague generalities). Cover: (1) overall market backdrop with a key number, (2) BTC price action and what it signals, (3) a standout altcoin or sector moving today and why, (4) the single biggest macro or on-chain risk to watch this week, (5) one specific, actionable step an investor might consider — e.g., a rebalancing trigger, a level to watch, a sector to research. Under 180 words total. Educational only, not financial advice. Live data: BTC " + btc + ", Fear & Greed Index " + fg + ". Date: " + new Date().toUTCString() }],
       }),
     });
+    clearTimeout(tid);
     const d = await r.json();
     brief = (d.content && d.content[0] && d.content[0].text) || "";
   } catch (e) { console.log("[newsletter] brief generation failed:", e.message); }
@@ -97,7 +102,10 @@ exports.handler = async function (event) {
           to: email,
           subject: subject,
           html: emailHtml(briefHtml, btc, fg, email, dateStr),
-          headers: { "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + ">" },
+          headers: {
+            "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + ">",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         }),
       }).then(function (r) { return r.ok ? "ok" : "err"; });
     }));

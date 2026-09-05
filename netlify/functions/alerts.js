@@ -118,7 +118,10 @@ exports.handler = async function (event) {
   // One batched price call
   let prices = {};
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd");
+    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd", {
+      headers: { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" },
+    });
+    if (!r.ok) throw new Error("CoinGecko returned " + r.status);
     prices = await r.json();
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 

@@ -6,6 +6,10 @@
 [build.environment]
   NODE_VERSION = "20"
   SECRETS_SCAN_OMIT_PATHS = "app.js"
+  # Note: app.js contains a Firebase client config (apiKey). Firebase client API keys
+  # are intentionally public and are secured by Firebase Security Rules, not by keeping
+  # the key secret. The SECRETS_SCAN_OMIT_PATHS line suppresses Netlify's scanner for
+  # this file only. If the Firebase project is ever decommissioned, remove both lines.
 
 # ── Scheduled: Daily Brief newsletter (13:00 UTC ≈ 8–9am ET) ──
 [functions."newsletter"]
