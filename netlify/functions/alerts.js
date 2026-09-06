@@ -59,6 +59,23 @@ function stopAlertHtml(h, price, email) {
     + "</body></html>";
 }
 
+function ladderAlertHtml(h, price, rung, email) {
+  const name = esc(h.name || h.ticker);
+  const ticker = esc(h.ticker);
+  const value = price * (h.qty || 0);
+  const sellQty = (h.qty || 0) * 0.25;
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#4ade80;margin-bottom:10px'>📊 Profit-lock rung reached</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " up " + pct(rung.pct) + "</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b>. Consider selling <b style='color:#f0ece4'>" + sellQty.toFixed(4) + " " + ticker + "</b> (~25% of position) to lock in gains."
+    + (value > 0 ? " Full position value: <b>" + fp(value) + "</b>." : "") + "</div>"
+    + "<div style='font-size:13px;color:#4ade80;margin-bottom:22px'>Up <b>" + pct(rung.pct) + "</b> from avg entry of " + fp(h.avg) + " — ladder rung " + rung.label + "</div>"
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#4ade80;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Lock in some profit →</a>"
+    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you hold assets in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + "</body></html>";
+}
+
 function tpAlertHtml(h, price, email) {
   const name = esc(h.name || h.ticker);
   const ticker = esc(h.ticker);
@@ -118,7 +135,10 @@ exports.handler = async function (event) {
   // One batched price call
   let prices = {};
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd");
+    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd", {
+      headers: { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" },
+    });
+    if (!r.ok) throw new Error("CoinGecko " + r.status);
     prices = await r.json();
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
@@ -169,6 +189,38 @@ exports.handler = async function (event) {
         } catch (e) {}
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
+      }
+
+      // Profit-lock ladder: alert at +25%, +50%, +100% above avg entry
+      if (h.avg > 0 && h.qty > 0) {
+        const gain = (p - h.avg) / h.avg * 100;
+        if (gain >= 20) {
+          const ladderRungs = [
+            { pct: 25, key: "serverLadder25", label: "+25%" },
+            { pct: 50, key: "serverLadder50", label: "+50%" },
+            { pct: 100, key: "serverLadder100", label: "+100%" },
+          ];
+          for (const rung of ladderRungs) {
+            const rungPrice = h.avg * (1 + rung.pct / 100);
+            if (p >= rungPrice && !h[rung.key] && sent < MAX_EMAILS_PER_RUN) {
+              try {
+                const r = await fetch("https://api.resend.com/emails", {
+                  method: "POST",
+                  headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+                    to: email,
+                    subject: "📊 " + h.ticker + " up " + rung.label + " — consider taking 25% off",
+                    html: ladderAlertHtml(h, p, rung, email),
+                  }),
+                });
+                if (r.ok) { sent++; h[rung.key] = true; changed = true; console.log("[alerts] ladder " + rung.label + " " + email + " " + h.ticker + " @ " + p); }
+              } catch (e) {}
+            } else if (p < rungPrice * 0.9 && h[rung.key]) {
+              h[rung.key] = false; changed = true; // re-arm if price retraces 10%+ below the rung
+            }
+          }
+        }
       }
     }
 

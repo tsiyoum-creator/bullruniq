@@ -21,9 +21,11 @@ function secretKey() {
   return null;
 }
 function signToken(email, days) {
+  const key = secretKey();
+  if (!key) throw new Error("Auth secret not configured");
   const exp = Date.now() + (days || 30) * 864e5;
   const p = Buffer.from(email + "|" + exp).toString("base64url");
-  const sig = crypto.createHmac("sha256", secretKey()).update(p).digest("base64url");
+  const sig = crypto.createHmac("sha256", key).update(p).digest("base64url");
   return p + "." + sig;
 }
 function sha(s) { return crypto.createHash("sha256").update(s).digest("hex"); }
@@ -88,7 +90,8 @@ exports.handler = async function (event) {
   }
 
   if (action === "verify") {
-    const code = String(p.code || "").trim();
+    const code = String(p.code || "").trim().replace(/\s/g, "");
+    if (!/^\d{6}$/.test(code)) return json(400, { error: "Enter the 6-digit code from the email." });
     const rec = await store.get(email, { type: "json" });
     if (!rec || Date.now() > rec.exp) return json(400, { error: "Code expired — request a new one." });
     if (rec.tries >= 5) return json(429, { error: "Too many attempts — request a new code." });

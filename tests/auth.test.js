@@ -163,9 +163,7 @@ assert(!isHttpUrl(""), "empty URL blocked");
 
 console.log("\n--- alerts: HTML escaping in emails ---");
 
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
+// Uses the same esc() defined above in the XSS guard section
 assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
 assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
 assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
@@ -226,6 +224,91 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+
+console.log("\n--- auth: 6-digit code format validation ---");
+
+function isValidCode(s) {
+  return /^\d{6}$/.test(String(s || "").trim().replace(/\s/g, ""));
+}
+assert(isValidCode("123456"), "6-digit code passes");
+assert(!isValidCode("12345"), "5-digit code fails");
+assert(!isValidCode("1234567"), "7-digit code fails");
+assert(!isValidCode("abcdef"), "non-numeric code fails");
+assert(!isValidCode(""), "empty code fails");
+assert(isValidCode("12 345 6"), "spaces stripped → valid 6-digit code");
+assert(isValidCode("1 2 3 4 5 6"), "all-spaced code normalizes to valid");
+assert(!isValidCode("12345a"), "mixed alphanumeric fails");
+
+console.log("\n--- generate.js: payload size guards ---");
+
+function msgPayloadSize(messages) {
+  return messages.reduce(function (n, m) { return n + String(m.content || "").length; }, 0);
+}
+const MAX_MSG_BYTES = 8000;
+const MAX_SYS_BYTES = 4000;
+
+assert(msgPayloadSize([{ role: "user", content: "hello" }]) === 5, "small payload counts correctly");
+assert(msgPayloadSize([{ role: "user", content: "a".repeat(8001) }]) > MAX_MSG_BYTES, "oversized message detected");
+assert(msgPayloadSize([{ role: "user", content: "a".repeat(4000) }, { role: "assistant", content: "b".repeat(4000) }]) === MAX_MSG_BYTES, "exactly at limit passes");
+assert("x".repeat(MAX_SYS_BYTES + 1).slice(0, MAX_SYS_BYTES).length === MAX_SYS_BYTES, "system prompt capped to MAX_SYS_BYTES");
+
+console.log("\n--- newsletter.js: briefToHtml bullet stripping ---");
+
+function briefToHtml(text) {
+  const escLocal = function (s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); };
+  return escLocal(text)
+    .replace(/\*\*([^*\n]{1,120})\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
+    .split(/\n+/)
+    .filter(function (l) { return l.trim(); })
+    .map(function (l) {
+      var line = l.trim().replace(/^[-•]\s*/, "");
+      return "<p style='margin:0 0 12px;color:#c8c4bc;font-size:15px;line-height:1.7'>" + line + "</p>";
+    })
+    .join("");
+}
+const briefOut = briefToHtml("- **Market** — BTC holds $90k\n- **Risk** — Watch macro data");
+assert(briefOut.includes("<strong"), "bold formatting applied");
+assert(!briefOut.includes("- **"), "leading dash-bullet stripped");
+assert(!briefOut.includes("<script>"), "no XSS possible from input");
+const xssBrief = briefToHtml("- **<script>alert(1)</script>**");
+assert(!xssBrief.includes("<script>"), "script tags escaped in brief");
+assert(briefToHtml("").length === 0, "empty brief produces empty output");
+
+console.log("\n--- stripe-webhook: signature age window ---");
+
+function stripeAgeOk(timestampSeconds, nowSeconds, windowSeconds) {
+  windowSeconds = windowSeconds || 300;
+  return Math.abs(nowSeconds - timestampSeconds) <= windowSeconds;
+}
+const now = Math.floor(Date.now() / 1000);
+assert(stripeAgeOk(now, now, 300), "current timestamp accepted");
+assert(stripeAgeOk(now - 299, now, 300), "299s old accepted");
+assert(!stripeAgeOk(now - 301, now, 300), "301s old rejected");
+assert(!stripeAgeOk(now + 301, now, 300), "future timestamp 301s rejected");
+assert(stripeAgeOk(now - 300, now, 300), "exactly 300s old accepted");
+
+console.log("\n--- alerts: profit-lock ladder rung triggers ---");
+
+function ladderRungHit(h, price, rungPct) {
+  if (!h.avg || h.avg <= 0) return false;
+  const rungPrice = h.avg * (1 + rungPct / 100);
+  return price >= rungPrice;
+}
+function ladderRungRearm(h, price, rungPct, alerted) {
+  if (!alerted) return false;
+  const rungPrice = h.avg * (1 + rungPct / 100);
+  return price < rungPrice * 0.9;
+}
+
+const lh = { ticker: "SOL", avg: 100, qty: 10 };
+assert(ladderRungHit(lh, 126, 25), "+26% triggers +25% rung");
+assert(ladderRungHit(lh, 125, 25), "+25% exactly triggers rung");
+assert(!ladderRungHit(lh, 124, 25), "+24% does not trigger +25% rung");
+assert(ladderRungHit(lh, 200, 100), "+100% triggers +100% rung");
+assert(!ladderRungHit({ ...lh, avg: 0 }, 200, 25), "no rung hit without valid avg");
+assert(ladderRungRearm(lh, 111, 25, true), "re-arms when price falls 10% below rung");
+assert(!ladderRungRearm(lh, 120, 25, true), "no re-arm within 10% of rung");
+assert(!ladderRungRearm(lh, 111, 25, false), "no re-arm if never alerted");
 
 // --- Summary ---
 console.log("\n==========================================");

@@ -9,6 +9,8 @@ const ALLOWED_MODELS = new Set([
 ]);
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS_CAP = 1500;
+const MAX_SYSTEM_BYTES = 4000;
+const MAX_MESSAGE_BYTES = 8000;
 const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
@@ -114,11 +116,20 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing messages or prompt" } }) };
   }
 
+  // Guard total message payload size to prevent prompt injection / abuse
+  const totalMsgBytes = messages.reduce((n, m) => n + String(m.content || "").length, 0);
+  if (totalMsgBytes > MAX_MESSAGE_BYTES) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Message payload too large" } }) };
+  }
+
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
   const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
+  if (system) {
+    const sys = String(system).slice(0, MAX_SYSTEM_BYTES);
+    body.system = sys;
+  }
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
