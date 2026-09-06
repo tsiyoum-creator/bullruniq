@@ -6,11 +6,16 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 function briefToHtml(text) {
+  // Escape HTML first, then restore ** bold markers as <strong> tags.
+  // The regex is non-greedy and won't match across lines.
   return esc(text)
-    .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
+    .replace(/\*\*([^*\n]{1,120})\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
     .split(/\n+/)
     .filter(function (l) { return l.trim(); })
-    .map(function (l) { return "<p style='margin:0 0 12px;color:#c8c4bc;font-size:15px;line-height:1.7'>" + l.trim() + "</p>"; })
+    .map(function (l) {
+      var line = l.trim().replace(/^[-•]\s*/, ""); // strip leading bullet chars
+      return "<p style='margin:0 0 12px;color:#c8c4bc;font-size:15px;line-height:1.7'>" + line + "</p>";
+    })
     .join("");
 }
 function emailHtml(briefHtml, btc, fg, email, dateStr) {

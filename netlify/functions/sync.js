@@ -71,8 +71,16 @@ exports.handler = async function (event) {
     if ((event.body || "").length > MAX_BYTES) return json(413, { error: "State too large." });
     let p = {};
     try { p = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Bad JSON" }); }
-    if (!p.data || typeof p.data !== "object") return json(400, { error: "Missing data" });
-    await store.setJSON(email, { data: p.data, updatedAt: new Date().toISOString() });
+    if (!p.data || typeof p.data !== "object" || Array.isArray(p.data)) return json(400, { error: "Missing data" });
+    // Sanitize array fields: reject non-array values to prevent alerts.js crashes
+    const data = p.data;
+    if (data.wl !== undefined && !Array.isArray(data.wl)) return json(400, { error: "wl must be an array" });
+    if (data.port !== undefined) {
+      if (typeof data.port !== "object" || Array.isArray(data.port)) return json(400, { error: "port must be an object" });
+      if (data.port.crypto !== undefined && !Array.isArray(data.port.crypto)) return json(400, { error: "port.crypto must be an array" });
+      if (data.port.stocks !== undefined && !Array.isArray(data.port.stocks)) return json(400, { error: "port.stocks must be an array" });
+    }
+    await store.setJSON(email, { data: data, updatedAt: new Date().toISOString() });
     return json(200, { ok: true, plan: await planFor(email, getStore) });
   }
 
