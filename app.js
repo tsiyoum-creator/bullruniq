@@ -2,8 +2,11 @@
    #IWill — app.js
    ================================================================ */
 
+// NOTE: app.js is legacy code from the #IWill project (unrelated to BullrunIQ).
+// Firebase credentials have been removed from source control.
+// Configure via environment variables or a .env.local file if this page is re-activated.
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAn0deVxcR66YOEiIYD05hyDnzrrroUUvM",
+  apiKey:            process.env.FIREBASE_API_KEY || "YOUR_API_KEY",
   authDomain:        "iwill-challenge.firebaseapp.com",
   projectId:         "iwill-challenge",
   storageBucket:     "iwill-challenge.firebasestorage.app",

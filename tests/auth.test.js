@@ -1,9 +1,11 @@
-// Unit tests for auth.js logic (token signing, verification, validation).
+// Unit tests for BullrunIQ serverless function logic.
 // Run with: node tests/auth.test.js
 
 const crypto = require("crypto");
+const path = require("path");
 
-// --- Inline the token helpers (copied from auth.js / sync.js) ---
+// --- Inline the token helpers (mirrors auth.js / sync.js) ---
+// These are kept inline so the tests run without Netlify env vars.
 
 const TEST_SECRET = "test-secret-key-for-unit-tests";
 
@@ -73,6 +75,12 @@ for (const em of emails) {
   assert(verifyToken(t, TEST_SECRET) === em.toLowerCase(), "round-trips: " + em);
 }
 
+console.log("\n--- auth token: structure edge cases ---");
+assert(verifyToken("nodot", TEST_SECRET) === null, "token with no dot returns null");
+assert(verifyToken("a.b.c", TEST_SECRET) === null, "token with wrong signature returns null");
+const shortToken = "." + TEST_SECRET; // dot at position 0
+assert(verifyToken(shortToken, TEST_SECRET) === null, "dot at position 0 returns null");
+
 console.log("\n--- unsubscribe: email validation ---");
 
 function isValidEmail(s) {
@@ -83,9 +91,12 @@ assert(!isValidEmail(""), "empty string fails");
 assert(!isValidEmail("notanemail"), "missing @ fails");
 assert(!isValidEmail("@nodomain"), "@ at start fails");
 assert(!isValidEmail("a".repeat(201) + "@b.com"), "too long fails");
+assert(!isValidEmail(null), "null fails");
+assert(!isValidEmail(123), "non-string fails");
 
 console.log("\n--- HTML escaping (XSS guard) ---");
 
+// Single canonical esc() used throughout; matches the lib/utils.js definition.
 function esc(s) {
   return String(s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -95,6 +106,10 @@ assert(esc("<script>alert(1)</script>") === "&lt;script&gt;alert(1)&lt;/script&g
 assert(esc('"><img src=x onerror=alert(1)>') === "&quot;&gt;&lt;img src=x onerror=alert(1)&gt;", "attribute injection escaped");
 assert(esc("safe text") === "safe text", "safe text unchanged");
 assert(esc("a&b") === "a&amp;b", "ampersand escaped");
+assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
+assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
+assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(esc("it's") === "it&#x27;s", "single quote escaped");
 
 console.log("\n--- market.js: id validation ---");
 
@@ -108,6 +123,9 @@ assert(validateIds("bitcoin,ethereum").length === 2, "two valid ids pass");
 assert(validateIds("bitcoin; DROP TABLE").length === 0, "injection string rejected");
 assert(validateIds("a".repeat(51)).length === 0, "too-long id rejected");
 assert(validateIds(",,,").length === 0, "empty ids rejected");
+assert(validateIds("bitcoin").length === 1, "single id passes");
+assert(validateIds("the-open-network").length === 1, "hyphenated id passes");
+assert(validateIds("bitcoin," + "a".repeat(51)).length === 1, "one valid + one too-long = 1 result");
 
 console.log("\n--- alerts: sell alert logic ---");
 
@@ -125,6 +143,7 @@ assert(shouldSendSellAlert({ ...watchlistEntry }, 75000), "sell alert above targ
 assert(!shouldSendSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 75000), "no duplicate sell alert");
 assert(shouldRearmSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 60000), "re-arm when price drops 5%+ below sell");
 assert(!shouldRearmSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 67000), "no re-arm within 5% of sell");
+assert(!shouldSendSellAlert({ ticker: "ETH" }, 1000), "missing sellTarget → no alert");
 
 console.log("\n--- alerts: buy alert logic ---");
 
@@ -138,6 +157,7 @@ assert(shouldSendBuyAlert({ ...buyEntry }, 1990), "buy alert within 1%");
 assert(shouldSendBuyAlert({ ...buyEntry }, 2000), "buy alert at exact target");
 assert(!shouldSendBuyAlert({ ...buyEntry }, 2200), "no buy alert 10% above target");
 assert(!shouldSendBuyAlert({ ...buyEntry, serverAlerted: true }, 1990), "no duplicate buy alert");
+assert(!shouldSendBuyAlert({ ...buyEntry }, 1900), "5% below target — too low for alert");
 
 console.log("\n--- submission-created: contact form filter ---");
 
@@ -149,6 +169,7 @@ assert(shouldSubscribe("waitlist"), "waitlist form gets subscribed");
 assert(shouldSubscribe("tier-signup"), "tier-signup form gets subscribed");
 assert(!shouldSubscribe("contact"), "contact form is skipped");
 assert(!shouldSubscribe("contact-form"), "contact-form variant is skipped");
+assert(shouldSubscribe(""), "empty form name is subscribed (non-contact)");
 
 console.log("\n--- news.js: URL scheme validation ---");
 
@@ -160,15 +181,8 @@ assert(isHttpUrl("http://cointelegraph.com/news/test"), "http URL passes");
 assert(!isHttpUrl("javascript:alert(1)"), "javascript: URL blocked");
 assert(!isHttpUrl("data:text/html,<h1>xss</h1>"), "data: URL blocked");
 assert(!isHttpUrl(""), "empty URL blocked");
-
-console.log("\n--- alerts: HTML escaping in emails ---");
-
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
-assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
-assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(!isHttpUrl("//relative.com/path"), "protocol-relative URL blocked");
+assert(!isHttpUrl("ftp://ftp.example.com"), "ftp: URL blocked");
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -211,6 +225,8 @@ assert(lad.rungs[0].price === 125 && lad.rungs[1].price === 150 && lad.rungs[2].
 assert(lad.hits.length === 2, "at +60%, first two rungs are hit");
 assert(lad.rungs[0].qty === 2.5, "each rung sells 25% of the position");
 assert(ladderFor(100, 10, 250).hits.length === 3, "at +150%, all rungs hit");
+assert(ladderFor(100, 10, 119) === null, "no ladder at exactly +19% gain");
+assert(ladderFor(100, 10, 120) !== null, "ladder activates at exactly +20% gain");
 
 console.log("\n--- cash deployment engine ---");
 
@@ -226,6 +242,143 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+assert(deployPlan(99, ["BTC"]) === null, "exactly $99 → no plan");
+assert(deployPlan(100, ["BTC"]) !== null, "exactly $100 → plan created");
+
+console.log("\n--- stripe-webhook: signature verification ---");
+
+function verifyStripe(rawBody, sigHeader, secret) {
+  if (!sigHeader || !secret) return false;
+  const parts = {};
+  String(sigHeader).split(",").forEach(function (kv) {
+    const i = kv.indexOf("=");
+    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  });
+  if (!parts.t || !parts.v1) return false;
+  const signed = parts.t + "." + rawBody;
+  const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
+  } catch (e) { return false; }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
+  return age <= 300;
+}
+
+function makeStripeHeader(body, secret, tsOffset) {
+  const t = String(Math.floor(Date.now() / 1000) + (tsOffset || 0));
+  const sig = crypto.createHmac("sha256", secret).update(t + "." + body, "utf8").digest("hex");
+  return "t=" + t + ",v1=" + sig;
+}
+
+const STRIPE_SECRET = "whsec_test_secret";
+const stripeBody = JSON.stringify({ type: "checkout.session.completed" });
+assert(verifyStripe(stripeBody, makeStripeHeader(stripeBody, STRIPE_SECRET), STRIPE_SECRET), "valid stripe signature passes");
+assert(!verifyStripe(stripeBody, makeStripeHeader(stripeBody, "wrong-secret"), STRIPE_SECRET), "wrong secret fails");
+assert(!verifyStripe(stripeBody, "", STRIPE_SECRET), "empty header fails");
+assert(!verifyStripe(stripeBody, null, STRIPE_SECRET), "null header fails");
+assert(!verifyStripe(stripeBody, makeStripeHeader(stripeBody, STRIPE_SECRET), null), "null secret fails");
+assert(!verifyStripe("tampered-body", makeStripeHeader(stripeBody, STRIPE_SECRET), STRIPE_SECRET), "body mismatch fails");
+assert(!verifyStripe(stripeBody, makeStripeHeader(stripeBody, STRIPE_SECRET, -400), STRIPE_SECRET), "signature >5 min old fails");
+assert(verifyStripe(stripeBody, makeStripeHeader(stripeBody, STRIPE_SECRET, -299), STRIPE_SECRET), "signature <5 min old passes");
+
+console.log("\n--- news.js: RSS parseRss logic ---");
+
+function decodeEntities(s) {
+  return String(s)
+    .replace(/<!\[CDATA\[|\]\]>/g, "")
+    .replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(+n); })
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#039;|&apos;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim();
+}
+function parseRss(xml, source) {
+  const items = [];
+  const chunks = String(xml).split(/<item[\s>]/).slice(1, 12);
+  for (const c of chunks) {
+    const t = (c.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+    const l = (c.match(/<link>([\s\S]*?)<\/link>/) || [])[1];
+    const d = (c.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1];
+    if (t && l) {
+      const at = d ? new Date(d).getTime() : Date.now();
+      const url = decodeEntities(l);
+      if (!/^https?:\/\//i.test(url)) continue;
+      items.push({ t: decodeEntities(t).slice(0, 160), u: url, s: source, at: isNaN(at) ? Date.now() : at });
+    }
+  }
+  return items;
+}
+
+const rssXml = `<?xml version="1.0"?>
+<rss><channel>
+<item><title>Bitcoin hits $100k</title><link>https://coindesk.com/article1</link><pubDate>Mon, 07 Sep 2026 10:00:00 +0000</pubDate></item>
+<item><title>ETH upgrade live</title><link>https://coindesk.com/article2</link><pubDate>Mon, 07 Sep 2026 09:00:00 +0000</pubDate></item>
+<item><title>Bad item</title><link>javascript:alert(1)</link></item>
+<item><title>No link item</title></item>
+</channel></rss>`;
+
+const rssItems = parseRss(rssXml, "CoinDesk");
+assert(rssItems.length === 2, "only 2 valid items parsed (js: URL and no-link skipped)");
+assert(rssItems[0].s === "CoinDesk", "source set correctly");
+assert(rssItems[0].t === "Bitcoin hits $100k", "title parsed");
+assert(rssItems[0].u === "https://coindesk.com/article1", "URL parsed");
+assert(parseRss("", "X").length === 0, "empty XML returns no items");
+assert(parseRss("<rss><channel></channel></rss>", "X").length === 0, "no items in valid XML returns empty");
+
+console.log("\n--- decodeEntities ---");
+assert(decodeEntities("&amp;amp;") === "&amp;", "nested amp decodes one level");
+assert(decodeEntities("<![CDATA[hello]]>") === "hello", "CDATA unwrapped");
+assert(decodeEntities("&#65;") === "A", "decimal entity decoded");
+assert(decodeEntities("&lt;tag&gt;") === "<tag>", "lt/gt decoded");
+assert(decodeEntities("&quot;quoted&quot;") === '"quoted"', "quot decoded");
+
+console.log("\n--- lib/utils: shared module exports ---");
+try {
+  const utils = require(path.join(__dirname, "../netlify/functions/lib/utils"));
+  assert(typeof utils.esc === "function", "lib/utils exports esc");
+  assert(typeof utils.fp === "function", "lib/utils exports fp");
+  assert(typeof utils.pct === "function", "lib/utils exports pct");
+  assert(typeof utils.signToken === "function", "lib/utils exports signToken");
+  assert(typeof utils.verifyToken === "function", "lib/utils exports verifyToken");
+  assert(typeof utils.secretKey === "function", "lib/utils exports secretKey");
+  assert(typeof utils.planFor === "function", "lib/utils exports planFor");
+  assert(typeof utils.emailLayout === "function", "lib/utils exports emailLayout");
+  assert(typeof utils.json === "function", "lib/utils exports json");
+
+  // Smoke-test esc from the shared module
+  assert(utils.esc("<test>") === "&lt;test&gt;", "lib/utils esc works");
+
+  // Smoke-test fp formatting
+  assert(utils.fp(0.00001234) === "$0.000012", "fp formats micro price");
+  assert(utils.fp(1.5) === "$1.50", "fp formats dollars");
+  assert(utils.fp(100000) === "$100,000", "fp formats thousands with commas");
+
+  // Smoke-test pct formatting
+  assert(utils.pct(5.123) === "+5.1%", "pct formats positive gain");
+  assert(utils.pct(-3.456) === "-3.5%", "pct formats negative loss");
+
+  // Smoke-test emailLayout HTML output
+  const html = utils.emailLayout({
+    badge: "🎯 Test", badgeColor: "#4ade80",
+    safeTitle: "Test title",
+    safeBody: "<p>body</p>",
+    ctaLabel: "Click →",
+    reason: "you are testing",
+    email: "test@example.com",
+  });
+  assert(typeof html === "string" && html.includes("Test title"), "emailLayout produces HTML with title");
+  assert(html.includes("bullruniq.com/api/unsubscribe"), "emailLayout includes unsubscribe link");
+  assert(html.includes(encodeURIComponent("test@example.com")), "emailLayout encodes email in unsub URL");
+  assert(html.includes("you are testing"), "emailLayout includes reason");
+
+  // json helper
+  const resp = utils.json(200, { ok: true }, { "X-Test": "1" });
+  assert(resp.statusCode === 200, "json helper sets status code");
+  assert(JSON.parse(resp.body).ok === true, "json helper serialises body");
+  assert(resp.headers["X-Test"] === "1", "json helper merges extra headers");
+
+} catch (e) {
+  console.error("  ✗ FAIL: lib/utils could not be loaded:", e.message);
+  failed++;
+}
 
 // --- Summary ---
 console.log("\n==========================================");

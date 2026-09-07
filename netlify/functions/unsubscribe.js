@@ -1,10 +1,6 @@
 // BullrunIQ — one-click unsubscribe.
 
-function esc(s) {
-  return String(s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
-}
+const { esc } = require("./lib/utils");
 
 function page(msg) {
   return "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Unsubscribed — BullrunIQ</title></head>"

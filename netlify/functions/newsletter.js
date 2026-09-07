@@ -1,10 +1,9 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
+const { esc } = require("./lib/utils");
+
 const MAX_SEND = 1000;
 
-function esc(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 function briefToHtml(text) {
   return esc(text)
     .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
@@ -41,7 +40,7 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: "not configured" };
   }
 
-  var btc = "n/a", fg = "n/a";
+  var btc = "n/a", fg = "n/a", fgValue = 50;
   try {
     const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
     const d = await r.json();
@@ -50,8 +49,18 @@ exports.handler = async function (event) {
   try {
     const r = await fetch("https://api.alternative.me/fng/?limit=1");
     const d = await r.json();
-    if (d.data && d.data[0]) fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
+    if (d.data && d.data[0]) {
+      fgValue = parseInt(d.data[0].value, 10) || 50;
+      fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
+    }
   } catch (e) {}
+
+  // Build a richer brief prompt with Fear & Greed context and staged-exit framing.
+  const fgContext = fgValue >= 75 ? "extreme greed (risk of reversal is elevated)"
+    : fgValue >= 55 ? "greed (momentum is positive but watch for overextension)"
+    : fgValue >= 45 ? "neutral (consolidation zone)"
+    : fgValue >= 25 ? "fear (potential accumulation opportunity)"
+    : "extreme fear (high-conviction buyers may find value)";
 
   var brief = "";
   try {
@@ -60,8 +69,20 @@ exports.handler = async function (event) {
       headers: { "Content-Type": "application/json", "x-api-key": ANTH, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 500,
-        messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with one action to consider today. Under 160 words. Educational, not financial advice. Live data: BTC " + btc + ", Fear & Greed " + fg + ". Date " + new Date().toUTCString() }],
+        max_tokens: 550,
+        messages: [{ role: "user", content:
+          "Write the BullrunIQ daily market brief as exactly 5 bullet points. "
+          + "Format each as: emoji + **bold label** + one concrete sentence with specific data where possible. "
+          + "Cover in order: "
+          + "1) overall crypto market sentiment given the Fear & Greed reading, "
+          + "2) BTC price action and the nearest key support or resistance level to watch, "
+          + "3) one altcoin sector showing notable strength or weakness today, "
+          + "4) the top macro or on-chain risk to monitor this week, "
+          + "5) one specific actionable step an investor could consider today (e.g., reviewing a stop-loss, trimming a winning position, adding on a dip, or holding cash). "
+          + "Under 180 words total. Educational analysis only — not financial advice. "
+          + "Live data: BTC " + btc + ", Fear & Greed index " + fg + " — " + fgContext + ". "
+          + "Date: " + new Date().toUTCString()
+        }],
       }),
     });
     const d = await r.json();
