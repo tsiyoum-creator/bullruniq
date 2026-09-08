@@ -6,6 +6,10 @@ const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
   "claude-sonnet-4-6",
   "claude-haiku-4-5-20251001",
+  // newer models
+  "claude-opus-5",
+  "claude-sonnet-5",
+  "claude-haiku-4-5",
 ]);
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS_CAP = 1500;

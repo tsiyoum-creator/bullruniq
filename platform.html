@@ -541,9 +541,11 @@ async function anthropicCall(body){
       body:JSON.stringify(body)
     });
   }
+  var hdrs={'Content-Type':'application/json'};
+  if(auth.token) hdrs['Authorization']='Bearer '+auth.token;
   return fetch('/api/generate',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:hdrs,
     body:JSON.stringify(body)
   });
 }

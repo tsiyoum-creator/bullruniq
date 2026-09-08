@@ -72,7 +72,11 @@ exports.handler = async function (event) {
     let p = {};
     try { p = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Bad JSON" }); }
     if (!p.data || typeof p.data !== "object") return json(400, { error: "Missing data" });
-    await store.setJSON(email, { data: p.data, updatedAt: new Date().toISOString() });
+    // Preserve server-side _alerts flags so alert.js de-dupe state survives user syncs
+    const existing = await store.get(email, { type: "json" }).catch(function () { return null; });
+    const saved = { data: p.data, updatedAt: new Date().toISOString() };
+    if (existing && existing._alerts) saved._alerts = existing._alerts;
+    await store.setJSON(email, saved);
     return json(200, { ok: true, plan: await planFor(email, getStore) });
   }
 

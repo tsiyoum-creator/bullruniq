@@ -1,6 +1,6 @@
 // BullrunIQ service worker — installability + offline shell.
 var VERSION = "briq-v1";
-var SHELL = ["/", "/platform", "/manifest.json", "/icon-192.png", "/icon-512.png"];
+var SHELL = ["/", "/platform", "/manifest.json"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(

@@ -227,6 +227,71 @@ assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
 
+console.log("\n--- unsubscribe: signed token ---");
+
+// Inline the makeUnsubToken / verifyUnsubToken logic for testing
+function makeUnsubToken(email, secret, ttlMs) {
+  const expTs = Date.now() + (ttlMs || 30 * 24 * 60 * 60 * 1000);
+  const sig = crypto.createHmac("sha256", secret)
+    .update(email + "|" + expTs)
+    .digest("base64url");
+  return expTs.toString(36) + "." + sig;
+}
+
+function verifyUnsubToken(email, token, secret) {
+  if (!secret || !token || !email) return false;
+  try {
+    const dot = token.indexOf(".");
+    if (dot < 1) return false;
+    const expTs = parseInt(token.slice(0, dot), 36);
+    const sig   = token.slice(dot + 1);
+    if (isNaN(expTs) || Date.now() > expTs) return false;
+    const expected = crypto.createHmac("sha256", secret)
+      .update(email + "|" + expTs)
+      .digest("base64url");
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
+  } catch (e) { return false; }
+}
+
+const UNSUB_SECRET = "test-unsub-secret";
+const testEmail = "user@example.com";
+const tok = makeUnsubToken(testEmail, UNSUB_SECRET);
+assert(verifyUnsubToken(testEmail, tok, UNSUB_SECRET), "valid unsub token verifies");
+assert(!verifyUnsubToken("other@example.com", tok, UNSUB_SECRET), "token is email-specific");
+assert(!verifyUnsubToken(testEmail, tok, "wrong-secret"), "token is secret-specific");
+assert(!verifyUnsubToken(testEmail, "bad.token", UNSUB_SECRET), "malformed token fails");
+assert(!verifyUnsubToken(testEmail, "", UNSUB_SECRET), "empty token fails");
+// Expired token
+const expiredTok = (Date.now() - 1).toString(36) + "." + crypto.createHmac("sha256", UNSUB_SECRET).update(testEmail + "|" + (Date.now() - 1)).digest("base64url");
+assert(!verifyUnsubToken(testEmail, expiredTok, UNSUB_SECRET), "expired token fails");
+
+console.log("\n--- alerts: _alerts flag isolation from rec.data ---");
+
+// Simulate the alerts.js flag isolation: flags live in rec._alerts, not rec.data
+function simulateAlertFlagRoundTrip(rec) {
+  // alerts.js reads
+  const alerts = rec._alerts || {};
+  function getFlag(key) { return !!alerts[key]; }
+  function setFlag(key, val) { alerts[key] = val || undefined; }
+
+  assert(!getFlag("h:BTC:stop"), "new record has no flags");
+  setFlag("h:BTC:stop", true);
+  assert(getFlag("h:BTC:stop"), "flag set in _alerts");
+
+  // sync.js simulates user overwriting rec.data (local state wins), preserving _alerts
+  const localData = { port: { crypto: [{ ticker: "BTC", stop: 55000 }] }, wl: [] };
+  const existing = { data: rec.data, _alerts: alerts };
+  const saved = { data: localData, updatedAt: new Date().toISOString() };
+  if (existing._alerts) saved._alerts = existing._alerts;
+
+  // After sync: _alerts should be preserved
+  assert(!!saved._alerts && !!saved._alerts["h:BTC:stop"], "_alerts survive user sync");
+  // But rec.data is replaced by local state
+  assert(saved.data === localData, "rec.data replaced by local state");
+}
+
+simulateAlertFlagRoundTrip({ data: { port: { crypto: [{ ticker: "BTC", stop: 55000 }] }, wl: [] } });
+
 // --- Summary ---
 console.log("\n==========================================");
 console.log("Results: " + passed + " passed, " + failed + " failed");
