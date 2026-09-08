@@ -357,7 +357,7 @@ var dailyBrief=null;var BRIEFK='briq-brief';
 var usage={week:'',count:0};var USAGEK='briq-usage';var FREE_WEEKLY_AI=10;
 var auth={token:'',email:''};var AUTHK='briq-auth';var _acctEmailPending='';
 // Fetch staleness timestamps — avoid redundant API calls
-var _cryptoAt=0,_fgAt=0,_stocksAt=0;
+var _cryptoAt=0,_fgAt=0,_stocksAt=0,_stocksSrv=false;
 var chatState={agent:'atlas',history:{atlas:[],cipher:[],edge:[],grind:[]}};
 
 // ── Persist ───────────────────────────────────────────────────
@@ -408,6 +408,23 @@ function totals(){
 function all(){return port.crypto.concat(port.stocks);}
 function pof(h){var p=prices[h.ticker];return p?p.price:h.avg;}
 function chof(h){var p=prices[h.ticker];return p?p.change24:null;}
+// pof() falls back to cost basis when no quote exists, which renders `avg` as if
+// it were a market price. These let callers tell the two apart.
+// 'live' = real-time quote | 'delayed' = 15-20 min (Alpha Vantage)
+// 'stale' = quote older than 15 min | 'none' = showing cost basis, not a price
+function quoteState(h){
+  var p=prices[h.ticker];
+  if(!p||!(p.price>0))return 'none';
+  if(p.delayed)return 'delayed';
+  if(p.at&&Date.now()-p.at>900000)return 'stale';
+  return 'live';
+}
+function quoteBadge(h){
+  var s=quoteState(h);
+  if(s==='live')return '';
+  var m={delayed:['15-min delayed','var(--t3)'],stale:['quote stale','var(--t3)'],none:['cost basis — no live quote','var(--red)']}[s];
+  return '<span style="font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:'+m[1]+';margin-left:6px;white-space:nowrap">'+m[0]+'</span>';
+}
 
 // ── Fetch: Crypto prices (CoinGecko) ──────────────────────────
 // Min 50s between auto-fetches; pass force=true to bypass
@@ -426,8 +443,31 @@ async function fetchCrypto(force){
 }
 
 // ── Fetch: Stock prices ───────────────────────────────────────
-// Primary: Finnhub (real-time, 60 req/min, free — finnhub.io)
-// Fallback: Alpha Vantage (15-20 min delayed, 25 req/day)
+// Primary:  /api/stocks — server-side Finnhub proxy, real-time, no user key.
+// Then:     user's own Finnhub key (real-time, 60 req/min — finnhub.io)
+// Last:     user's Alpha Vantage key (15-20 min DELAYED, 25 req/day)
+// Every quote carries `at` (fetch time) and `delayed`, so the UI can tell a
+// live price from a stale one instead of rendering both identically.
+var avLimited=false; // set when Alpha Vantage returns its rate-limit notice
+
+// Server proxy. Returns the tickers it could NOT resolve so callers fall back.
+async function fetchStocksServer(ticks){
+  try{
+    var r=await fetch('/api/stocks?symbols='+encodeURIComponent(ticks.join(',')));
+    if(!r.ok)return ticks;
+    var d=await r.json();
+    if(!d||!d.configured||!d.quotes)return ticks;
+    var missing=[];
+    ticks.forEach(function(t){
+      var q=d.quotes[t];
+      if(q&&q.price>0){
+        prices[t]={price:q.price,change24:q.change24,open:q.open,high:q.high,low:q.low,
+                   prevClose:q.prevClose,at:q.at||Date.now(),delayed:false,src:'server'};
+      }else missing.push(t);
+    });
+    return missing;
+  }catch(e){return ticks;}
+}
 async function fetchStockFinnhub(ticker){
   if(!cfg.fh)return false;
   try{
@@ -436,32 +476,49 @@ async function fetchStockFinnhub(ticker){
     var d=await r.json();
     if(d&&d.c&&d.c>0){
       var pct=d.pc>0?((d.c-d.pc)/d.pc*100):0;
-      prices[ticker]={price:d.c,change24:+pct.toFixed(2),open:d.o,high:d.h,low:d.l,prevClose:d.pc,src:'finnhub'};
+      prices[ticker]={price:d.c,change24:+pct.toFixed(2),open:d.o,high:d.h,low:d.l,
+                      prevClose:d.pc,at:Date.now(),delayed:false,src:'finnhub'};
       return true;
     }
   }catch(e){}
   return false;
 }
 async function fetchStockAV(ticker){
-  if(!cfg.av)return;
+  if(!cfg.av)return false;
   try{
     var r=await fetch('https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol='+ticker+'&apikey='+cfg.av);
-    var d=await r.json();var q=d['Global Quote'];
+    var d=await r.json();
+    // AV answers 200 with a Note/Information body once the 25/day cap is hit.
+    // Treating that as a miss (rather than swallowing it) stops a blown quota
+    // from silently leaving yesterday's price on screen.
+    if(d&&(d.Note||d.Information)){avLimited=true;return false;}
+    var q=d['Global Quote'];
     if(q&&q['05. price']){
       var pct=parseFloat((q['10. change percent']||'0').replace('%',''));
-      prices[ticker]={price:parseFloat(q['05. price']),change24:pct,src:'alphavantage'};
+      prices[ticker]={price:parseFloat(q['05. price']),change24:isNaN(pct)?0:pct,
+                      at:Date.now(),delayed:true,src:'alphavantage'};
+      return true;
     }
   }catch(e){}
+  return false;
 }
 async function fetchStocks(force){
-  var cacheMs=cfg.fh?60000:720000; // 1 min (Finnhub real-time) vs 12 min (AV delayed)
-  if(!force&&Date.now()-_stocksAt<cacheMs)return;
-  if(!port.stocks.length||(!cfg.fh&&!cfg.av))return;
+  if(!port.stocks.length)return;
+  // Real-time sources refresh every 60s; a delayed-only setup every 12 min so
+  // we don't burn the 25/day Alpha Vantage quota.
+  var realtime=_stocksSrv||cfg.fh;
+  if(!force&&Date.now()-_stocksAt<(realtime?60000:720000))return;
   var ticks=[...new Set(port.stocks.map(function(h){return h.ticker.toUpperCase();}))];
-  for(var i=0;i<ticks.length;i++){
-    var ok=await fetchStockFinnhub(ticks[i]);
-    if(!ok)await fetchStockAV(ticks[i]);
-    if(i<ticks.length-1)await sleep(cfg.fh?150:1300);
+
+  var remaining=await fetchStocksServer(ticks);
+  _stocksSrv=remaining.length<ticks.length; // proxy served at least one symbol
+
+  if(remaining.length&&(cfg.fh||cfg.av)){
+    for(var i=0;i<remaining.length;i++){
+      var ok=await fetchStockFinnhub(remaining[i]);
+      if(!ok)await fetchStockAV(remaining[i]);
+      if(i<remaining.length-1)await sleep(cfg.fh?150:1300);
+    }
   }
   _stocksAt=Date.now();savePr();
 }
@@ -2270,7 +2327,7 @@ function holdTbl(list,type){
       tbl+='<td class="mono" title="Click to edit" style="cursor:pointer" onclick="startEditHold(\''+type+'\','+h.id+')">'+h.qty+'</td>';
       tbl+='<td class="mono" title="Click to edit" style="cursor:pointer" onclick="startEditHold(\''+type+'\','+h.id+')">'+fp(h.avg)+'</td>';
     }
-    tbl+='<td class="mono">'+fp(p)+'</td>';
+    tbl+='<td class="mono">'+fp(p)+quoteBadge(h)+'</td>';
     tbl+='<td class="mono '+chCls+'">'+fpc(ch)+'</td>';
     tbl+='<td class="mono">'+f$(val)+'</td>';
     tbl+='<td class="mono '+plCls+'">'+(pl>=0?'+':'')+f$(pl)+' <span style="font-size:10px">('+(plp==null?'—':fpc(plp))+')</span></td>';
@@ -2285,7 +2342,7 @@ function holdTbl(list,type){
 
     // ── mobile card ──
     cards+='<div class="hcard">';
-    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span>'+lvlBadge+'</div></div>';
+    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span>'+quoteBadge(h)+lvlBadge+'</div></div>';
     cards+='<div class="hcard-val"><div style="font-weight:600;font-family:DM Mono,monospace">'+f$(val)+'</div><div style="font-size:11px" class="'+plCls+'">'+(pl>=0?'+':'')+f$(pl)+' ('+(plp==null?'—':fpc(plp))+')</div></div></div>';
     if(editing){
       cards+='<div style="border-top:1px solid var(--b1);padding-top:9px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">';
@@ -2453,7 +2510,7 @@ async function scanOpportunities(noAI){ // noAI: automated runs skip the AI pass
   opps.loading=true;opps.error=null;opps.ai=null;render();
   await fetchCrypto(true);
   await fetchFearGreed(true);
-  if(port.stocks.length&&(cfg.fh||cfg.av))await fetchStocks(true);
+  if(port.stocks.length)await fetchStocks(true); // /api/stocks needs no user key
   var items=[];
   for(var i=0;i<a.length;i++){
     var h=a[i];
@@ -3425,11 +3482,12 @@ function rCfg(){
   html+=kprev('ak')+'<div id="testResult" style="font-size:11px;margin-top:6px"></div></div>';
   html+='<div class="key-wrap" style="border-left:2px solid var(--grn)">';
   html+='<div class="key-title">Finnhub API Key'+ks('fh')+'<span style="font-size:9px;background:rgba(34,197,94,.15);color:var(--grn);border-radius:3px;padding:2px 7px;margin-left:8px;font-weight:700">REAL-TIME · RECOMMENDED</span></div>';
-  html+='<div class="key-desc">Real-time US stock quotes — updates every 60 seconds. Free at <strong>finnhub.io</strong> — 60 requests/minute, no daily cap.<br>Sign up free → Dashboard → API Keys → copy your key.</div>';
+  html+='<div class="key-desc"><strong>Optional.</strong> Stock quotes already come live from BullrunIQ\'s own feed — add a key only to cover a ticker our feed doesn\'t carry, or to keep quotes flowing if it\'s down. Real-time, updates every 60 seconds. Free at <strong>finnhub.io</strong> — 60 requests/minute, no daily cap.<br>Sign up free → Dashboard → API Keys → copy your key.</div>';
   html+='<div class="frow"><input class="inp" id="sfh" type="password" placeholder="Your Finnhub key..." value="'+(cfg.fh||'')+'"><button class="btn btn-g btn-sm" onclick="sk(\'fh\',\'sfh\')">Save</button></div></div>';
   html+='<div class="key-wrap">';
   html+='<div class="key-title">Alpha Vantage API Key'+ks('av')+'<span style="font-size:9px;color:var(--t3);background:var(--s2);border-radius:3px;padding:2px 7px;margin-left:8px">FALLBACK · 15-min delay</span></div>';
-  html+='<div class="key-desc">Used as fallback if Finnhub key is not set. Free at <strong>alphavantage.co</strong> — 25 requests/day, data is 15-20 min delayed.</div>';
+  html+='<div class="key-desc">Last-resort fallback, used only if our feed and your Finnhub key both come up empty. Free at <strong>alphavantage.co</strong> — 25 requests/day, and quotes are 15-20 min delayed, so prices sourced here are labelled as such in your holdings.'
+    +(avLimited?'<br><span style="color:var(--red)">⚠ Alpha Vantage hit its 25-requests/day cap — it returned no quotes on the last try. Prices from this source will stay frozen until the quota resets.</span>':'')+'</div>';
   html+='<div class="frow"><input class="inp" id="sav" type="password" placeholder="Your key..." value="'+cfg.av+'"><button class="btn btn-g btn-sm" onclick="sk(\'av\',\'sav\')">Save</button></div></div>';
   html+='<div class="sh" style="margin-top:20px">Danger Zone</div>';
   html+='<div class="card rl"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Clear All Portfolio Data</div><div style="font-size:11px;color:var(--t3);margin-bottom:12px">Removes all holdings and cached prices. API keys are kept.</div><button class="btn-r" onclick="clearAll()">Clear Portfolio & Cache</button></div>';
@@ -4099,10 +4157,11 @@ setTimeout(function(){gradeCalls();},5000); // grade any matured calls shortly a
 // Auto-refresh — crypto every 90s (CoinGecko free tier updates ~60s anyway)
 // Stocks and fear/greed have their own internal caches so they won't actually
 // re-fetch unless stale, keeping the app responsive between explicit refreshes
-// Refresh every 60s with Finnhub (real-time), 90s otherwise
+// 60s tick: quotes are real-time via /api/stocks (or a user Finnhub key), and
+// each fetcher's own cache decides whether a tick actually hits the network.
 setInterval(function(){
   if(!busy)refreshAll();
-},cfg.fh?60000:90000);
+},60000);
 </script>
 </body>
 </html>
