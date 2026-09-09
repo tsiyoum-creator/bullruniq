@@ -5,6 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # app.js contains a Firebase web config (apiKey is a public client identifier,
+  # not a server secret — it is intentionally shipped to browsers per Firebase docs).
   SECRETS_SCAN_OMIT_PATHS = "app.js"
 
 # ── Scheduled: Daily Brief newsletter (13:00 UTC ≈ 8–9am ET) ──

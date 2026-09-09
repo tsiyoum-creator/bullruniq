@@ -1,10 +1,6 @@
 // BullrunIQ — one-click unsubscribe.
 
-function esc(s) {
-  return String(s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
-}
+const { esc, isValidEmail } = require("./_lib");
 
 function page(msg) {
   return "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Unsubscribed — BullrunIQ</title></head>"
@@ -16,11 +12,23 @@ function page(msg) {
     + "</body></html>";
 }
 
-function isValidEmail(s) {
-  return typeof s === "string" && s.length > 0 && s.length <= 200 && s.indexOf("@") > 0;
+// Simple in-memory rate limit: max 10 unsubscribe requests per IP per minute.
+const _ipBurst = new Map();
+function ipOk(ip) {
+  const now = Date.now();
+  const e = _ipBurst.get(ip);
+  if (!e || now - e.t > 60000) { _ipBurst.set(ip, { t: now, n: 1 }); return true; }
+  e.n++;
+  return e.n <= 10;
 }
 
 exports.handler = async function (event) {
+  const h = event.headers || {};
+  const ip = h["x-nf-client-connection-ip"] || (h["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  if (!ipOk(ip)) {
+    return { statusCode: 429, headers: { "Content-Type": "text/html; charset=utf-8" }, body: page("Too many requests — please wait a moment.") };
+  }
+
   const raw = String(((event.queryStringParameters || {}).email) || "").trim().toLowerCase();
   const email = isValidEmail(raw) ? raw : "";
   let storageOk = true;

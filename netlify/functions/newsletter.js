@@ -1,10 +1,9 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
+const { esc } = require("./_lib");
+
 const MAX_SEND = 1000;
 
-function esc(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 function briefToHtml(text) {
   return esc(text)
     .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
@@ -89,6 +88,7 @@ exports.handler = async function (event) {
   for (var i = 0; i < batch.length; i += BATCH) {
     var chunk = batch.slice(i, i + BATCH);
     var results = await Promise.allSettled(chunk.map(function (email) {
+      var unsubUrl = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
       return fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
@@ -97,7 +97,11 @@ exports.handler = async function (event) {
           to: email,
           subject: subject,
           html: emailHtml(briefHtml, btc, fg, email, dateStr),
-          headers: { "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + ">" },
+          headers: {
+            // RFC 2369 + RFC 8058 one-click unsubscribe for mail clients
+            "List-Unsubscribe": "<" + unsubUrl + ">, <mailto:unsubscribe@bullruniq.com?subject=unsubscribe>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         }),
       }).then(function (r) { return r.ok ? "ok" : "err"; });
     }));
@@ -108,3 +112,6 @@ exports.handler = async function (event) {
   console.log("[newsletter] sent " + sent + ", failed " + failed + ", of " + subs.length + " subscribers");
   return { statusCode: 200, body: "sent " + sent + "/" + subs.length };
 };
+
+module.exports.briefToHtml = briefToHtml;
+module.exports.emailHtml = emailHtml;

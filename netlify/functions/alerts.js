@@ -9,38 +9,48 @@
 // Crypto tickers only — stock quotes would need per-user broker keys server-side.
 // No-ops gracefully until RESEND_API_KEY is set.
 
+const { esc } = require("./_lib");
+
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
 const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
-function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function emailFooter(email, reason) {
+  return "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>"
+    + "Educational alert, not financial advice. You get these because you " + reason + " in BullrunIQ.<br>"
+    + "<a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a>"
+    + "</div>";
+}
+
+function emailHeader(label, labelColor) {
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:" + labelColor + ";margin-bottom:10px'>" + label + "</div>";
+}
 
 function buyAlertHtml(w, price, email) {
   const name = esc(w.name || w.ticker);
   const ticker = esc(w.ticker);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#4ade80;margin-bottom:10px'>🎯 Buy zone alert</div>"
+  return emailHeader("🎯 Buy zone alert", "#4ade80")
     + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " is at your buy zone</div>"
     + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 22px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — within 2% of your target of <b style='color:#c9a84c'>" + fp(w.targetPrice) + "</b>.</div>"
     + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Open your command center →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a price target in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + emailFooter(email, "set a price target")
     + "</body></html>";
 }
 
 function sellAlertHtml(w, price, gainPct, email) {
   const name = esc(w.name || w.ticker);
   const ticker = esc(w.ticker);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>💰 Profit-taking signal</div>"
+  return emailHeader("💰 Profit-taking signal", "#e05555")
     + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " hit your sell target</div>"
     + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — reached your profit target of <b style='color:#c9a84c'>" + fp(w.sellTarget) + "</b>.</div>"
     + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:22px'>Up <b>" + pct(gainPct) + "</b> from your buy target of " + fp(w.targetPrice) + "</div>" : "<div style='margin-bottom:22px'></div>")
     + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#e05555;color:#fff;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a sell target in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + emailFooter(email, "set a sell target")
     + "</body></html>";
 }
 
@@ -48,14 +58,14 @@ function stopAlertHtml(h, price, email) {
   const name = esc(h.name || h.ticker);
   const ticker = esc(h.ticker);
   const lossPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>⛔ Stop-loss triggered</div>"
+  const posValue = price * (h.qty || 0);
+  return emailHeader("⛔ Stop-loss triggered", "#e05555")
     + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " fell below your stop</div>"
     + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#e05555'>" + fp(price) + "</b> — below the stop-loss you set at <b style='color:#c9a84c'>" + fp(h.stop) + "</b>.</div>"
-    + (lossPct !== null ? "<div style='font-size:13px;color:#e05555;margin-bottom:22px'>Position is at <b>" + pct(lossPct) + "</b> vs your avg buy of " + fp(h.avg) + "</div>" : "<div style='margin-bottom:22px'></div>")
+    + (lossPct !== null ? "<div style='font-size:13px;color:#e05555;margin-bottom:6px'>Position at <b>" + pct(lossPct) + "</b> vs your avg buy of " + fp(h.avg) + "</div>" : "")
+    + (posValue > 0 ? "<div style='font-size:13px;color:#8a8278;margin-bottom:22px'>Current position value: <b style='color:#f0ece4'>" + fp(posValue) + "</b></div>" : "<div style='margin-bottom:22px'></div>")
     + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#e05555;color:#fff;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review the position now →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a stop-loss in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + emailFooter(email, "set a stop-loss")
     + "</body></html>";
 }
 
@@ -64,14 +74,14 @@ function tpAlertHtml(h, price, email) {
   const ticker = esc(h.ticker);
   const gainPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
   const value = price * (h.qty || 0);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#4ade80;margin-bottom:10px'>🎯 Take-profit reached</div>"
+  const profit = (h.avg > 0 && h.qty > 0) ? ((price - h.avg) * h.qty) : null;
+  return emailHeader("🎯 Take-profit reached", "#4ade80")
     + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " hit your target</div>"
     + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — at the take-profit you set at <b style='color:#c9a84c'>" + fp(h.tp) + "</b>." + (value > 0 ? " Your position is worth <b style='color:#f0ece4'>" + fp(value) + "</b>." : "") + "</div>"
-    + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:22px'>Up <b>" + pct(gainPct) + "</b> from your avg buy of " + fp(h.avg) + " — consider locking some in</div>" : "<div style='margin-bottom:22px'></div>")
+    + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:6px'>Up <b>" + pct(gainPct) + "</b> from your avg buy of " + fp(h.avg) + " — consider locking some in</div>" : "")
+    + (profit !== null && profit > 0 ? "<div style='font-size:13px;color:#8a8278;margin-bottom:22px'>Unrealised gain: <b style='color:#4ade80'>" + fp(profit) + "</b></div>" : "<div style='margin-bottom:22px'></div>")
     + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Take some profit →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a take-profit in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + emailFooter(email, "set a take-profit")
     + "</body></html>";
 }
 
@@ -122,6 +132,7 @@ exports.handler = async function (event) {
     prices = await r.json();
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
+  const FROM = process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>";
   let sent = 0;
   for (const email of Object.keys(recs)) {
     const rec = recs[email];
@@ -141,9 +152,9 @@ exports.handler = async function (event) {
             method: "POST",
             headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+              from: FROM,
               to: email,
-              subject: "⛔ " + h.ticker + " fell below your stop-loss — now " + fp(p),
+              subject: "⛔ " + esc(h.ticker) + " fell below your stop-loss — now " + fp(p),
               html: stopAlertHtml(h, p, email),
             }),
           });
@@ -159,9 +170,9 @@ exports.handler = async function (event) {
             method: "POST",
             headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+              from: FROM,
               to: email,
-              subject: "🎯 " + h.ticker + " hit your take-profit — now " + fp(p),
+              subject: "🎯 " + esc(h.ticker) + " hit your take-profit — now " + fp(p),
               html: tpAlertHtml(h, p, email),
             }),
           });
@@ -187,9 +198,9 @@ exports.handler = async function (event) {
               method: "POST",
               headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
               body: JSON.stringify({
-                from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+                from: FROM,
                 to: email,
-                subject: "🎯 " + w.ticker + " hit your buy zone — now " + fp(p),
+                subject: "🎯 " + esc(w.ticker) + " hit your buy zone — now " + fp(p),
                 html: buyAlertHtml(w, p, email),
               }),
             });
@@ -208,9 +219,9 @@ exports.handler = async function (event) {
             method: "POST",
             headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+              from: FROM,
               to: email,
-              subject: "💰 " + w.ticker + " hit your sell target — now " + fp(p),
+              subject: "💰 " + esc(w.ticker) + " hit your sell target — now " + fp(p),
               html: sellAlertHtml(w, p, gainPct, email),
             }),
           });
