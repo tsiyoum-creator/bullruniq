@@ -133,11 +133,20 @@ function shouldSendBuyAlert(w, price) {
   return dist < 2 && price <= w.targetPrice * 1.02 && !w.serverAlerted;
 }
 
+function shouldRearmBuyAlert(w, price) {
+  const dist = Math.abs((w.targetPrice - price) / price * 100);
+  return dist >= 5 && w.serverAlerted;
+}
+
 const buyEntry = { ticker: "ETH", targetPrice: 2000 };
 assert(shouldSendBuyAlert({ ...buyEntry }, 1990), "buy alert within 1%");
 assert(shouldSendBuyAlert({ ...buyEntry }, 2000), "buy alert at exact target");
 assert(!shouldSendBuyAlert({ ...buyEntry }, 2200), "no buy alert 10% above target");
 assert(!shouldSendBuyAlert({ ...buyEntry, serverAlerted: true }, 1990), "no duplicate buy alert");
+assert(!shouldSendBuyAlert({ ...buyEntry }, 1850), "no buy alert when 7.5% below target (falling past)");
+assert(shouldRearmBuyAlert({ ...buyEntry, serverAlerted: true }, 1890), "re-arm when price falls 5%+ from target");
+assert(!shouldRearmBuyAlert({ ...buyEntry, serverAlerted: true }, 1940), "no re-arm within 5% of target");
+assert(!shouldRearmBuyAlert({ ...buyEntry, serverAlerted: false }, 1800), "no re-arm when not alerted");
 
 console.log("\n--- submission-created: contact form filter ---");
 
@@ -163,12 +172,11 @@ assert(!isHttpUrl(""), "empty URL blocked");
 
 console.log("\n--- alerts: HTML escaping in emails ---");
 
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
+// esc() is already defined above — reuse the same definition
 assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
 assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
 assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(esc("<script>alert(1)</script>") === "&lt;script&gt;alert(1)&lt;/script&gt;", "script injection in ticker blocked");
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -226,6 +234,37 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+
+console.log("\n--- unsubscribe: HMAC token validation ---");
+
+const crypto2 = require("crypto");
+function makeUnsubToken(email, secret) {
+  return crypto2.createHmac("sha256", secret).update("unsub:" + email).digest("base64url");
+}
+function verifyUnsubToken(email, tok, secret) {
+  if (!tok) return false;
+  const expected = crypto2.createHmac("sha256", secret).update("unsub:" + email).digest("base64url");
+  try { return crypto2.timingSafeEqual(Buffer.from(expected), Buffer.from(tok)); }
+  catch (e) { return false; }
+}
+const UNSUB_SECRET = "test-unsub-secret";
+const tok1 = makeUnsubToken("user@example.com", UNSUB_SECRET);
+assert(typeof tok1 === "string" && tok1.length > 0, "token is non-empty string");
+assert(verifyUnsubToken("user@example.com", tok1, UNSUB_SECRET), "valid token verifies");
+assert(!verifyUnsubToken("other@example.com", tok1, UNSUB_SECRET), "wrong email fails verification");
+assert(!verifyUnsubToken("user@example.com", tok1 + "x", UNSUB_SECRET), "tampered token fails");
+assert(!verifyUnsubToken("user@example.com", "", UNSUB_SECRET), "empty token fails");
+assert(!verifyUnsubToken("user@example.com", tok1, "wrong-secret"), "wrong secret fails");
+
+console.log("\n--- portfolio: division-by-zero guard ---");
+
+function calcPlp(price, avg) {
+  return avg > 0 ? ((price - avg) / avg * 100) : null;
+}
+assert(calcPlp(110, 100) !== null, "normal P&L calculates");
+assert(Math.abs(calcPlp(110, 100) - 10) < 0.001, "P&L value is correct");
+assert(calcPlp(500, 0) === null, "zero avg cost basis returns null (no division by zero)");
+assert(calcPlp(0, 0) === null, "both zero returns null");
 
 // --- Summary ---
 console.log("\n==========================================");

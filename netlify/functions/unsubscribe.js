@@ -1,9 +1,20 @@
 // BullrunIQ — one-click unsubscribe.
 
+const crypto = require("crypto");
+
 function esc(s) {
   return String(s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+}
+
+function verifyUnsubToken(email, tok) {
+  if (!tok) return false;
+  const key = process.env.AUTH_SECRET || "briq-unsub-fallback";
+  const expected = crypto.createHmac("sha256", key).update("unsub:" + email).digest("base64url");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(tok));
+  } catch (e) { return false; }
 }
 
 function page(msg) {
@@ -21,16 +32,25 @@ function isValidEmail(s) {
 }
 
 exports.handler = async function (event) {
-  const raw = String(((event.queryStringParameters || {}).email) || "").trim().toLowerCase();
+  const qs = event.queryStringParameters || {};
+  const raw = String(qs.email || "").trim().toLowerCase();
+  const tok = String(qs.tok || "").trim();
   const email = isValidEmail(raw) ? raw : "";
+
+  if (!email || !verifyUnsubToken(email, tok)) {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+      body: page("Invalid or missing unsubscribe token. Use the link from your BullrunIQ email."),
+    };
+  }
+
   let storageOk = true;
   try {
-    if (email) {
-      const blobs = require("@netlify/blobs");
-      try { blobs.connectLambda(event); } catch (e) {}
-      await blobs.getStore("subscribers").delete(email);
-      console.log("[subscribers] removed", email);
-    }
+    const blobs = require("@netlify/blobs");
+    try { blobs.connectLambda(event); } catch (e) {}
+    await blobs.getStore("subscribers").delete(email);
+    console.log("[subscribers] removed", email);
   } catch (e) {
     storageOk = false;
     console.log("[unsubscribe] error", e.message);
@@ -38,7 +58,7 @@ exports.handler = async function (event) {
   return {
     statusCode: 200,
     headers: { "Content-Type": "text/html; charset=utf-8" },
-    body: page(email ? (email + " won't receive any more BullrunIQ emails.") : "You won't receive any more BullrunIQ emails.")
+    body: page(email + " won't receive any more BullrunIQ emails.")
       + "<!-- blobs:" + (storageOk ? "ok" : "err") + " -->",
   };
 };

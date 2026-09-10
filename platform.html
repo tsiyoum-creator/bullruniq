@@ -541,9 +541,11 @@ async function anthropicCall(body){
       body:JSON.stringify(body)
     });
   }
+  var hdrs={'Content-Type':'application/json'};
+  if(auth.token)hdrs['Authorization']='Bearer '+auth.token;
   return fetch('/api/generate',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:hdrs,
     body:JSON.stringify(body)
   });
 }
@@ -2134,17 +2136,17 @@ function rDash(){
 function dashTable(list){
   var html='<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px"><table class="tbl"><thead><tr><th>Asset</th><th>Price</th><th>24h</th><th>Holdings</th><th>Value</th><th>P&L</th><th>Return</th></tr></thead><tbody>';
   list.forEach(function(h,i){
-    var p=pof(h),ch=chof(h),val=p*h.qty,pl=(p-h.avg)*h.qty,plp=((p-h.avg)/h.avg*100),col=HCOLS[i%HCOLS.length];
+    var p=pof(h),ch=chof(h),val=p*h.qty,pl=(p-h.avg)*h.qty,plp=h.avg>0?((p-h.avg)/h.avg*100):null,col=HCOLS[i%HCOLS.length];
     var chc=ch===null?'':ch>=0?'pos':'neg';
     var arrow=ch===null?'':ch>=0?'▲':'▼';
     html+='<tr>';
-    html+='<td><div class="ac"><div class="aico" style="background:'+col+'22;color:'+col+'">'+h.ticker.slice(0,4)+'</div><div><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+'</div></div></div></td>';
+    html+='<td><div class="ac"><div class="aico" style="background:'+col+'22;color:'+col+'">'+escHtml(h.ticker).slice(0,4)+'</div><div><div class="anm">'+escHtml(h.name)+'</div><div class="atk">'+escHtml(h.ticker)+'</div></div></div></td>';
     html+='<td class="mono" style="font-size:13px;font-weight:500">'+fp(p)+'</td>';
     html+='<td class="mono '+chc+'" style="font-size:12px">'+arrow+' '+fpc(ch)+'</td>';
     html+='<td class="mono" style="color:var(--t2)">'+h.qty+'</td>';
     html+='<td class="mono" style="font-weight:500">'+f$(val)+'</td>';
     html+='<td class="mono '+(pl>=0?'pos':'neg')+'">'+(pl>=0?'+':'')+f$(pl)+'</td>';
-    html+='<td class="mono '+(plp>=0?'pos':'neg')+'" style="font-size:11px">'+(plp>=0?'+':'')+plp.toFixed(2)+'%</td>';
+    html+='<td class="mono '+(plp==null?'':plp>=0?'pos':'neg')+'" style="font-size:11px">'+(plp==null?'—':(plp>=0?'+':'')+plp.toFixed(2)+'%')+'</td>';
     html+='</tr>';
   });
   html+='</tbody></table></div>';
@@ -2251,7 +2253,7 @@ function holdTbl(list,type){
     var avgIn='<input class="inp eh-avg" type="number" step="any" min="0" value="'+h.avg+'" onkeydown="'+onEnter+'">';
     var editBtns='<button class="btn btn-g btn-sm" style="padding:5px 11px;font-size:10px" onclick="saveEditHold(\''+type+'\','+h.id+')">Save</button> <button class="btn btn-o btn-sm" style="padding:5px 9px;font-size:10px" onclick="cancelEditHold()">Cancel</button>';
     var actBtns='<button class="btn btn-o btn-sm" style="padding:5px 10px;font-size:10px" onclick="startEditHold(\''+type+'\','+h.id+')">Edit</button> <button class="del-btn" onclick="delHolding(\''+type+'\','+h.id+')" title="Delete holding">✕</button>';
-    var ico='<div class="aico" style="background:'+col+'22;color:'+col+'">'+h.ticker.slice(0,4)+'</div>';
+    var ico='<div class="aico" style="background:'+col+'22;color:'+col+'">'+escHtml(h.ticker).slice(0,4)+'</div>';
 
     // Stop-loss / take-profit badges — loud when breached, quiet when armed
     var stopHit=h.stop&&p<=h.stop,tpHit=h.tp&&p>=h.tp;
@@ -2262,7 +2264,7 @@ function holdTbl(list,type){
 
     // ── table row ──
     tbl+='<tr>';
-    tbl+='<td><div class="ac">'+ico+'<div><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+lvlBadge+'</div></div></div></td>';
+    tbl+='<td><div class="ac">'+ico+'<div><div class="anm">'+escHtml(h.name)+'</div><div class="atk">'+escHtml(h.ticker)+lvlBadge+'</div></div></div></td>';
     if(editing){
       tbl+='<td>'+qtyIn.replace('class="inp eh-qty"','class="inp eh-qty" style="width:86px;padding:6px 8px"')+'</td>';
       tbl+='<td>'+avgIn.replace('class="inp eh-avg"','class="inp eh-avg" style="width:94px;padding:6px 8px"')+'</td>';
@@ -2285,7 +2287,7 @@ function holdTbl(list,type){
 
     // ── mobile card ──
     cards+='<div class="hcard">';
-    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span>'+lvlBadge+'</div></div>';
+    cards+='<div class="hcard-top">'+ico+'<div style="min-width:0"><div class="anm">'+escHtml(h.name)+'</div><div class="atk">'+escHtml(h.ticker)+' · '+fp(p)+' <span class="'+chCls+'">'+fpc(ch)+'</span>'+lvlBadge+'</div></div>';
     cards+='<div class="hcard-val"><div style="font-weight:600;font-family:DM Mono,monospace">'+f$(val)+'</div><div style="font-size:11px" class="'+plCls+'">'+(pl>=0?'+':'')+f$(pl)+' ('+(plp==null?'—':fpc(plp))+')</div></div></div>';
     if(editing){
       cards+='<div style="border-top:1px solid var(--b1);padding-top:9px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">';
@@ -3421,7 +3423,7 @@ function rCfg(){
   html+='<div class="key-wrap" style="border-left:2px solid var(--gold)">';
   html+='<div class="key-title">Anthropic API Key <span style="font-size:9px;color:var(--t3);background:var(--s2);border-radius:3px;padding:2px 7px;margin-left:8px">OPTIONAL · BYOK</span></div>';
   html+='<div class="key-desc"><strong style="color:var(--grn)">No key needed.</strong> All AI features — the AI Council, buy/sell Signals, chat agents, daily brief, and Long-Term analysis — run on BullrunIQ\'s secure server out of the box.<br>Advanced: paste your own key from <strong>console.anthropic.com</strong> to run AI on your own Anthropic account instead.</div>';
-  html+='<div class="frow"><input class="inp" id="sak" type="text" placeholder="Leave blank to use BullrunIQ AI · or sk-ant-..." value="'+cfg.ak+'"><button class="btn btn-g btn-sm" onclick="sk(\'ak\',\'sak\')">Save</button><button class="btn btn-o btn-sm" id="testBtn" onclick="testKey()">Test</button></div>';
+  html+='<div class="frow"><input class="inp" id="sak" type="password" autocomplete="off" placeholder="Leave blank to use BullrunIQ AI · or sk-ant-..." value="'+escHtml(cfg.ak||'')+'"><button class="btn btn-g btn-sm" onclick="sk(\'ak\',\'sak\')">Save</button><button class="btn btn-o btn-sm" id="testBtn" onclick="testKey()">Test</button></div>';
   html+=kprev('ak')+'<div id="testResult" style="font-size:11px;margin-top:6px"></div></div>';
   html+='<div class="key-wrap" style="border-left:2px solid var(--grn)">';
   html+='<div class="key-title">Finnhub API Key'+ks('fh')+'<span style="font-size:9px;background:rgba(34,197,94,.15);color:var(--grn);border-radius:3px;padding:2px 7px;margin-left:8px;font-weight:700">REAL-TIME · RECOMMENDED</span></div>';

@@ -563,14 +563,16 @@ function setProjects(list){localStorage.setItem(STORE_KEY,JSON.stringify(list));
 
 /* ── Live KPIs from platform.html's storage ─────────────── */
 function loadKPIs(){
-  // Portfolio
+  // Portfolio — briq-p schema: {crypto:[{ticker,qty,avg,...}], stocks:[...], cash:0}
   try{
-    var p=JSON.parse(localStorage.getItem('briq-p')||'[]');
+    var portRaw=JSON.parse(localStorage.getItem('briq-p')||'{}');
     var pr=JSON.parse(localStorage.getItem('briq-pr')||'{}');
-    if(p.length){
-      var tot=p.reduce(function(s,a){return s+((pr[a.id]||a.avgPrice||0)*(a.amount||0));},0);
+    var allAssets=[].concat(Array.isArray(portRaw.crypto)?portRaw.crypto:[],Array.isArray(portRaw.stocks)?portRaw.stocks:[]);
+    if(allAssets.length){
+      var tot=allAssets.reduce(function(s,a){var lp=pr[a.ticker]&&pr[a.ticker].price;return s+((lp||a.avg||0)*(a.qty||0));},0);
+      tot+=(portRaw.cash||0);
       document.getElementById('kpiPort').textContent=tot>0?'$'+Math.round(tot).toLocaleString('en-US'):'$—';
-      document.getElementById('kpiPortSub').textContent=p.length+' assets';
+      document.getElementById('kpiPortSub').textContent=allAssets.length+' assets';
     }
   }catch(e){}
   // Best Bet
@@ -607,11 +609,13 @@ function loadKPIs(){
 function cardLiveStats(id){
   try{
     if(id==='bullruniq'){
-      var p=JSON.parse(localStorage.getItem('briq-p')||'[]');
+      var portRaw=JSON.parse(localStorage.getItem('briq-p')||'{}');
       var pr=JSON.parse(localStorage.getItem('briq-pr')||'{}');
-      if(!p.length)return[];
-      var tot=p.reduce(function(s,a){return s+((pr[a.id]||a.avgPrice||0)*(a.amount||0));},0);
-      return tot>0?[{v:'$'+Math.round(tot).toLocaleString('en-US'),l:'Portfolio',c:'var(--grn)'},{v:p.length+'',l:'Assets',c:'var(--t2)'}]:[];
+      var allAssets=[].concat(Array.isArray(portRaw.crypto)?portRaw.crypto:[],Array.isArray(portRaw.stocks)?portRaw.stocks:[]);
+      if(!allAssets.length)return[];
+      var tot=allAssets.reduce(function(s,a){var lp=pr[a.ticker]&&pr[a.ticker].price;return s+((lp||a.avg||0)*(a.qty||0));},0);
+      tot+=(portRaw.cash||0);
+      return tot>0?[{v:'$'+Math.round(tot).toLocaleString('en-US'),l:'Portfolio',c:'var(--grn)'},{v:allAssets.length+'',l:'Assets',c:'var(--t2)'}]:[];
     }
     if(id==='best-bet'){
       var ph=JSON.parse(localStorage.getItem('briq-ph')||'[]');
@@ -684,7 +688,7 @@ document.getElementById('briefBtn').addEventListener('click',async function(){
     var cfg=JSON.parse(localStorage.getItem('briq-cfg')||'{}');
     if(!cfg.ak){body.textContent='Add your Anthropic API key in BullRunIQ → Settings to use AI briefings.';return;}
     // Gather data snapshot
-    var port=JSON.parse(localStorage.getItem('briq-p')||'[]');
+    var portRaw=JSON.parse(localStorage.getItem('briq-p')||'{}');
     var prices=JSON.parse(localStorage.getItem('briq-pr')||'{}');
     var ph=JSON.parse(localStorage.getItem('briq-ph')||'[]');
     var betRaw=JSON.parse(localStorage.getItem('briq-bet')||'null');
@@ -692,7 +696,8 @@ document.getElementById('briefBtn').addEventListener('click',async function(){
     var rk=JSON.parse(localStorage.getItem('rk_data')||'{}');
     var bot=JSON.parse(localStorage.getItem('tb_stats')||'{}');
     var projects=getProjects();
-    var portVal=port.reduce(function(s,a){return s+((prices[a.id]||a.avgPrice||0)*(a.amount||0));},0);
+    var portAssets=[].concat(Array.isArray(portRaw.crypto)?portRaw.crypto:[],Array.isArray(portRaw.stocks)?portRaw.stocks:[]);
+    var portVal=portAssets.reduce(function(s,a){var lp=prices[a.ticker]&&prices[a.ticker].price;return s+((lp||a.avg||0)*(a.qty||0));},0)+(portRaw.cash||0);
     var grd=ph.filter(function(x){return x.outcome==='W'||x.outcome==='L';});
     var bWins=grd.filter(function(x){return x.outcome==='W';}).length;
     var betStr=grd.length?bWins+'W-'+(grd.length-bWins)+'L ('+Math.round(bWins/grd.length*100)+'% win rate)':'No graded picks';
@@ -700,7 +705,7 @@ document.getElementById('briefBtn').addEventListener('click',async function(){
     var actLeads=leads.filter(function(l){return l.stage!=='won'&&l.stage!=='lost';});
     var pipe=actLeads.reduce(function(s,l){return s+(parseFloat(l.value)||0);},0);
     var botPnl=bot.totalPnl||0;
-    var snapshot='Portfolio: $'+Math.round(portVal).toLocaleString()+' ('+port.length+' assets)\n'
+    var snapshot='Portfolio: $'+Math.round(portVal).toLocaleString()+' ('+portAssets.length+' assets)\n'
       +'Best Bet: '+betStr+'\n'
       +'Best Bet Last Pick: '+lastPick+'\n'
       +'Lead Pipeline: '+actLeads.length+' active leads ($'+Math.round(pipe).toLocaleString()+')\n'
