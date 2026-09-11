@@ -11,7 +11,33 @@
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  // Major
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network",
+  LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu",
+  UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum",
+  SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network",
+  XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance",
+  ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token",
+  FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain",
+  SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala",
+  IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance",
+  JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token",
+  BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki",
+  // Extended — emerging and frequently traded
+  POL:"polygon-ecosystem-token", TIA:"celestia", DYDX:"dydx", PENDLE:"pendle",
+  BOME:"book-of-meme", W:"wormhole", ZK:"zksync", BRETT:"brett",
+  POPCAT:"popcat", DOGS:"dogs-2", NEIRO:"neiro-ethereum", MOODENG:"moodeng",
+  PNUT:"peanut-the-squirrel", ACT:"act-i-the-ai-prophecy", GOAT:"goat",
+  VIRTUAL:"virtual-protocol", AI16Z:"ai16z", FARTCOIN:"fartcoin",
+  TRUMP:"official-trump", MELANIA:"melania-meme",
+  ZRO:"layerzero", EIGEN:"eigenlayer", USUAL:"usual",
+  MOG:"mog-coin", TURBO:"turbo", MEW:"cat-in-a-dogs-world",
+  PONKE:"ponke", SLERF:"slerf", BOME2:"book-of-meme",
+  S:"sonic-3", HYPE:"hyperliquid", MOVE:"movement",
+  PAXG:"pax-gold", WBTC:"wrapped-bitcoin",
+};
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -172,7 +198,7 @@ exports.handler = async function (event) {
       }
     }
 
-    for (const w of rec.data.wl || []) {
+    for (const w of (rec.data && rec.data.wl) || []) {
       if (!w) continue;
       const id = CGMAP[String(w.ticker).toUpperCase()] || String(w.ticker).toLowerCase();
       const p = prices[id] && prices[id].usd;

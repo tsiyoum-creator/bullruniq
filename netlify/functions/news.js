@@ -3,6 +3,13 @@
 const TTL_MS = 15 * 60000;
 const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=300" };
 
+const FEEDS = [
+  { url: "https://www.coindesk.com/arc/outboundfeeds/rss/", source: "CoinDesk" },
+  { url: "https://cointelegraph.com/rss", source: "Cointelegraph" },
+  { url: "https://decrypt.co/feed", source: "Decrypt" },
+  { url: "https://thedefiant.io/feed", source: "The Defiant" },
+];
+
 function decodeEntities(s) {
   return String(s)
     .replace(/<!\[CDATA\[|\]\]>/g, "")
@@ -49,14 +56,12 @@ exports.handler = async function (event) {
     } catch (e) {}
   }
 
-  const results = await Promise.allSettled([
-    fetchFeed("https://www.coindesk.com/arc/outboundfeeds/rss/", "CoinDesk"),
-    fetchFeed("https://cointelegraph.com/rss", "Cointelegraph"),
-  ]);
-  let items = results.filter(function (r) { return r.status === "fulfilled"; })
+  const results = await Promise.allSettled(FEEDS.map(function (f) { return fetchFeed(f.url, f.source); }));
+  let items = results
+    .filter(function (r) { return r.status === "fulfilled"; })
     .flatMap(function (r) { return r.value; })
     .sort(function (a, b) { return b.at - a.at; })
-    .slice(0, 14);
+    .slice(0, 20);
 
   if (!items.length && cache) {
     try {

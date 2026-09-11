@@ -3,13 +3,19 @@
 const TTL_MS = 10 * 60000;
 const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
 const CG_BASE = "https://api.coingecko.com/api/v3";
-const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+const FNG_URL = "https://api.alternative.me/fng/?limit=1";
 
-async function fetchJson(url) {
-  const r = await fetch(url, { headers: UA });
-  const data = await r.json();
+function cgHeaders() {
+  const h = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+  if (process.env.COINGECKO_API_KEY) h["x-cg-pro-api-key"] = process.env.COINGECKO_API_KEY;
+  return h;
+}
+
+// Bug fix: check r.ok before calling r.json() to avoid parse errors on non-JSON error responses.
+async function fetchJson(url, headers) {
+  const r = await fetch(url, { headers: headers || cgHeaders() });
   if (!r.ok) throw new Error("upstream " + r.status);
-  return data;
+  return r.json();
 }
 
 exports.handler = async function (event) {
@@ -48,16 +54,30 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "fear-greed") {
+    // Fear & Greed Index from alternative.me (independent source, no CG key needed)
+    upstream = FNG_URL;
+    key = "mkt:fng";
+    ttl = 60 * 60000; // 1-hour cache — index updates once per day
+    transform = function (data) {
+      const entry = data && data.data && data.data[0];
+      if (!entry) return { value: null, classification: null };
+      return {
+        value: parseInt(entry.value, 10),
+        classification: entry.value_classification,
+        timestamp: entry.timestamp,
+      };
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
       .filter(function (s) { return /^[a-z0-9-]{1,50}$/.test(s); })
       .slice(0, 25);
     if (!ids.length) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "no valid ids" }) };
-    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=24h,7d,30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear-greed or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");
@@ -76,7 +96,11 @@ exports.handler = async function (event) {
   }
 
   try {
-    const data = await fetchJson(upstream);
+    // Fear & Greed uses its own endpoint with no CG auth header
+    const headers = q.kind === "fear-greed"
+      ? { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" }
+      : cgHeaders();
+    const data = await fetchJson(upstream, headers);
     if (cache) { try { await cache.setJSON(key, { at: Date.now(), data: data }); } catch (e) {} }
     const payload = transform ? transform(data) : data;
     return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
