@@ -1,6 +1,6 @@
 // BullrunIQ — Secure Anthropic proxy
 
-const crypto = require("crypto");
+const { verifyToken } = require("./_auth");
 
 const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
@@ -13,6 +13,8 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const DAILY_USER_CAP = 1000;
+const MAX_SYSTEM_LEN = 2000;
+const MAX_MESSAGE_LEN = 8000;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -20,26 +22,9 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function verifyToken(tok) {
-  try {
-    let key = process.env.AUTH_SECRET;
-    if (!key && process.env.ANTHROPIC_API_KEY) {
-      key = crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-    }
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
-
+// In-memory burst map: effective within one function instance only.
+// The durable per-IP and per-user daily caps (backed by Blobs) are the
+// primary abuse defence across cold starts.
 const _burst = new Map();
 
 function clientIp(event) {
@@ -109,16 +94,27 @@ exports.handler = async function (event) {
   }
 
   let { system, messages, prompt, model, max_tokens } = payload;
-  if (!messages && prompt) messages = [{ role: "user", content: String(prompt) }];
+  if (!messages && prompt) messages = [{ role: "user", content: String(prompt).slice(0, MAX_MESSAGE_LEN) }];
   if (!Array.isArray(messages) || !messages.length) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing messages or prompt" } }) };
+  }
+
+  // Sanitize messages: cap each content string to prevent prompt-stuffing
+  messages = messages.slice(0, 20).map(function (m) {
+    if (!m || typeof m !== "object") return null;
+    const role = m.role === "assistant" ? "assistant" : "user";
+    const content = typeof m.content === "string" ? m.content.slice(0, MAX_MESSAGE_LEN) : "";
+    return { role, content };
+  }).filter(Boolean);
+  if (!messages.length) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "No valid messages" } }) };
   }
 
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
   const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
+  if (system) body.system = String(system).slice(0, MAX_SYSTEM_LEN);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

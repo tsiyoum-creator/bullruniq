@@ -10,12 +10,15 @@ function verifyStripe(rawBody, sigHeader, secret) {
     if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
   });
   if (!parts.t || !parts.v1) return false;
+  const ts = parseInt(parts.t, 10);
+  if (!ts || isNaN(ts)) return false;
   const signed = parts.t + "." + rawBody;
   const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
   try {
+    if (expected.length !== parts.v1.length) return false;
     if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
   } catch (e) { return false; }
-  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
+  const age = Math.abs(Math.floor(Date.now() / 1000) - ts);
   return age <= 300;
 }
 

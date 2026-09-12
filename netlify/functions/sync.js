@@ -5,7 +5,7 @@
 // it comes from the "customers" store maintained by the Stripe webhook, so a
 // canceled subscription drops to "free" on the next sync — auto-revoke.
 
-const crypto = require("crypto");
+const { verifyToken, planFor } = require("./_auth");
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -13,38 +13,20 @@ const CORS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 const MAX_BYTES = 256 * 1024;
+const DAILY_SYNC_CAP = 500;
 
-function secretKey() {
-  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  if (process.env.ANTHROPIC_API_KEY) {
-    return crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-  }
-  return null;
-}
-function verifyToken(tok) {
-  try {
-    const key = secretKey();
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
 function json(code, obj) { return { statusCode: code, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify(obj) }; }
 
-async function planFor(email, getStore) {
+async function dailySyncOk(email, store) {
   try {
-    const rec = await getStore("customers").get(email, { type: "json" });
-    if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "pro";
-  } catch (e) {}
-  return "free";
+    const today = new Date().toISOString().slice(0, 10);
+    const key = "sync-rate:" + email + ":" + today;
+    const cur = (await store.get(key, { type: "json" })) || { count: 0 };
+    if (cur.count >= DAILY_SYNC_CAP) return false;
+    cur.count++;
+    await store.setJSON(key, cur);
+    return true;
+  } catch (e) { return true; }
 }
 
 exports.handler = async function (event) {
@@ -72,6 +54,13 @@ exports.handler = async function (event) {
     let p = {};
     try { p = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Bad JSON" }); }
     if (!p.data || typeof p.data !== "object") return json(400, { error: "Missing data" });
+
+    let rateStore;
+    try { rateStore = getStore("ai-usage"); } catch (e) {}
+    if (rateStore && !(await dailySyncOk(email, rateStore))) {
+      return json(429, { error: "Too many sync requests today — try again tomorrow." });
+    }
+
     await store.setJSON(email, { data: p.data, updatedAt: new Date().toISOString() });
     return json(200, { ok: true, plan: await planFor(email, getStore) });
   }

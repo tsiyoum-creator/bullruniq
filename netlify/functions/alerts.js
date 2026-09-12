@@ -11,7 +11,40 @@
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  // Top market-cap assets
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network",
+  LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu",
+  UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum",
+  SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network",
+  XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance",
+  ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer",
+  RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao",
+  RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity",
+  GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance",
+  JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token",
+  BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena",
+  FLOKI:"floki",
+  // Additional popular assets
+  POL:"polygon-ecosystem-token", BRETT:"based-brett", MOG:"mog-coin", POPCAT:"popcat",
+  WLD:"worldcoin-wld", TIA:"celestia", DYDX:"dydx", GMX:"gmx", GRT:"the-graph",
+  SNX:"havven", AAVE:"aave", MKR:"maker", CRV:"curve-dao-token", BAL:"balancer",
+  COMP:"compound-governance-token", SUSHI:"sushi", YFI:"yearn-finance", CVX:"convex-finance",
+  PENDLE:"pendle", EIGEN:"eigenlayer", IO:"io-net", NOT:"notcoin", BOME:"book-of-meme",
+  WEN:"wen-4", TNSR:"tensor", W:"wormhole", KMNO:"kamino", ZRO:"layerzero",
+  ZK:"zksync", LISTA:"lista-dao", MANTA:"manta-network", ALT:"altlayer", PIXEL:"pixels",
+  PORTAL:"portal-gaming", MYRO:"myro", NYAN:"nyan-cat", PONKE:"ponke", SLERF:"slerf",
+  BERN:"berncoin", MEW:"cat-in-a-dogs-world", MIGGLES:"miggles",
+  BCH:"bitcoin-cash", ETC:"ethereum-classic", XMR:"monero", ZEC:"zcash",
+  DASH:"dash", DCR:"decred", BTG:"bitcoin-gold", BSV:"bitcoin-cash-sv",
+  KAVA:"kava", BAND:"band-protocol", ROSE:"oasis-network", SCRT:"secret",
+  ONE:"harmony", ZIL:"zilliqa", ICX:"icon", ONT:"ontology", QTUM:"qtum",
+  WAVES:"waves", WAN:"wanchain", ENJ:"enjincoin", CHZ:"chiliz", HOT:"holotoken",
+  ANKR:"ankr", STORJ:"storj", SKL:"skale", NMR:"numeraire", OXT:"orchid-protocol",
+  POLS:"polkastarter", OCEAN:"ocean-protocol", AUDIO:"audius", MASK:"mask-network",
+  RAD:"radicle", SPELL:"spell-token", SILO:"silo-finance",
+};
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
