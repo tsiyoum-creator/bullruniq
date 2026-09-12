@@ -5,6 +5,9 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # Firebase web client config in app.js is intentionally public — Firebase
+  # security is enforced by Firestore rules, not the client key.
+  SECRETS_SCAN_OMIT_PATHS = "app.js"
 
 # ── Scheduled: Daily Brief newsletter (13:00 UTC ≈ 8–9am ET) ──
 [functions."newsletter"]
