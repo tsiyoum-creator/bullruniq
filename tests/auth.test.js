@@ -20,8 +20,10 @@ function verifyToken(tok, secret) {
     const i = tok.lastIndexOf(".");
     if (i < 1) return null;
     const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", secret).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
+    const expectBuf = Buffer.from(crypto.createHmac("sha256", secret).update(p).digest("base64url"));
+    const sigBuf = Buffer.from(sig);
+    if (expectBuf.length !== sigBuf.length) return null;
+    if (!crypto.timingSafeEqual(expectBuf, sigBuf)) return null;
     const raw = Buffer.from(p, "base64url").toString("utf8");
     const j = raw.lastIndexOf("|");
     const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
@@ -64,6 +66,15 @@ function signExpired(email, secret) {
 }
 const expiredToken = signExpired("user@example.com", TEST_SECRET);
 assert(verifyToken(expiredToken, TEST_SECRET) === null, "expired token returns null");
+
+console.log("\n--- auth token: length-mismatch tamper guard ---");
+
+// A token with a padded/truncated signature should be rejected without throwing
+const parts = token.split(".");
+const shortSig = parts[1].slice(0, 10);
+const paddedSig = parts[1] + "AAAA";
+assert(verifyToken(parts[0] + "." + shortSig, TEST_SECRET) === null, "truncated sig rejected");
+assert(verifyToken(parts[0] + "." + paddedSig, TEST_SECRET) === null, "padded sig rejected");
 
 console.log("\n--- auth token: email embedding ---");
 
@@ -108,6 +119,7 @@ assert(validateIds("bitcoin,ethereum").length === 2, "two valid ids pass");
 assert(validateIds("bitcoin; DROP TABLE").length === 0, "injection string rejected");
 assert(validateIds("a".repeat(51)).length === 0, "too-long id rejected");
 assert(validateIds(",,,").length === 0, "empty ids rejected");
+assert(validateIds("bitcoin,ethereum,solana,cardano,ripple,doge").length === 6, "six ids all pass");
 
 console.log("\n--- alerts: sell alert logic ---");
 
@@ -163,12 +175,12 @@ assert(!isHttpUrl(""), "empty URL blocked");
 
 console.log("\n--- alerts: HTML escaping in emails ---");
 
-function esc(s) {
+function escAlerts(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
-assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
-assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(escAlerts("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
+assert(escAlerts("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
+assert(escAlerts('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -226,6 +238,103 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+
+console.log("\n--- generate.js: message validation ---");
+
+function isValidMessage(m) {
+  if (!m || typeof m !== "object" || Array.isArray(m)) return false;
+  if (m.role !== "user" && m.role !== "assistant") return false;
+  if (typeof m.content !== "string" || !m.content.trim()) return false;
+  return true;
+}
+assert(isValidMessage({ role: "user", content: "hello" }), "user message passes");
+assert(isValidMessage({ role: "assistant", content: "reply" }), "assistant message passes");
+assert(!isValidMessage({ role: "system", content: "inject" }), "system role rejected");
+assert(!isValidMessage({ role: "user", content: "" }), "empty content rejected");
+assert(!isValidMessage({ role: "user", content: "   " }), "whitespace-only content rejected");
+assert(!isValidMessage(null), "null message rejected");
+assert(!isValidMessage([]), "array rejected");
+assert(!isValidMessage({ content: "no role" }), "missing role rejected");
+assert(!isValidMessage({ role: "user" }), "missing content rejected");
+
+console.log("\n--- generate.js: message count and size limits ---");
+
+const MAX_MESSAGES = 20;
+const MAX_CONTENT_CHARS = 40000;
+
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || !messages.length) return { ok: false, error: "missing messages" };
+  if (!messages.every(isValidMessage)) return { ok: false, error: "invalid message" };
+  if (messages.length > MAX_MESSAGES) return { ok: false, error: "too many messages" };
+  const total = messages.reduce(function (s, m) { return s + m.content.length; }, 0);
+  if (total > MAX_CONTENT_CHARS) return { ok: false, error: "content too large" };
+  return { ok: true };
+}
+
+assert(validateMessages([{ role: "user", content: "hi" }]).ok, "single valid message passes");
+assert(!validateMessages([]).ok, "empty array rejected");
+assert(!validateMessages(null).ok, "null rejected");
+const tooMany = Array.from({ length: 21 }, function (_, i) { return { role: i % 2 === 0 ? "user" : "assistant", content: "msg" }; });
+assert(!validateMessages(tooMany).ok, "21 messages rejected");
+const exactly20 = tooMany.slice(0, 20);
+assert(validateMessages(exactly20).ok, "20 messages accepted");
+const bigMsg = [{ role: "user", content: "a".repeat(40001) }];
+assert(!validateMessages(bigMsg).ok, "40001 chars rejected");
+const maxMsg = [{ role: "user", content: "a".repeat(40000) }];
+assert(validateMessages(maxMsg).ok, "40000 chars accepted");
+
+console.log("\n--- newsletter: briefToHtml ---");
+
+function briefToHtml(text) {
+  function escHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  return escHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
+    .split(/\n+/)
+    .filter(function (l) { return l.trim(); })
+    .map(function (l) { return "<p style='margin:0 0 12px;color:#c8c4bc;font-size:15px;line-height:1.7'>" + l.trim() + "</p>"; })
+    .join("");
+}
+
+const briefOut = briefToHtml("**Bold label** — plain text");
+assert(briefOut.includes("<strong"), "bold converted to strong tag");
+assert(briefOut.includes("Bold label"), "bold text preserved");
+assert(briefOut.includes("<p "), "paragraphs wrapped");
+
+const xssBrief = briefToHtml("<script>alert(1)</script>");
+assert(!xssBrief.includes("<script>"), "script tags escaped in brief");
+assert(xssBrief.includes("&lt;script&gt;"), "script tags HTML-encoded");
+
+const multiline = briefToHtml("Line one\n\nLine two");
+assert(multiline.split("<p ").length === 3, "two paragraphs from two lines");
+
+const emptyLines = briefToHtml("Text\n\n\n\nMore text");
+assert(emptyLines.split("<p ").length === 3, "extra blank lines collapsed");
+
+console.log("\n--- sync.js: data validation ---");
+
+function validateSyncData(p) {
+  if (!p.data || typeof p.data !== "object" || Array.isArray(p.data)) return false;
+  return true;
+}
+assert(validateSyncData({ data: {} }), "empty object passes");
+assert(validateSyncData({ data: { wl: [], port: {} } }), "valid data object passes");
+assert(!validateSyncData({ data: null }), "null data rejected");
+assert(!validateSyncData({ data: [] }), "array data rejected");
+assert(!validateSyncData({}), "missing data field rejected");
+assert(!validateSyncData({ data: "string" }), "string data rejected");
+
+console.log("\n--- market.js: Fear & Greed transform ---");
+
+function transformFg(d) {
+  return { data: (d.data || []).map(function (e) { return { value: +e.value, label: e.value_classification, timestamp: +e.timestamp }; }) };
+}
+const fgRaw = { data: [{ value: "45", value_classification: "Fear", timestamp: "1700000000" }] };
+const fgOut = transformFg(fgRaw);
+assert(Array.isArray(fgOut.data), "fg data is array");
+assert(fgOut.data[0].value === 45, "fg value parsed as number");
+assert(fgOut.data[0].label === "Fear", "fg label preserved");
+assert(fgOut.data[0].timestamp === 1700000000, "fg timestamp parsed as number");
+assert(transformFg({}).data.length === 0, "empty fg response → empty array");
 
 // --- Summary ---
 console.log("\n==========================================");

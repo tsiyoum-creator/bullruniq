@@ -3,10 +3,15 @@
 const TTL_MS = 10 * 60000;
 const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
 const CG_BASE = "https://api.coingecko.com/api/v3";
-const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+
+function cgHeaders() {
+  const h = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+  if (process.env.COINGECKO_API_KEY) h["x-cg-pro-api-key"] = process.env.COINGECKO_API_KEY;
+  return h;
+}
 
 async function fetchJson(url) {
-  const r = await fetch(url, { headers: UA });
+  const r = await fetch(url, { headers: cgHeaders() });
   const data = await r.json();
   if (!r.ok) throw new Error("upstream " + r.status);
   return data;
@@ -48,6 +53,32 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "fg") {
+    // Fear & Greed index from alternative.me
+    key = "mkt:fg";
+    ttl = 60 * 60000; // 1-hour cache — index updates once daily
+    const blobs = require("@netlify/blobs");
+    try { blobs.connectLambda(event); } catch (e) {}
+    let cache = null;
+    try { cache = blobs.getStore("cache"); } catch (e) {}
+    if (cache) {
+      try {
+        const c = await cache.get(key, { type: "json" });
+        if (c && Date.now() - c.at < ttl) return { statusCode: 200, headers: CORS, body: JSON.stringify(c.data) };
+      } catch (e) {}
+    }
+    try {
+      const r = await fetch("https://api.alternative.me/fng/?limit=7");
+      const d = await r.json();
+      const payload = { data: (d.data || []).map(function (e) { return { value: +e.value, label: e.value_classification, timestamp: +e.timestamp }; }) };
+      if (cache) { try { await cache.setJSON(key, { at: Date.now(), data: payload }); } catch (e) {} }
+      return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
+    } catch (err) {
+      if (cache) {
+        try { const c = await cache.get(key, { type: "json" }); if (c) return { statusCode: 200, headers: CORS, body: JSON.stringify(c.data) }; } catch (e) {}
+      }
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: "fear & greed data unavailable" }) };
+    }
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -57,7 +88,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fg or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");

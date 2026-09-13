@@ -11,7 +11,44 @@
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  // Major caps
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot",
+  MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near",
+  APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron",
+  OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol",
+  PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar",
+  HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance",
+  ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer",
+  RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao",
+  RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity",
+  GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network",
+  ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network",
+  JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor",
+  ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki",
+  // 2024-2025 additions
+  WLD:"worldcoin-wld", PENDLE:"pendle", AAVE:"aave", MKR:"maker",
+  SNX:"havven", CRV:"curve-dao-token", DYDX:"dydx", ZRO:"layerzero",
+  W:"wormhole", STRK:"starknet", MANTA:"manta-network", ALT:"altlayer",
+  PIXEL:"pixels", PORTAL:"portal-gaming", ROAM:"roam", IO:"io-net",
+  ZK:"zksync", EIGEN:"eigenlayer", GRASS:"grass", HYPE:"hyperliquid",
+  MOVE:"movement", ME:"magic-eden", USUAL:"usual", AI16Z:"ai16z",
+  VIRTUAL:"virtual-protocol", FARTCOIN:"fartcoin", SPX:"spx6900",
+  TRUMP:"official-trump", MELANIA:"melania-meme", KAITO:"kaito",
+  IP:"story-protocol", LAYER:"unification",
+};
+
+function cgPriceUrl(ids) {
+  const base = "https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd";
+  return base;
+}
+
+function cgHeaders() {
+  const h = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+  if (process.env.COINGECKO_API_KEY) h["x-cg-pro-api-key"] = process.env.COINGECKO_API_KEY;
+  return h;
+}
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -118,7 +155,7 @@ exports.handler = async function (event) {
   // One batched price call
   let prices = {};
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd");
+    const r = await fetch(cgPriceUrl(ids), { headers: cgHeaders() });
     prices = await r.json();
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
@@ -178,7 +215,7 @@ exports.handler = async function (event) {
       const p = prices[id] && prices[id].usd;
       if (!p) continue; // unknown ticker / stock — skip
 
-      // BUY alert: price within 2% below the buy target (approaching from above)
+      // BUY alert: price within 2% of the buy target (approaching from above)
       if (w.targetPrice) {
         const dist = Math.abs((w.targetPrice - p) / p * 100);
         if (dist < 2 && p <= w.targetPrice * 1.02 && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN) {
