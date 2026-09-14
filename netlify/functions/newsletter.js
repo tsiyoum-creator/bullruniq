@@ -60,15 +60,15 @@ exports.handler = async function (event) {
       headers: { "Content-Type": "application/json", "x-api-key": ANTH, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 500,
-        messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with one action to consider today. Under 160 words. Educational, not financial advice. Live data: BTC " + btc + ", Fear & Greed " + fg + ". Date " + new Date().toUTCString() }],
+        max_tokens: 600,
+        messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 5-6 short bullet points for crypto investors. Each bullet: an emoji + a **bold label** + one concrete, specific sentence. Cover:\n1. Overall market backdrop (risk-on or risk-off, BTC dominance direction)\n2. BTC price trend and key level to watch\n3. One standout altcoin sector or rotation theme\n4. A macro or on-chain signal investors should track\n5. The single biggest risk to manage positions around\n6. One specific action investors might consider today (trim, hold, accumulate, hedge)\nRequirements: under 180 words, specific price levels or percentages where possible, educational not financial advice.\nLive data: BTC " + btc + ", Fear & Greed " + fg + ". Date " + new Date().toUTCString() }],
       }),
     });
     const d = await r.json();
     brief = (d.content && d.content[0] && d.content[0].text) || "";
   } catch (e) { console.log("[newsletter] brief generation failed:", e.message); }
   if (!brief) {
-    brief = "📊 **Market check** — AI brief generation failed today; check your portfolio in the command center.\n💡 **Tip** — Review your watchlist targets and ensure your stop-losses are current.\n⚠️ **Reminder** — This is an educational newsletter, not financial advice.";
+    brief = "📊 **Market check** — AI brief generation failed today; check live prices in your command center.\n🎯 **Action** — Review your watchlist buy targets and confirm your stop-losses are set.\n📉 **Risk management** — If any position is up significantly, consider whether partial profit-taking is appropriate.\n⚠️ **Reminder** — This is an educational newsletter, not financial advice.";
     console.log("[newsletter] using fallback brief");
   }
 

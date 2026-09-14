@@ -5,8 +5,8 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
-async function fetchJson(url) {
-  const r = await fetch(url, { headers: UA });
+async function fetchJson(url, opts) {
+  const r = await fetch(url, { headers: UA, ...(opts || {}) });
   const data = await r.json();
   if (!r.ok) throw new Error("upstream " + r.status);
   return data;
@@ -48,6 +48,21 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "fear-and-greed") {
+    // Alternative.me Fear & Greed Index — last 7 days
+    upstream = "https://api.alternative.me/fng/?limit=7&format=json";
+    key = "mkt:fng";
+    ttl = 60 * 60000; // 1-hour cache — index updates once daily
+    transform = function (data) {
+      const entries = (data && data.data) || [];
+      return entries.map(function (d) {
+        return {
+          value: +d.value,
+          classification: d.value_classification,
+          timestamp: +d.timestamp,
+        };
+      });
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -57,7 +72,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear-and-greed or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");

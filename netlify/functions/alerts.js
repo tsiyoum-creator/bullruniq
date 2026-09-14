@@ -5,13 +5,34 @@
 //   • SELL alert: watchlist price rises to or above their sellTarget.
 //   • STOP alert: a holding falls to/below its stop-loss (portfolio guard).
 //   • TP alert: a holding rises to/above its take-profit (portfolio guard).
+//   • TRAILING alert: a holding drops trailingPct% from its high-water mark.
 // server*Alerted flags with ~5% hysteresis prevent repeat emails.
 // Crypto tickers only — stock quotes would need per-user broker keys server-side.
 // No-ops gracefully until RESEND_API_KEY is set.
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network",
+  LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu",
+  UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum",
+  SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network",
+  XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance",
+  ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer",
+  RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao",
+  RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity",
+  GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance",
+  JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token",
+  BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena",
+  FLOKI:"floki",
+  // Additional tokens
+  WLD:"worldcoin-wld", DYDX:"dydx-chain", TIA:"celestia", ORDI:"ordinals",
+  MKR:"maker", SNX:"havven", GMX:"gmx", PENDLE:"pendle", NOT:"notcoin",
+  W:"wormhole", ZRO:"layerzero", IO:"io-net", EIGEN:"eigenlayer", BOME:"book-of-meme",
+  APE:"apecoin", GRT:"the-graph", LPT:"livepeer", MANTA:"manta-network",
+  ALT:"altlayer", PORTAL:"portal-gaming", ETHENA:"ethena",
+};
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -75,6 +96,35 @@ function tpAlertHtml(h, price, email) {
     + "</body></html>";
 }
 
+function trailingAlertHtml(h, price, hwm, drawdownPct, email) {
+  const name = esc(h.name || h.ticker);
+  const ticker = esc(h.ticker);
+  const gainPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#f59e0b;margin-bottom:10px'>📉 Trailing stop triggered</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " pulled back from its high</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>"
+    + name + " peaked at <b style='color:#f0ece4'>" + fp(hwm) + "</b> and is now <b style='color:#f59e0b'>" + fp(price) + "</b> — a <b style='color:#e05555'>" + pct(-drawdownPct) + "</b> pullback from that high.</div>"
+    + (gainPct !== null ? "<div style='font-size:13px;color:" + (gainPct >= 0 ? "#4ade80" : "#e05555") + ";margin-bottom:22px'>Your position is <b>" + pct(gainPct) + "</b> from your avg buy of " + fp(h.avg) + "</div>" : "<div style='margin-bottom:22px'></div>")
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#f59e0b;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
+    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you enabled trailing stop tracking in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + "</body></html>";
+}
+
+// Paginate through all keys in a Blobs store (handles large user bases).
+async function listAllKeys(store) {
+  const keys = [];
+  let cursor;
+  do {
+    const opts = cursor ? { cursor } : {};
+    const page = await store.list(opts);
+    for (const b of (page.blobs || [])) keys.push(b.key);
+    cursor = page.cursor;
+  } while (cursor);
+  return keys;
+}
+
 exports.handler = async function (event) {
   const RESEND = process.env.RESEND_API_KEY;
   if (!RESEND) { console.log("[alerts] skipped — RESEND_API_KEY not set"); return { statusCode: 200, body: "not configured" }; }
@@ -84,7 +134,7 @@ exports.handler = async function (event) {
   let store, users = [];
   try {
     store = blobs.getStore("userdata");
-    users = ((await store.list()).blobs || []).map(function (b) { return b.key; });
+    users = await listAllKeys(store);
   } catch (e) { console.log("[alerts] storage error:", e.message); return { statusCode: 200, body: "storage error" }; }
   if (!users.length) return { statusCode: 200, body: "no users" };
 
@@ -97,7 +147,7 @@ exports.handler = async function (event) {
       const wlist = rec && rec.data && Array.isArray(rec.data.wl) ? rec.data.wl : [];
       const hold = rec && rec.data && rec.data.port && Array.isArray(rec.data.port.crypto) ? rec.data.port.crypto : [];
       const hasWl = wlist.some(function (w) { return w && (w.targetPrice || w.sellTarget); });
-      const hasHold = hold.some(function (h) { return h && (h.stop || h.tp); });
+      const hasHold = hold.some(function (h) { return h && (h.stop || h.tp || h.trailingPct); });
       if (hasWl || hasHold) {
         recs[email] = rec;
         wlist.forEach(function (w) {
@@ -106,7 +156,7 @@ exports.handler = async function (event) {
           }
         });
         hold.forEach(function (h) {
-          if (h && (h.stop || h.tp)) {
+          if (h && (h.stop || h.tp || h.trailingPct)) {
             ids.add(CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase());
           }
         });
@@ -127,13 +177,19 @@ exports.handler = async function (event) {
     const rec = recs[email];
     let changed = false;
 
-    // ── Portfolio guard: stop-loss / take-profit on actual holdings ──
+    // ── Portfolio guard: stop-loss / take-profit / trailing stop on actual holdings ──
     const hold = rec.data.port && Array.isArray(rec.data.port.crypto) ? rec.data.port.crypto : [];
     for (const h of hold) {
-      if (!h || (!h.stop && !h.tp)) continue;
+      if (!h || (!h.stop && !h.tp && !h.trailingPct)) continue;
       const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
       const p = prices[id] && prices[id].usd;
       if (!p) continue;
+
+      // Update high-water mark (tracks the highest price seen since creation)
+      if (!h.serverHwm || p > h.serverHwm) {
+        h.serverHwm = p;
+        changed = true;
+      }
 
       if (h.stop && p <= h.stop && !h.serverStopAlerted && sent < MAX_EMAILS_PER_RUN) {
         try {
@@ -150,7 +206,7 @@ exports.handler = async function (event) {
           if (r.ok) { sent++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + email + " " + h.ticker + " @ " + p); }
         } catch (e) {}
       } else if (h.stop && p >= h.stop * 1.05 && h.serverStopAlerted) {
-        h.serverStopAlerted = false; changed = true; // re-arm once price recovers 5% above the stop
+        h.serverStopAlerted = false; changed = true;
       }
 
       if (h.tp && p >= h.tp && !h.serverTpAlerted && sent < MAX_EMAILS_PER_RUN) {
@@ -168,7 +224,30 @@ exports.handler = async function (event) {
           if (r.ok) { sent++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + email + " " + h.ticker + " @ " + p); }
         } catch (e) {}
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
-        h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
+        h.serverTpAlerted = false; changed = true;
+      }
+
+      // Trailing stop: alert when price drops trailingPct% from the high-water mark
+      if (h.trailingPct && h.serverHwm && h.serverHwm > 0) {
+        const drawdown = (h.serverHwm - p) / h.serverHwm * 100;
+        if (drawdown >= h.trailingPct && !h.serverTrailingAlerted && sent < MAX_EMAILS_PER_RUN) {
+          try {
+            const r = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+                to: email,
+                subject: "📉 " + h.ticker + " dropped " + h.trailingPct + "% from its high — now " + fp(p),
+                html: trailingAlertHtml(h, p, h.serverHwm, drawdown, email),
+              }),
+            });
+            if (r.ok) { sent++; h.serverTrailingAlerted = true; changed = true; console.log("[alerts] trailing " + email + " " + h.ticker + " @ " + p + " (hwm " + h.serverHwm + ")"); }
+          } catch (e) {}
+        } else if (drawdown < h.trailingPct * 0.5 && h.serverTrailingAlerted) {
+          // Re-arm once price recovers to within half the trailing percentage of the HWM
+          h.serverTrailingAlerted = false; changed = true;
+        }
       }
     }
 
@@ -176,9 +255,8 @@ exports.handler = async function (event) {
       if (!w) continue;
       const id = CGMAP[String(w.ticker).toUpperCase()] || String(w.ticker).toLowerCase();
       const p = prices[id] && prices[id].usd;
-      if (!p) continue; // unknown ticker / stock — skip
+      if (!p) continue;
 
-      // BUY alert: price within 2% below the buy target (approaching from above)
       if (w.targetPrice) {
         const dist = Math.abs((w.targetPrice - p) / p * 100);
         if (dist < 2 && p <= w.targetPrice * 1.02 && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN) {
@@ -196,11 +274,10 @@ exports.handler = async function (event) {
             if (r.ok) { sent++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + email + " " + w.ticker + " @ " + p); }
           } catch (e) {}
         } else if (dist >= 5 && w.serverAlerted) {
-          w.serverAlerted = false; changed = true; // re-arm once price moves away
+          w.serverAlerted = false; changed = true;
         }
       }
 
-      // SELL alert: price at or above the sell target (profit-taking signal)
       if (w.sellTarget && p >= w.sellTarget && !w.serverSellAlerted && sent < MAX_EMAILS_PER_RUN) {
         const gainPct = w.targetPrice ? ((w.sellTarget - w.targetPrice) / w.targetPrice * 100) : null;
         try {
@@ -217,7 +294,7 @@ exports.handler = async function (event) {
           if (r.ok) { sent++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + email + " " + w.ticker + " @ " + p); }
         } catch (e) {}
       } else if (w.sellTarget && p < w.sellTarget * 0.95 && w.serverSellAlerted) {
-        w.serverSellAlerted = false; changed = true; // re-arm once price retraces 5%
+        w.serverSellAlerted = false; changed = true;
       }
     }
     if (changed) { try { await store.setJSON(email, rec); } catch (e) {} }
