@@ -1,6 +1,6 @@
 // BullrunIQ — Secure Anthropic proxy
 
-const crypto = require("crypto");
+const { verifyToken } = require("./_lib");
 
 const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
@@ -9,6 +9,8 @@ const ALLOWED_MODELS = new Set([
 ]);
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS_CAP = 1500;
+const MAX_SYSTEM_BYTES = 4000;   // cap injected system prompts to prevent abuse
+const MAX_MESSAGE_BYTES = 32000; // cap total messages payload
 const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
@@ -19,26 +21,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-function verifyToken(tok) {
-  try {
-    let key = process.env.AUTH_SECRET;
-    if (!key && process.env.ANTHROPIC_API_KEY) {
-      key = crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-    }
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
 
 const _burst = new Map();
 
@@ -114,11 +96,17 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing messages or prompt" } }) };
   }
 
+  // Guard against oversized payloads that could inflate upstream costs
+  const messagesJson = JSON.stringify(messages);
+  if (messagesJson.length > MAX_MESSAGE_BYTES) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Request too large." } }) };
+  }
+
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
   const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
+  if (system) body.system = String(system).slice(0, MAX_SYSTEM_BYTES);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

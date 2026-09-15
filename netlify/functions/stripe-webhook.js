@@ -13,7 +13,9 @@ function verifyStripe(rawBody, sigHeader, secret) {
   const signed = parts.t + "." + rawBody;
   const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
   try {
-    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
+    const eBuf = Buffer.from(expected), vBuf = Buffer.from(parts.v1);
+    if (eBuf.length !== vBuf.length) return false;
+    if (!crypto.timingSafeEqual(eBuf, vBuf)) return false;
   } catch (e) { return false; }
   const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
   return age <= 300;
@@ -61,13 +63,16 @@ exports.handler = async function (event) {
     if (evt.type === "checkout.session.completed") {
       const email = ((obj.customer_details && obj.customer_details.email) || obj.customer_email || "").toLowerCase();
       const cid = obj.customer || null;
+      // subscription_status may be "trialing" when a free trial is configured
+      const checkoutStatus = obj.subscription_status || "active";
+      const initialStatus = (checkoutStatus === "trialing") ? "trialing" : "active";
       if (email) {
         await customers.setJSON(email, {
           email: email,
           tier: (obj.metadata && obj.metadata.tier) || "pro",
           customer: cid,
           subscription: obj.subscription || null,
-          status: "active",
+          status: initialStatus,
           updatedAt: new Date().toISOString(),
         });
         if (cid) await customers.setJSON("cid:" + cid, { email: email });

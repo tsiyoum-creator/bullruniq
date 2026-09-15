@@ -11,7 +11,37 @@
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network",
+  LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu",
+  UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum",
+  SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network",
+  XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance",
+  ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer",
+  RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao",
+  RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity",
+  GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance",
+  JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token",
+  BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena",
+  FLOKI:"floki",
+  // AI / DePIN tokens
+  FET:"fetch-ai", AGIX:"singularitynet", OCEAN:"ocean-protocol", RNDR:"render-token",
+  WLD:"worldcoin-wld", GRT:"the-graph", GLM:"golem", NMR:"numeraire",
+  // Layer-2 / rollups
+  MANTA:"manta-network", ZETA:"zetachain", ALT:"altlayer", METIS:"metis-token",
+  ZK:"zksync", SCROLL:"scroll",
+  // DeFi blue-chips
+  AAVE:"aave", MKR:"maker", SNX:"synthetix-network-token", CRV:"curve-dao-token",
+  BAL:"balancer", DYDX:"dydx-chain", GMX:"gmx", PENDLE:"pendle",
+  // Stablecoins (for portfolio value tracking)
+  USDC:"usd-coin", USDT:"tether", DAI:"dai", FRAX:"frax",
+  // Other popular assets
+  BCH:"bitcoin-cash", ETC:"ethereum-classic", XMR:"monero", ZEC:"zcash",
+  EGLD:"elrond-erd-2", ONE:"harmony", ZIL:"zilliqa", ROSE:"oasis-network",
+  KAVA:"kava", CFX:"conflux-token", ID:"space-id", ARKM:"arkham",
+  PYUSD:"paypal-usd", BRETT:"brett",
+};
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -115,10 +145,15 @@ exports.handler = async function (event) {
   }
   if (!ids.size) return { statusCode: 200, body: "no targets" };
 
-  // One batched price call
+  // One batched price call (uses CoinGecko Pro key if configured)
   let prices = {};
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd");
+    const cgBase = process.env.COINGECKO_API_KEY
+      ? "https://pro-api.coingecko.com/api/v3"
+      : "https://api.coingecko.com/api/v3";
+    const cgHeaders = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+    if (process.env.COINGECKO_API_KEY) cgHeaders["x-cg-pro-api-key"] = process.env.COINGECKO_API_KEY;
+    const r = await fetch(cgBase + "/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd", { headers: cgHeaders });
     prices = await r.json();
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
