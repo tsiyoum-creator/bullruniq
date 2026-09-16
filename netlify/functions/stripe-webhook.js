@@ -15,8 +15,8 @@ function verifyStripe(rawBody, sigHeader, secret) {
   try {
     if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
   } catch (e) { return false; }
-  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
-  return age <= 300;
+  const age = Math.floor(Date.now() / 1000) - parseInt(parts.t, 10);
+  return age >= 0 && age <= 300;
 }
 
 exports.handler = async function (event) {

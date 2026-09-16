@@ -1,6 +1,6 @@
 // BullrunIQ — Secure Anthropic proxy
 
-const crypto = require("crypto");
+const { verifyToken } = require("./_utils");
 
 const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
@@ -9,6 +9,7 @@ const ALLOWED_MODELS = new Set([
 ]);
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS_CAP = 1500;
+const MAX_SYSTEM_LENGTH = 4000;
 const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
@@ -16,36 +17,16 @@ const DAILY_USER_CAP = 1000;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-function verifyToken(tok) {
-  try {
-    let key = process.env.AUTH_SECRET;
-    if (!key && process.env.ANTHROPIC_API_KEY) {
-      key = crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-    }
-    if (!key || !tok) return null;
-    const i = tok.lastIndexOf(".");
-    if (i < 1) return null;
-    const p = tok.slice(0, i), sig = tok.slice(i + 1);
-    const expect = crypto.createHmac("sha256", key).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
-    const raw = Buffer.from(p, "base64url").toString("utf8");
-    const j = raw.lastIndexOf("|");
-    const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
-    if (!email || !exp || Date.now() > exp) return null;
-    return email;
-  } catch (e) { return null; }
-}
-
-const _burst = new Map();
 
 function clientIp(event) {
   const h = event.headers || {};
   return h["x-nf-client-connection-ip"] || (h["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
 }
+
+const _burst = new Map();
 
 function burstOk(ip) {
   const now = Date.now();
@@ -118,7 +99,7 @@ exports.handler = async function (event) {
   max_tokens = Math.min(Math.max(parseInt(max_tokens, 10) || 800, 1), MAX_TOKENS_CAP);
 
   const body = { model, max_tokens, messages };
-  if (system) body.system = String(system);
+  if (system) body.system = String(system).slice(0, MAX_SYSTEM_LENGTH);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
