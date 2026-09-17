@@ -1,9 +1,9 @@
-// Unit tests for auth.js logic (token signing, verification, validation).
+// Unit tests for BullrunIQ Netlify function logic.
 // Run with: node tests/auth.test.js
 
 const crypto = require("crypto");
 
-// --- Inline the token helpers (copied from auth.js / sync.js) ---
+// --- Inline the token helpers (copied from _shared.js) ---
 
 const TEST_SECRET = "test-secret-key-for-unit-tests";
 
@@ -21,13 +21,25 @@ function verifyToken(tok, secret) {
     if (i < 1) return null;
     const p = tok.slice(0, i), sig = tok.slice(i + 1);
     const expect = crypto.createHmac("sha256", secret).update(p).digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
+    const eBuf = Buffer.from(expect), sBuf = Buffer.from(sig);
+    if (eBuf.length !== sBuf.length) return null;
+    if (!crypto.timingSafeEqual(eBuf, sBuf)) return null;
     const raw = Buffer.from(p, "base64url").toString("utf8");
     const j = raw.lastIndexOf("|");
     const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
     if (!email || !exp || Date.now() > exp) return null;
     return email;
   } catch (e) { return null; }
+}
+
+// Single shared esc() matching _shared.js (includes single-quote escaping)
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
 }
 
 // --- Tests ---
@@ -53,6 +65,14 @@ assert(verifyToken(token, "wrong-secret") === null, "wrong secret returns null")
 assert(verifyToken("", TEST_SECRET) === null, "empty token returns null");
 assert(verifyToken("invalid.token", TEST_SECRET) === null, "tampered token returns null");
 assert(verifyToken(null, TEST_SECRET) === null, "null token returns null");
+
+console.log("\n--- auth token: length-mismatched signature ---");
+
+// A token with a short signature must be rejected without throwing
+const [payload] = token.split(".");
+assert(verifyToken(payload + ".short", TEST_SECRET) === null, "short signature returns null");
+assert(verifyToken(payload + "." + "a".repeat(200), TEST_SECRET) === null, "long signature returns null");
+assert(verifyToken(payload + ".", TEST_SECRET) === null, "empty signature returns null");
 
 console.log("\n--- auth token: expiry ---");
 
@@ -86,15 +106,14 @@ assert(!isValidEmail("a".repeat(201) + "@b.com"), "too long fails");
 
 console.log("\n--- HTML escaping (XSS guard) ---");
 
-function esc(s) {
-  return String(s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
-}
 assert(esc("<script>alert(1)</script>") === "&lt;script&gt;alert(1)&lt;/script&gt;", "script tags escaped");
 assert(esc('"><img src=x onerror=alert(1)>') === "&quot;&gt;&lt;img src=x onerror=alert(1)&gt;", "attribute injection escaped");
 assert(esc("safe text") === "safe text", "safe text unchanged");
 assert(esc("a&b") === "a&amp;b", "ampersand escaped");
+assert(esc("it's here") === "it&#x27;s here", "single quote escaped");
+assert(esc('<BTC>') === "&lt;BTC&gt;", "angle brackets escaped in ticker");
+assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
+assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "double quotes escaped");
 
 console.log("\n--- market.js: id validation ---");
 
@@ -108,6 +127,7 @@ assert(validateIds("bitcoin,ethereum").length === 2, "two valid ids pass");
 assert(validateIds("bitcoin; DROP TABLE").length === 0, "injection string rejected");
 assert(validateIds("a".repeat(51)).length === 0, "too-long id rejected");
 assert(validateIds(",,,").length === 0, "empty ids rejected");
+assert(validateIds("bitcoin,<script>").length === 1, "one valid, one script-tag rejected");
 
 console.log("\n--- alerts: sell alert logic ---");
 
@@ -126,17 +146,19 @@ assert(!shouldSendSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 7500
 assert(shouldRearmSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 60000), "re-arm when price drops 5%+ below sell");
 assert(!shouldRearmSellAlert({ ...watchlistEntry, serverSellAlerted: true }, 67000), "no re-arm within 5% of sell");
 
-console.log("\n--- alerts: buy alert logic ---");
+console.log("\n--- alerts: buy alert logic (directional — approaches from above) ---");
 
 function shouldSendBuyAlert(w, price) {
-  const dist = Math.abs((w.targetPrice - price) / price * 100);
-  return dist < 2 && price <= w.targetPrice * 1.02 && !w.serverAlerted;
+  const dist = (w.targetPrice - price) / price * 100;
+  // Only fires when price is still above target (dist > 0) and within 2%
+  return dist > 0 && dist < 2 && !w.serverAlerted;
 }
 
 const buyEntry = { ticker: "ETH", targetPrice: 2000 };
-assert(shouldSendBuyAlert({ ...buyEntry }, 1990), "buy alert within 1%");
-assert(shouldSendBuyAlert({ ...buyEntry }, 2000), "buy alert at exact target");
-assert(!shouldSendBuyAlert({ ...buyEntry }, 2200), "no buy alert 10% above target");
+assert(shouldSendBuyAlert({ ...buyEntry }, 1990), "buy alert within 1% from above");
+assert(!shouldSendBuyAlert({ ...buyEntry }, 2000), "no buy alert when price exactly at target (dist=0, not above)");
+assert(!shouldSendBuyAlert({ ...buyEntry }, 2200), "no buy alert 10% above target (out of range)");
+assert(!shouldSendBuyAlert({ ...buyEntry }, 1900), "no buy alert when price already below target");
 assert(!shouldSendBuyAlert({ ...buyEntry, serverAlerted: true }, 1990), "no duplicate buy alert");
 
 console.log("\n--- submission-created: contact form filter ---");
@@ -160,15 +182,7 @@ assert(isHttpUrl("http://cointelegraph.com/news/test"), "http URL passes");
 assert(!isHttpUrl("javascript:alert(1)"), "javascript: URL blocked");
 assert(!isHttpUrl("data:text/html,<h1>xss</h1>"), "data: URL blocked");
 assert(!isHttpUrl(""), "empty URL blocked");
-
-console.log("\n--- alerts: HTML escaping in emails ---");
-
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
-assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
-assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(!isHttpUrl("ftp://example.com/feed"), "ftp: URL blocked");
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -226,6 +240,72 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+assert(deployPlan(99, ["BTC"]) === null, "just under $100 threshold → no plan");
+assert(deployPlan(100, ["BTC"]).deploy === 80, "$100 cash deploys $80");
+
+console.log("\n--- stripe-webhook: signature verification ---");
+
+function verifyStripe(rawBody, sigHeader, secret) {
+  if (!sigHeader || !secret) return false;
+  const parts = {};
+  String(sigHeader).split(",").forEach(function (kv) {
+    const i = kv.indexOf("=");
+    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  });
+  if (!parts.t || !parts.v1) return false;
+  const signed = parts.t + "." + rawBody;
+  const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
+  try {
+    const eBuf = Buffer.from(expected, "hex");
+    const vBuf = Buffer.from(parts.v1, "hex");
+    if (eBuf.length !== vBuf.length) return false;
+    if (!crypto.timingSafeEqual(eBuf, vBuf)) return false;
+  } catch (e) { return false; }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
+  return age <= 300;
+}
+
+function makeStripeHeader(body, secret, tOffset) {
+  const t = Math.floor(Date.now() / 1000) + (tOffset || 0);
+  const sig = crypto.createHmac("sha256", secret).update(t + "." + body).digest("hex");
+  return "t=" + t + ",v1=" + sig;
+}
+
+const STRIPE_SECRET = "whsec_test123";
+const BODY = '{"type":"invoice.paid"}';
+const validSig = makeStripeHeader(BODY, STRIPE_SECRET);
+assert(verifyStripe(BODY, validSig, STRIPE_SECRET), "valid stripe signature passes");
+assert(!verifyStripe(BODY, validSig, "wrong-secret"), "wrong secret fails");
+assert(!verifyStripe(BODY + "tampered", validSig, STRIPE_SECRET), "tampered body fails");
+assert(!verifyStripe(BODY, null, STRIPE_SECRET), "missing header fails");
+assert(!verifyStripe(BODY, validSig, null), "missing secret fails");
+assert(!verifyStripe(BODY, "t=123,v1=abc", STRIPE_SECRET), "malformed hex v1 fails gracefully");
+
+const staleSig = makeStripeHeader(BODY, STRIPE_SECRET, -400);
+assert(!verifyStripe(BODY, staleSig, STRIPE_SECRET), "replay > 5 minutes old fails");
+
+const freshSig = makeStripeHeader(BODY, STRIPE_SECRET, -100);
+assert(verifyStripe(BODY, freshSig, STRIPE_SECRET), "recent signature within 5 minutes passes");
+
+console.log("\n--- portal.js: URL validation ---");
+
+function safePortalUrl(url) {
+  return url && /^https:\/\/billing\.stripe\.com\//.test(url) ? url : "/contact";
+}
+assert(safePortalUrl("https://billing.stripe.com/session/abc") === "https://billing.stripe.com/session/abc", "valid stripe portal URL allowed");
+assert(safePortalUrl("https://evil.com/redirect") === "/contact", "non-stripe URL rejected");
+assert(safePortalUrl("http://billing.stripe.com/session") === "/contact", "http not allowed");
+assert(safePortalUrl(null) === "/contact", "null falls back to /contact");
+assert(safePortalUrl("") === "/contact", "empty falls back to /contact");
+assert(safePortalUrl("https://billing.stripe.com.evil.com/") === "/contact", "subdomain spoofing rejected");
+
+console.log("\n--- generate.js: system prompt truncation ---");
+
+const MAX_SYSTEM_LENGTH = 2000;
+function truncateSystem(s) { return String(s).slice(0, MAX_SYSTEM_LENGTH); }
+assert(truncateSystem("hello").length === 5, "short system prompt unchanged");
+assert(truncateSystem("a".repeat(3000)).length === MAX_SYSTEM_LENGTH, "long system prompt truncated to cap");
+assert(truncateSystem("a".repeat(2000)).length === MAX_SYSTEM_LENGTH, "system prompt at exact cap unchanged");
 
 // --- Summary ---
 console.log("\n==========================================");

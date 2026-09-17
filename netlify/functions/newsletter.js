@@ -1,10 +1,9 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
+const { esc } = require("./_shared");
+
 const MAX_SEND = 1000;
 
-function esc(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 function briefToHtml(text) {
   return esc(text)
     .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
@@ -97,9 +96,15 @@ exports.handler = async function (event) {
           to: email,
           subject: subject,
           html: emailHtml(briefHtml, btc, fg, email, dateStr),
-          headers: { "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + ">" },
+          headers: {
+            "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + ">",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         }),
-      }).then(function (r) { return r.ok ? "ok" : "err"; });
+      }).then(function (r) {
+        if (!r.ok) console.log("[newsletter] send failed for", email, ":", r.status);
+        return r.ok ? "ok" : "err";
+      });
     }));
     results.forEach(function (r) {
       if (r.status === "fulfilled" && r.value === "ok") sent++; else failed++;

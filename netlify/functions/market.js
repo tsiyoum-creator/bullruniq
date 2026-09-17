@@ -7,9 +7,8 @@ const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
 async function fetchJson(url) {
   const r = await fetch(url, { headers: UA });
-  const data = await r.json();
   if (!r.ok) throw new Error("upstream " + r.status);
-  return data;
+  return r.json();
 }
 
 exports.handler = async function (event) {
@@ -48,6 +47,39 @@ exports.handler = async function (event) {
         return { id: i.id, symbol: (i.symbol || "").toUpperCase(), name: i.name, market_cap_rank: i.market_cap_rank, thumb: i.thumb, price_btc: i.price_btc, score: i.score };
       });
     };
+  } else if (q.kind === "fng") {
+    // Fear & Greed index from alternative.me
+    upstream = null;
+    key = "mkt:fng";
+    ttl = 60 * 60000; // hourly — index updates once daily
+    const blobs = require("@netlify/blobs");
+    try { blobs.connectLambda(event); } catch (e) {}
+    let cache = null;
+    try { cache = blobs.getStore("cache"); } catch (e) {}
+    if (cache) {
+      try {
+        const c = await cache.get(key, { type: "json" });
+        if (c && Date.now() - c.at < ttl) {
+          return { statusCode: 200, headers: CORS, body: JSON.stringify(c.data) };
+        }
+      } catch (e) {}
+    }
+    try {
+      const r = await fetch("https://api.alternative.me/fng/?limit=7", { headers: UA });
+      if (!r.ok) throw new Error("fng upstream " + r.status);
+      const raw = await r.json();
+      const result = { current: raw.data && raw.data[0], history: raw.data && raw.data.slice(0, 7) };
+      if (cache) { try { await cache.setJSON(key, { at: Date.now(), data: result }); } catch (e) {} }
+      return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
+    } catch (err) {
+      if (cache) {
+        try {
+          const c = await cache.get(key, { type: "json" });
+          if (c) return { statusCode: 200, headers: CORS, body: JSON.stringify(c.data) };
+        } catch (e) {}
+      }
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: "fear & greed unavailable" }) };
+    }
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -57,7 +89,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fng or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");

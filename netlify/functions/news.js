@@ -34,6 +34,13 @@ async function fetchFeed(url, source) {
   } catch (e) { return []; }
 }
 
+const FEEDS = [
+  { url: "https://www.coindesk.com/arc/outboundfeeds/rss/", source: "CoinDesk" },
+  { url: "https://cointelegraph.com/rss", source: "Cointelegraph" },
+  { url: "https://theblock.co/rss.xml", source: "The Block" },
+  { url: "https://decrypt.co/feed", source: "Decrypt" },
+];
+
 exports.handler = async function (event) {
   const blobs = require("@netlify/blobs");
   try { blobs.connectLambda(event); } catch (e) {}
@@ -49,14 +56,14 @@ exports.handler = async function (event) {
     } catch (e) {}
   }
 
-  const results = await Promise.allSettled([
-    fetchFeed("https://www.coindesk.com/arc/outboundfeeds/rss/", "CoinDesk"),
-    fetchFeed("https://cointelegraph.com/rss", "Cointelegraph"),
-  ]);
-  let items = results.filter(function (r) { return r.status === "fulfilled"; })
+  const results = await Promise.allSettled(
+    FEEDS.map(function (f) { return fetchFeed(f.url, f.source); })
+  );
+  let items = results
+    .filter(function (r) { return r.status === "fulfilled"; })
     .flatMap(function (r) { return r.value; })
     .sort(function (a, b) { return b.at - a.at; })
-    .slice(0, 14);
+    .slice(0, 20);
 
   if (!items.length && cache) {
     try {

@@ -13,7 +13,11 @@ function verifyStripe(rawBody, sigHeader, secret) {
   const signed = parts.t + "." + rawBody;
   const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
   try {
-    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
+    const eBuf = Buffer.from(expected, "hex");
+    const vBuf = Buffer.from(parts.v1, "hex");
+    // Buffers must be same length for timingSafeEqual; a length mismatch means invalid signature.
+    if (eBuf.length !== vBuf.length) return false;
+    if (!crypto.timingSafeEqual(eBuf, vBuf)) return false;
   } catch (e) { return false; }
   const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
   return age <= 300;
@@ -49,22 +53,27 @@ exports.handler = async function (event) {
     }
     async function setStatus(cid, status, tier) {
       const email = await emailForCustomer(cid);
-      if (!email) return;
+      if (!email) {
+        console.log("[stripe-webhook] no email pointer for cid:", cid, "— event", evt.type, "skipped");
+        return;
+      }
       const rec = (await customers.get(email, { type: "json" })) || { email: email };
       rec.status = status;
       rec.updatedAt = new Date().toISOString();
       if (tier) rec.tier = tier;
       await customers.setJSON(email, rec);
-      console.log("[stripe-webhook] " + email + " -> " + status + (tier ? " (" + tier + ")" : ""));
+      console.log("[stripe-webhook]", email, "->", status + (tier ? " (" + tier + ")" : ""));
     }
 
     if (evt.type === "checkout.session.completed") {
       const email = ((obj.customer_details && obj.customer_details.email) || obj.customer_email || "").toLowerCase();
       const cid = obj.customer || null;
       if (email) {
+        // Default to "free" if metadata.tier is absent rather than granting pro silently
+        const tier = (obj.metadata && obj.metadata.tier) || "free";
         await customers.setJSON(email, {
           email: email,
-          tier: (obj.metadata && obj.metadata.tier) || "pro",
+          tier: tier,
           customer: cid,
           subscription: obj.subscription || null,
           status: "active",
@@ -77,7 +86,7 @@ exports.handler = async function (event) {
             await subs.setJSON(email, { email: email, source: "customer", joinedAt: new Date().toISOString() });
           }
         } catch (e) {}
-        console.log("[stripe-webhook] new customer " + email);
+        console.log("[stripe-webhook] new customer", email, "tier:", tier);
       }
     } else if (evt.type === "customer.subscription.deleted") {
       await setStatus(obj.customer, "canceled");
