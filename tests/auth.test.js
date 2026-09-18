@@ -1,9 +1,9 @@
-// Unit tests for auth.js logic (token signing, verification, validation).
+// Unit tests for BullrunIQ server-side logic.
 // Run with: node tests/auth.test.js
 
 const crypto = require("crypto");
 
-// --- Inline the token helpers (copied from auth.js / sync.js) ---
+// --- Inline the token helpers (copied from _lib.js) ---
 
 const TEST_SECRET = "test-secret-key-for-unit-tests";
 
@@ -73,6 +73,18 @@ for (const em of emails) {
   assert(verifyToken(t, TEST_SECRET) === em.toLowerCase(), "round-trips: " + em);
 }
 
+console.log("\n--- auth token: tamper detection ---");
+
+const tamperedPayload = token.slice(0, token.lastIndexOf(".")) + "X." + token.split(".").pop();
+assert(verifyToken(tamperedPayload, TEST_SECRET) === null, "modified payload rejected");
+
+const parts = token.split(".");
+const fakeSig = parts[0] + "." + crypto.randomBytes(32).toString("base64url");
+assert(verifyToken(fakeSig, TEST_SECRET) === null, "random signature rejected");
+
+// Ensure timing-safe comparison (different-length sigs don't crash)
+assert(verifyToken(parts[0] + "." + "short", TEST_SECRET) === null, "short signature rejected safely");
+
 console.log("\n--- unsubscribe: email validation ---");
 
 function isValidEmail(s) {
@@ -108,6 +120,46 @@ assert(validateIds("bitcoin,ethereum").length === 2, "two valid ids pass");
 assert(validateIds("bitcoin; DROP TABLE").length === 0, "injection string rejected");
 assert(validateIds("a".repeat(51)).length === 0, "too-long id rejected");
 assert(validateIds(",,,").length === 0, "empty ids rejected");
+assert(validateIds("bitcoin,ethereum,solana,cardano,dogecoin").length === 5, "five valid ids pass");
+assert(validateIds("BITCOIN").length === 1, "uppercase is normalized to lowercase and passes");
+assert(validateIds("bitcoin").length === 1, "single valid id passes");
+
+console.log("\n--- generate.js: max_tokens clamping ---");
+
+const MAX_TOKENS_CAP = 1500;
+const MIN_TOKENS = 100;
+
+function clampTokens(raw) {
+  return Math.min(Math.max(parseInt(raw, 10) || 800, MIN_TOKENS), MAX_TOKENS_CAP);
+}
+assert(clampTokens(0) === 800, "0 (falsy) defaults to 800 before clamping");
+assert(clampTokens(1) === MIN_TOKENS, "1 clamped to MIN_TOKENS (" + MIN_TOKENS + ")");
+assert(clampTokens(50) === MIN_TOKENS, "50 clamped to MIN_TOKENS");
+assert(clampTokens(100) === 100, "100 passes through");
+assert(clampTokens(800) === 800, "800 (default) passes through");
+assert(clampTokens(1500) === 1500, "1500 (cap) passes through");
+assert(clampTokens(2000) === MAX_TOKENS_CAP, "2000 clamped to MAX_TOKENS_CAP");
+assert(clampTokens("abc") === 800, "non-numeric defaults to 800");
+
+console.log("\n--- generate.js: system prompt length cap ---");
+
+const MAX_SYSTEM_LEN = 2000;
+const PREAMBLE = "You are the BullrunIQ AI assistant.";
+
+function buildSystem(clientSystem, authed) {
+  if (!authed || !clientSystem) return PREAMBLE;
+  const truncated = String(clientSystem).slice(0, MAX_SYSTEM_LEN).trim();
+  return truncated ? PREAMBLE + "\n\n" + truncated : PREAMBLE;
+}
+
+assert(buildSystem(null, true) === PREAMBLE, "null system → preamble only");
+assert(buildSystem("", true) === PREAMBLE, "empty system → preamble only");
+assert(buildSystem("custom", false) === PREAMBLE, "unauthenticated → preamble only");
+assert(buildSystem("custom instruction", true).startsWith(PREAMBLE), "authenticated → preamble first");
+assert(buildSystem("custom instruction", true).includes("custom instruction"), "authenticated → client system appended");
+const longSystem = "x".repeat(MAX_SYSTEM_LEN + 500);
+const built = buildSystem(longSystem, true);
+assert(built.length < PREAMBLE.length + MAX_SYSTEM_LEN + 10, "long system truncated");
 
 console.log("\n--- alerts: sell alert logic ---");
 
@@ -163,12 +215,12 @@ assert(!isHttpUrl(""), "empty URL blocked");
 
 console.log("\n--- alerts: HTML escaping in emails ---");
 
-function esc(s) {
+function escAlerts(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-assert(esc("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
-assert(esc("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
-assert(esc('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
+assert(escAlerts("<BTC>") === "&lt;BTC&gt;", "angle brackets escaped in ticker");
+assert(escAlerts("ETH & BNB") === "ETH &amp; BNB", "ampersand escaped in name");
+assert(escAlerts('BTC"injection"') === "BTC&quot;injection&quot;", "quotes escaped");
 
 console.log("\n--- portfolio guard: stop-loss / take-profit ---");
 
@@ -194,23 +246,48 @@ assert(!shouldStopAlert({ ticker: "ETH", avg: 2000, qty: 1 }, 100), "no levels s
 console.log("\n--- profit-lock ladder ---");
 
 function ladderFor(avg, qty, price) {
-  if (!avg || avg <= 0) return null;
+  if (!avg || avg <= 0 || !qty || qty <= 0) return null;
   const g = (price - avg) / avg * 100;
   if (g < 20) return null;
   const rungs = [25, 50, 100].map(pc => {
     const lp = avg * (1 + pc / 100);
     return { pct: pc, price: lp, qty: qty * 0.25, hit: price >= lp };
   });
-  return { gain: g, rungs, hits: rungs.filter(r => r.hit) };
+  return { gainPct: g, rungs, hits: rungs.filter(r => r.hit) };
 }
 assert(ladderFor(100, 10, 110) === null, "no ladder under +20% gain");
 assert(ladderFor(0, 10, 500) === null, "no ladder without cost basis");
+assert(ladderFor(100, 0, 500) === null, "no ladder without qty");
 const lad = ladderFor(100, 10, 160);
 assert(lad !== null && lad.rungs.length === 3, "ladder has 3 rungs");
 assert(lad.rungs[0].price === 125 && lad.rungs[1].price === 150 && lad.rungs[2].price === 200, "rung prices at +25/+50/+100%");
 assert(lad.hits.length === 2, "at +60%, first two rungs are hit");
 assert(lad.rungs[0].qty === 2.5, "each rung sells 25% of the position");
 assert(ladderFor(100, 10, 250).hits.length === 3, "at +150%, all rungs hit");
+assert(ladderFor(100, 10, 125).hits.length === 1, "at exactly +25%, one rung hit");
+assert(ladderFor(100, 10, 124).hits.length === 0, "just below +25%, no rung hit but ladder active");
+
+console.log("\n--- profit-ladder: new-rung alert logic ---");
+
+function shouldSendLadderAlert(h, price) {
+  const ladder = ladderFor(h.avg, h.qty, price);
+  const prevHits = h.serverLadderHits || 0;
+  return ladder !== null && ladder.hits.length > prevHits;
+}
+function shouldResetLadder(h, price) {
+  const ladder = ladderFor(h.avg, h.qty, price);
+  return ladder === null && (h.serverLadderHits || 0) > 0;
+}
+
+const ladderHolding = { ticker: "SOL", avg: 100, qty: 10 };
+assert(!shouldSendLadderAlert({ ...ladderHolding }, 110), "no ladder alert under +20%");
+assert(!shouldSendLadderAlert({ ...ladderHolding }, 120), "no alert at +20% (below first rung)");
+assert(shouldSendLadderAlert({ ...ladderHolding }, 126), "alert when first rung (+25%) crossed");
+assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 130), "no re-alert same rung");
+assert(shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 151), "alert when second rung (+50%) crossed");
+assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 3 }, 300), "no alert when all rungs already recorded");
+assert(shouldResetLadder({ ...ladderHolding, serverLadderHits: 2 }, 115), "ladder resets below +20%");
+assert(!shouldResetLadder({ ...ladderHolding, serverLadderHits: 0 }, 115), "no reset when already 0 hits");
 
 console.log("\n--- cash deployment engine ---");
 
@@ -226,6 +303,56 @@ assert(dp.reserve === 200, "keeps 20% reserve");
 assert(dp.deploy === 800, "deploys 80%");
 assert(dp.per === 400, "splits evenly across near-zone buys");
 assert(deployPlan(1000, []).per === 0, "no near-zone assets → nothing deployed");
+assert(deployPlan(99, ["BTC"]) === null, "just under $100 → no plan");
+assert(deployPlan(100, ["BTC"]).reserve === 20, "$100 minimum: 20% reserve");
+
+console.log("\n--- stripe-webhook: signature verification ---");
+
+function verifyStripe(rawBody, sigHeader, secret) {
+  if (!sigHeader || !secret) return false;
+  const parts = {};
+  String(sigHeader).split(",").forEach(function (kv) {
+    const i = kv.indexOf("=");
+    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  });
+  if (!parts.t || !parts.v1) return false;
+  const signed = parts.t + "." + rawBody;
+  const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
+  } catch (e) { return false; }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
+  return age <= 300;
+}
+
+function makeStripeSig(rawBody, secret, t) {
+  const ts = t !== undefined ? t : Math.floor(Date.now() / 1000);
+  const sig = crypto.createHmac("sha256", secret).update(ts + "." + rawBody).digest("hex");
+  return "t=" + ts + ",v1=" + sig;
+}
+
+const STRIPE_SECRET = "whsec_test_123";
+const body = JSON.stringify({ type: "checkout.session.completed" });
+
+assert(verifyStripe(body, makeStripeSig(body, STRIPE_SECRET), STRIPE_SECRET), "valid stripe sig passes");
+assert(!verifyStripe(body, makeStripeSig(body, "wrong-secret"), STRIPE_SECRET), "wrong secret fails");
+assert(!verifyStripe(body, makeStripeSig("other-body", STRIPE_SECRET), STRIPE_SECRET), "body mismatch fails");
+assert(!verifyStripe(body, makeStripeSig(body, STRIPE_SECRET, Math.floor(Date.now() / 1000) - 400), STRIPE_SECRET), "expired (>5 min) sig fails");
+assert(verifyStripe(body, makeStripeSig(body, STRIPE_SECRET, Math.floor(Date.now() / 1000) - 299), STRIPE_SECRET), "sig within 5 min passes");
+assert(!verifyStripe(body, "", STRIPE_SECRET), "empty sig header fails");
+assert(!verifyStripe(body, "t=123", STRIPE_SECRET), "sig header missing v1 fails");
+assert(!verifyStripe(body, makeStripeSig(body, STRIPE_SECRET), ""), "empty secret fails");
+
+console.log("\n--- market.js: kind validation ---");
+
+const VALID_KINDS = new Set(["top50", "top100", "gainers", "losers", "trending", "fear_greed", "dominance"]);
+function isValidKind(kind) { return VALID_KINDS.has(kind); }
+assert(isValidKind("top50"), "top50 valid");
+assert(isValidKind("fear_greed"), "fear_greed valid");
+assert(isValidKind("dominance"), "dominance valid");
+assert(!isValidKind("admin"), "admin rejected");
+assert(!isValidKind("__proto__"), "__proto__ rejected");
+assert(!isValidKind(""), "empty rejected");
 
 // --- Summary ---
 console.log("\n==========================================");

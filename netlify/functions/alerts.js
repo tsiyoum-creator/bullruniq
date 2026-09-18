@@ -5,13 +5,43 @@
 //   • SELL alert: watchlist price rises to or above their sellTarget.
 //   • STOP alert: a holding falls to/below its stop-loss (portfolio guard).
 //   • TP alert: a holding rises to/above its take-profit (portfolio guard).
+//   • LADDER alert: a holding crosses a new +25/+50/+100% profit rung vs avg cost.
 // server*Alerted flags with ~5% hysteresis prevent repeat emails.
 // Crypto tickers only — stock quotes would need per-user broker keys server-side.
 // No-ops gracefully until RESEND_API_KEY is set.
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 
-const CGMAP = { BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple", ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network", LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu", UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum", SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network", XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance", ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token", FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox", MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur", SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network", JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi", ENA:"ethena", FLOKI:"floki" };
+const CGMAP = {
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
+  ADA:"cardano", DOGE:"dogecoin", AVAX:"avalanche-2", DOT:"polkadot", MATIC:"matic-network",
+  LINK:"chainlink", LTC:"litecoin", NEAR:"near", APT:"aptos", SHIB:"shiba-inu",
+  UNI:"uniswap", ATOM:"cosmos", TRX:"tron", OP:"optimism", ARB:"arbitrum",
+  SUI:"sui", INJ:"injective-protocol", PEPE:"pepe", WIF:"dogwifcoin", TON:"the-open-network",
+  XLM:"stellar", HBAR:"hedera-hashgraph", QNT:"quant-network", AERO:"aerodrome-finance",
+  ALGO:"algorand", VET:"vechain", FIL:"filecoin", ICP:"internet-computer", RENDER:"render-token",
+  FTM:"fantom", CRO:"crypto-com-chain", LDO:"lido-dao", RUNE:"thorchain", SAND:"the-sandbox",
+  MANA:"decentraland", AXS:"axie-infinity", GALA:"gala", IMX:"immutable-x", BLUR:"blur",
+  SEI:"sei-network", ONDO:"ondo-finance", JUP:"jupiter-exchange-solana", PYTH:"pyth-network",
+  JTO:"jito-governance-token", BONK:"bonk", STRK:"starknet", TAO:"bittensor", ETHFI:"ether-fi",
+  ENA:"ethena", FLOKI:"floki",
+  // 2025–2026 additions
+  NOT:"notcoin", WLD:"worldcoin", MEME:"memecoin", TURBO:"turbo", BEAM:"beam",
+  BRETT:"brett", MOG:"mog-coin", POPCAT:"popcat", DOGS:"dogs", MAJOR:"major",
+  HMSTR:"hamster-kombat", CATS:"cats-in-hats", DEEP:"deepbook-protocol",
+  WELL:"moonwell", AAVE:"aave", COMP:"compound-governance-token", MKR:"maker",
+  CRV:"curve-dao-token", SNX:"havven", BAL:"balancer", SUSHI:"sushi",
+  ZK:"zksync", BLAST:"blast", MODE:"mode", MANTA:"manta-network",
+  ALT:"altlayer", ZETA:"zetachain", W:"wormhole", TNSR:"tensor",
+  KMNO:"kamino", JITO:"jito-governance-token", DRIFT:"drift",
+  POL:"matic-network", TIA:"celestia", PYTH:"pyth-network",
+  PENDLE:"pendle", EIGEN:"eigenlayer", SAGA:"saga-2",
+  PEOPLE:"constitutiondao", DEGEN:"degen-base", HIGHER:"higher",
+  MOTHER:"mother-iggy", ANDY:"andy-on-base", TOSHI:"toshi",
+  CBBTC:"coinbase-wrapped-btc", WEETH:"wrapped-eeth", WSTETH:"wrapped-staked-ether",
+};
+
+const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -75,6 +105,38 @@ function tpAlertHtml(h, price, email) {
     + "</body></html>";
 }
 
+function ladderAlertHtml(h, price, ladder, email) {
+  const name = esc(h.name || h.ticker);
+  const ticker = esc(h.ticker);
+  const newRung = ladder.hits[ladder.hits.length - 1];
+  const rungRows = ladder.rungs.map(function (r) {
+    const icon = r.hit ? "✅" : "⬜";
+    return "<tr><td style='padding:6px 12px;color:" + (r.hit ? "#4ade80" : "#5c574e") + "'>" + icon + " +" + r.pct + "%</td>"
+      + "<td style='padding:6px 12px;color:" + (r.hit ? "#f0ece4" : "#5c574e") + "'>" + fp(r.price) + "</td>"
+      + "<td style='padding:6px 12px;color:" + (r.hit ? "#c9a84c" : "#5c574e") + "'>Sell ~" + r.qty.toFixed(4) + " " + esc(h.ticker) + "</td></tr>";
+  }).join("");
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#4ade80;margin-bottom:10px'>📈 Profit ladder unlocked</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " is up " + pct(ladder.gainPct) + "</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 16px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> vs your avg cost of <b style='color:#f0ece4'>" + fp(h.avg) + "</b>. Consider scaling out in stages to lock in gains:</div>"
+    + "<table style='margin:0 auto 22px;border-collapse:collapse;font-size:13px'>" + rungRows + "</table>"
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
+    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. Profit ladder is based on your avg cost basis in BullrunIQ.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + "</body></html>";
+}
+
+function computeLadder(avg, qty, price) {
+  if (!avg || avg <= 0 || !qty || qty <= 0) return null;
+  const gainPct = (price - avg) / avg * 100;
+  if (gainPct < 20) return null;
+  const rungs = [25, 50, 100].map(function (pc) {
+    const ladderPrice = avg * (1 + pc / 100);
+    return { pct: pc, price: ladderPrice, qty: qty * 0.25, hit: price >= ladderPrice };
+  });
+  return { gainPct: gainPct, rungs: rungs, hits: rungs.filter(function (r) { return r.hit; }) };
+}
+
 exports.handler = async function (event) {
   const RESEND = process.env.RESEND_API_KEY;
   if (!RESEND) { console.log("[alerts] skipped — RESEND_API_KEY not set"); return { statusCode: 200, body: "not configured" }; }
@@ -97,7 +159,7 @@ exports.handler = async function (event) {
       const wlist = rec && rec.data && Array.isArray(rec.data.wl) ? rec.data.wl : [];
       const hold = rec && rec.data && rec.data.port && Array.isArray(rec.data.port.crypto) ? rec.data.port.crypto : [];
       const hasWl = wlist.some(function (w) { return w && (w.targetPrice || w.sellTarget); });
-      const hasHold = hold.some(function (h) { return h && (h.stop || h.tp); });
+      const hasHold = hold.some(function (h) { return h && (h.stop || h.tp || (h.avg && h.qty)); });
       if (hasWl || hasHold) {
         recs[email] = rec;
         wlist.forEach(function (w) {
@@ -106,7 +168,7 @@ exports.handler = async function (event) {
           }
         });
         hold.forEach(function (h) {
-          if (h && (h.stop || h.tp)) {
+          if (h && (h.stop || h.tp || (h.avg && h.qty))) {
             ids.add(CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase());
           }
         });
@@ -115,10 +177,13 @@ exports.handler = async function (event) {
   }
   if (!ids.size) return { statusCode: 200, body: "no targets" };
 
-  // One batched price call
+  // One batched price call — include User-Agent so CoinGecko doesn't rate-limit us
   let prices = {};
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd");
+    const r = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd",
+      { headers: CG_UA }
+    );
     prices = await r.json();
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
@@ -127,10 +192,10 @@ exports.handler = async function (event) {
     const rec = recs[email];
     let changed = false;
 
-    // ── Portfolio guard: stop-loss / take-profit on actual holdings ──
+    // ── Portfolio guard: stop-loss / take-profit / profit-ladder on actual holdings ──
     const hold = rec.data.port && Array.isArray(rec.data.port.crypto) ? rec.data.port.crypto : [];
     for (const h of hold) {
-      if (!h || (!h.stop && !h.tp)) continue;
+      if (!h) continue;
       const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
       const p = prices[id] && prices[id].usd;
       if (!p) continue;
@@ -170,6 +235,35 @@ exports.handler = async function (event) {
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
       }
+
+      // ── Profit-ladder alert: fires when a new +25/+50/+100% rung is crossed ──
+      if (h.avg && h.qty && sent < MAX_EMAILS_PER_RUN) {
+        const ladder = computeLadder(h.avg, h.qty, p);
+        const prevHits = h.serverLadderHits || 0;
+        if (ladder && ladder.hits.length > prevHits) {
+          try {
+            const r = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
+                to: email,
+                subject: "📈 " + h.ticker + " profit ladder — up " + pct(ladder.gainPct) + " from your avg cost",
+                html: ladderAlertHtml(h, p, ladder, email),
+              }),
+            });
+            if (r.ok) {
+              sent++;
+              h.serverLadderHits = ladder.hits.length;
+              changed = true;
+              console.log("[alerts] ladder " + email + " " + h.ticker + " " + ladder.hits.length + " rung(s) @ " + p);
+            }
+          } catch (e) {}
+        } else if (ladder === null && prevHits > 0) {
+          // Price dropped back below +20% gain — reset the ladder counter
+          h.serverLadderHits = 0; changed = true;
+        }
+      }
     }
 
     for (const w of rec.data.wl || []) {
@@ -178,7 +272,7 @@ exports.handler = async function (event) {
       const p = prices[id] && prices[id].usd;
       if (!p) continue; // unknown ticker / stock — skip
 
-      // BUY alert: price within 2% below the buy target (approaching from above)
+      // BUY alert: price within 2% of the buy target (approaching from any direction)
       if (w.targetPrice) {
         const dist = Math.abs((w.targetPrice - p) / p * 100);
         if (dist < 2 && p <= w.targetPrice * 1.02 && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN) {
