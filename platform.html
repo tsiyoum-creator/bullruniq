@@ -313,6 +313,12 @@ a{text-decoration:none;color:inherit}
 <!-- Mobile bottom navigation (Robinhood-style) -->
 <div id="navBottom"></div>
 
+<!-- Regime & capital-flow layer. Same-origin, so 'self' under the existing
+     CSP — no new hosts. Defines MACRO_DATA + rRegime/rFlows/rExpo +
+     buildMacroContext. Its functions call globals from the inline script
+     below at run time, so load order between the two does not matter. -->
+<script src="macro.js"></script>
+
 <script>
 // ── Keys & constants ─────────────────────────────────────────
 var SK='briq-p',FK='briq-pr',AK='briq-ag',CK='briq-cfg',LK='briq-lt',CHATK='briq-chat';
@@ -386,6 +392,10 @@ function saveBrief(){try{localStorage.setItem(BRIEFK,JSON.stringify(dailyBrief))
 function saveChat(){try{localStorage.setItem(CHATK,JSON.stringify(chatState));}catch(e){}}
 function savePort(){try{localStorage.setItem(SK,JSON.stringify(port));}catch(e){}schedulePush();}
 function setCash(){var v=parseFloat(document.getElementById('cashInput').value);if(isNaN(v)||v<0)return;port.cash=Math.round(v*100)/100;savePort();render();}
+// Optional APY on cash. Kept as a separate scalar so port.cash stays a plain
+// number for Autopilot, cashCard and rAlloc. Absent means unknown — the macro
+// layer suppresses the yield claim rather than assuming a rate.
+function setCashApy(){var el=document.getElementById('cashApyInput');if(!el)return;var v=parseFloat(el.value);port.cashApy=(isNaN(v)||v<0)?0:Math.round(v*100)/100;savePort();render();}
 function savePr(){try{localStorage.setItem(FK,JSON.stringify(prices));}catch(e){}}
 function saveAg(){try{localStorage.setItem(AK,JSON.stringify(agents));}catch(e){}}
 function saveLt(){try{localStorage.setItem(LK,JSON.stringify(lt));}catch(e){}}
@@ -596,8 +606,10 @@ async function pullSync(preferCloud){
     var d=await r.json();
     if(d.plan!==undefined&&cfg.plan!==d.plan){cfg.plan=d.plan;saveCfg();} // server plan is authoritative (auto-revoke on cancel)
     var cd=d.data;
-    var localHas=all().length>0&&!isDemo(); // the demo showroom never blocks real cloud data
-    var cloudHas=!!(cd&&cd.port&&((cd.port.crypto||[]).length+(cd.port.stocks||[]).length)>0);
+    var localHas=(all().length>0||(port.cash||0)>0)&&!isDemo(); // the demo showroom never blocks real cloud data
+    // Cash counts as cloud data too — an account holding ONLY cash must not
+    // read as empty here, or local state would silently overwrite it.
+    var cloudHas=!!(cd&&cd.port&&((cd.port.crypto||[]).length+(cd.port.stocks||[]).length+((cd.port.cash||0)>0?1:0))>0);
     if(cloudHas&&(preferCloud||!localHas)){
       try{localStorage.removeItem(DEMOK);}catch(e){} // real cloud data replaces the showroom
       port=cd.port;if(!port.cash)port.cash=0;wl=cd.wl||wl;if(cd.goal!==undefined)goal=cd.goal;
@@ -808,6 +820,11 @@ async function buildCouncilContext(holdings){
       }catch(e){}
     }));
   }
+  // Macro layer: regime in force + exposure map computed from real holdings.
+  // Values only — the model is told to say "insufficient data" rather than guess.
+  if(typeof buildMacroContext==='function'){
+    try{result.__macro=buildMacroContext();}catch(e){}
+  }
   return result;
 }
 
@@ -1011,6 +1028,7 @@ function v(id){var el=document.getElementById(id);return el?el.value.trim():'';}
 var NAV_GROUPS=[
   {id:'home',label:'Home',views:['dash','plan']},
   {id:'invest',label:'Invest',views:['port','watch','alloc','connect','import']},
+  {id:'macro',label:'Macro',views:['expo','regime','flows']},
   {id:'ai',label:'AI Advisor',views:['opps','chat','council','lt','chart','record']},
   {id:'goals',label:'Goals',views:['goal']},
   {id:'more',label:'More',views:['pro','cfg']}
@@ -1022,13 +1040,15 @@ function _icon(id,sz){
     invest:'<path d="M4 20V11"/><path d="M10 20V4"/><path d="M16 20v-6"/><path d="M21 20H3"/>',
     ai:'<rect x="5" y="7.5" width="14" height="11" rx="3"/><path d="M12 7.5V4.5"/><circle cx="12" cy="3.5" r="1"/><circle cx="9.5" cy="12.5" r="0.6" fill="currentColor"/><circle cx="14.5" cy="12.5" r="0.6" fill="currentColor"/>',
     goals:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/>',
+    macro:'<path d="M3 17.5 8.5 11l4 3.5L21 5.5"/><path d="M15.5 5.5H21v5.5"/><path d="M3 20.5h18"/>',
     more:'<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>'
   };
   return '<svg viewBox="0 0 24 24" width="'+sz+'" height="'+sz+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px">'+(paths[id]||'')+'</svg>';
 }
 var VIEW_LABELS={dash:'Home',plan:'Today\'s Plan',port:'My Holdings',watch:'Watchlist',alloc:'Balance & Risk',connect:'Add Accounts',import:'Import File',
   opps:'Buy / Sell Signals',chat:'Ask AI',council:'Deep Analysis',lt:'Long-Term Picks',chart:'Charts',record:'Track Record',
-  goal:'My Goal',pro:'Upgrade',cfg:'Settings'};
+  goal:'My Goal',pro:'Upgrade',cfg:'Settings',
+  expo:'What You\'re Betting On',regime:'Market Regime',flows:'Capital Flows'};
 var VIEW_INTROS={
   plan:'Your automated daily checklist — every action ranked by impact. Work top to bottom.',
   port:'Everything you own in one list. Add, edit, or remove investments here.',
@@ -1044,7 +1064,10 @@ var VIEW_INTROS={
   record:'Every call our AI has made, graded honestly against real prices — wins and losses.',
   goal:'Set your target number. See the fastest realistic path to reach it.',
   pro:'Unlock unlimited AI guidance.',
-  cfg:'Your account, plan, and data.'
+  cfg:'Your account, plan, and data.',
+  expo:'Your real holdings mapped onto the macro backdrop — what your money is actually betting on.',
+  regime:'Which market regime is running right now, the evidence for it, and what would change it.',
+  flows:'Big money that is committed but has not arrived yet, and the physical bottlenecks it runs into.'
 };
 function navGroupOf(t){for(var i=0;i<NAV_GROUPS.length;i++){if(NAV_GROUPS[i].views.indexOf(t)>-1)return NAV_GROUPS[i];}return NAV_GROUPS[0];}
 function goGroup(id){
@@ -1130,9 +1153,11 @@ async function fetchPortfolioHistory(days){
   }).sort(function(a,b){return a-b;});
 
   // Stock value at current price (flat — no free historical stock data)
+  // Cash is added flat alongside stocks so this series totals to the same
+  // number as totals().tv in the header instead of silently disagreeing.
   var stockVal=port.stocks.reduce(function(s,h){
     return s+(prices[h.ticker]?prices[h.ticker].price:h.avg)*h.qty;
-  },0);
+  },0)+(port.cash||0);
 
   var series=allTs.map(function(ts){
     var cryptoVal=0;
@@ -1904,6 +1929,9 @@ function render(){
   else if(tab==='cfg')m.innerHTML=rCfg();
   else if(tab==='watch')m.innerHTML=rWatchlist();
   else if(tab==='pro')m.innerHTML=rPro();
+  else if(tab==='expo')m.innerHTML=(typeof rExpo==='function'?rExpo():'<div class="empty">Macro layer failed to load (macro.js).</div>');
+  else if(tab==='regime')m.innerHTML=(typeof rRegime==='function'?rRegime():'<div class="empty">Macro layer failed to load (macro.js).</div>');
+  else if(tab==='flows')m.innerHTML=(typeof rFlows==='function'?rFlows():'<div class="empty">Macro layer failed to load (macro.js).</div>');
   // Plain-English one-liner atop each view (safe: all handlers are inline attributes)
   var intro=VIEW_INTROS[tab];
   if(intro)m.innerHTML='<div class="view-intro">'+intro+'</div>'+m.innerHTML;
@@ -2210,6 +2238,7 @@ function cashCard(totalPortfolio){
   h+='<div style="flex:1;min-width:140px"><div class="lbl">Liquid cash available</div>';
   h+='<input class="inp" id="cashInput" type="number" step="0.01" min="0" placeholder="0.00" value="'+(cash||'')+'" onkeydown="if(event.key===\'Enter\')setCash()" style="margin-top:4px;max-width:180px"></div>';
   h+='<button class="btn btn-g btn-sm" onclick="setCash()" style="align-self:flex-end">Set</button>';
+  if(cash>0)h+='<div class="fg" style="max-width:120px"><div class="lbl">APY %</div><input class="inp" id="cashApyInput" type="number" step="0.01" min="0" placeholder="4.00" value="'+(port.cashApy||'')+'" onchange="setCashApy()" onkeydown="if(event.key===\'Enter\')setCashApy()" style="margin-top:4px"></div>';
   if(cash>0)h+='<button class="btn btn-o btn-sm" onclick="document.getElementById(\'cashInput\').value=0;setCash()" style="align-self:flex-end">Clear</button>';
   h+='</div>';
 
