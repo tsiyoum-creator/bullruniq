@@ -33,8 +33,8 @@ const CGMAP = {
   CRV:"curve-dao-token", SNX:"havven", BAL:"balancer", SUSHI:"sushi",
   ZK:"zksync", BLAST:"blast", MODE:"mode", MANTA:"manta-network",
   ALT:"altlayer", ZETA:"zetachain", W:"wormhole", TNSR:"tensor",
-  KMNO:"kamino", JITO:"jito-governance-token", DRIFT:"drift",
-  POL:"matic-network", TIA:"celestia", PYTH:"pyth-network",
+  KMNO:"kamino", DRIFT:"drift",
+  TIA:"celestia",
   PENDLE:"pendle", EIGEN:"eigenlayer", SAGA:"saga-2",
   PEOPLE:"constitutiondao", DEGEN:"degen-base", HIGHER:"higher",
   MOTHER:"mother-iggy", ANDY:"andy-on-base", TOSHI:"toshi",
@@ -135,6 +135,16 @@ function computeLadder(avg, qty, price) {
     return { pct: pc, price: ladderPrice, qty: qty * 0.25, hit: price >= ladderPrice };
   });
   return { gainPct: gainPct, rungs: rungs, hits: rungs.filter(function (r) { return r.hit; }) };
+}
+
+// Returns true only if price has dropped far enough below +20% to warrant resetting the ladder.
+// Uses 10% hysteresis below the +20% threshold (i.e. must fall below +10% gain) to avoid
+// resetting and re-alerting on minor pullbacks to just under +20%.
+function shouldResetLadder(avg, price, prevHits) {
+  if (!prevHits) return false;
+  if (!avg || avg <= 0) return false;
+  const gainPct = (price - avg) / avg * 100;
+  return gainPct < 10;
 }
 
 exports.handler = async function (event) {
@@ -259,8 +269,8 @@ exports.handler = async function (event) {
               console.log("[alerts] ladder " + email + " " + h.ticker + " " + ladder.hits.length + " rung(s) @ " + p);
             }
           } catch (e) {}
-        } else if (ladder === null && prevHits > 0) {
-          // Price dropped back below +20% gain — reset the ladder counter
+        } else if (shouldResetLadder(h.avg, p, prevHits)) {
+          // Price dropped well below +10% gain — reset counter with hysteresis
           h.serverLadderHits = 0; changed = true;
         }
       }

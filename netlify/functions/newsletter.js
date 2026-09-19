@@ -14,7 +14,7 @@ function briefToHtml(text) {
     .join("");
 }
 function emailHtml(briefHtml, btc, fg, email, dateStr) {
-  var unsub = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
+  const unsub = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
   return "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;background:#050505;padding:0'>"
     + "<div style='max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system,Segoe UI,Helvetica,sans-serif'>"
     + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:4px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
@@ -41,7 +41,19 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: "not configured" };
   }
 
-  var btc = "n/a", fg = "n/a";
+  // Deduplication guard: skip if already sent today
+  const today = new Date().toISOString().slice(0, 10);
+  const { getStore } = require("@netlify/blobs");
+  try {
+    const metaStore = getStore("newsletter-meta");
+    const sentMeta = await metaStore.get("sent:" + today, { type: "json" });
+    if (sentMeta && sentMeta.sent) {
+      console.log("[newsletter] already sent today (" + today + "), skipping duplicate run");
+      return { statusCode: 200, body: "already sent today" };
+    }
+  } catch (e) {}
+
+  let btc = "n/a", fg = "n/a";
   try {
     const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
     const d = await r.json();
@@ -55,7 +67,7 @@ exports.handler = async function (event) {
 
   // Regime + falsifier watch. Required from macro.js so the email and the app
   // read the SAME data block rather than a drifting duplicate.
-  var macroLine = "";
+  let macroLine = "";
   try {
     const macro = require("../../macro.js");
     const fw = macro.checkFalsifiers();
@@ -72,7 +84,7 @@ exports.handler = async function (event) {
     macroLine = " " + parts.join(" ");
   } catch (e) { console.log("[newsletter] macro layer unavailable:", e.message); }
 
-  var brief = "";
+  let brief = "";
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -91,23 +103,22 @@ exports.handler = async function (event) {
     console.log("[newsletter] using fallback brief");
   }
 
-  var subs = [];
+  let subs = [];
   try {
-    const { getStore } = require("@netlify/blobs");
     const list = await getStore("subscribers").list();
     subs = (list.blobs || []).map(function (b) { return b.key; });
   } catch (e) { console.log("[newsletter] subscriber list failed:", e.message); }
   if (!subs.length) { console.log("[newsletter] no subscribers yet"); return { statusCode: 200, body: "no subscribers" }; }
 
-  var dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  var subject = "BullrunIQ Daily Brief — " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  var briefHtml = briefToHtml(brief);
-  var BATCH = 10;
-  var sent = 0, failed = 0;
-  var batch = subs.slice(0, MAX_SEND);
-  for (var i = 0; i < batch.length; i += BATCH) {
-    var chunk = batch.slice(i, i + BATCH);
-    var results = await Promise.allSettled(chunk.map(function (email) {
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const subject = "BullrunIQ Daily Brief — " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const briefHtml = briefToHtml(brief);
+  const BATCH = 10;
+  let sent = 0, failed = 0;
+  const batch = subs.slice(0, MAX_SEND);
+  for (let i = 0; i < batch.length; i += BATCH) {
+    const chunk = batch.slice(i, i + BATCH);
+    const results = await Promise.allSettled(chunk.map(function (email) {
       return fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
@@ -124,6 +135,13 @@ exports.handler = async function (event) {
       if (r.status === "fulfilled" && r.value === "ok") sent++; else failed++;
     });
   }
+
+  // Mark today's send complete to prevent duplicates on retry
+  try {
+    const metaStore = getStore("newsletter-meta");
+    await metaStore.setJSON("sent:" + today, { sent: true, count: sent, at: new Date().toISOString() });
+  } catch (e) {}
+
   console.log("[newsletter] sent " + sent + ", failed " + failed + ", of " + subs.length + " subscribers");
   return { statusCode: 200, body: "sent " + sent + "/" + subs.length };
 };
