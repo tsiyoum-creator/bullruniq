@@ -13,6 +13,7 @@
 /* ================================================================
    ░░ REFRESHABLE DATA BLOCK — everything verifiable lives here ░░
    To refresh: ask Claude to re-verify MACRO_DATA and republish.
+   Merging is automated: see .github/workflows/auto-merge-improvements.yml
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
