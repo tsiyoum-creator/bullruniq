@@ -228,10 +228,10 @@ a{text-decoration:none;color:inherit}
 @media(max-width:700px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr 1fr}.hdr-stats{gap:10px}.content{padding:12px 14px 40px}.tabs{padding:0 14px}}
 @media(max-width:480px){.g2,.g3{grid-template-columns:1fr}.g5{grid-template-columns:repeat(2,1fr)}.hdr{padding:9px 14px}}
 /* Dashboard chart */
-.dash-chart-wrap{border:1px solid var(--b1);border-radius:8px;overflow:hidden;background:var(--s1);margin-bottom:14px}
-.dash-chart-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--b1)}
-.dash-chart-title{font-size:11px;font-weight:600;letter-spacing:.3px}
-.dash-tf{display:flex;gap:4px}
+
+
+
+
 .dash-tf button{background:none;border:1px solid var(--b2);border-radius:4px;color:var(--t3);cursor:pointer;font-size:10px;padding:3px 9px;transition:all .15s}
 .dash-tf button.on{background:var(--g8);border-color:var(--g15);color:var(--gold)}
 /* Import */
@@ -249,18 +249,18 @@ a{text-decoration:none;color:inherit}
 .imp-err{background:var(--r8);border:1px solid var(--r2);color:var(--red)}
 /* Chart tab */
 .chart-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.tf-btn{background:var(--s2);border:1px solid var(--b2);border-radius:5px;color:var(--t3);cursor:pointer;font-size:11px;font-weight:500;padding:5px 12px;transition:all .15s}
-.tf-btn.on{background:var(--g8);border-color:var(--g15);color:var(--gold)}
+
+
 .asset-sel{background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--t);font-size:12px;font-weight:500;padding:6px 12px;outline:none;cursor:pointer;min-width:140px}
 .asset-sel option{background:#0d0d0d}
 .chart-wrap{border:1px solid var(--b1);border-radius:8px;overflow:hidden;margin-bottom:14px;background:var(--s1)}
 /* Heat map */
-.heat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:6px;margin-bottom:14px}
-.heat-cell{border-radius:7px;padding:11px 10px;display:flex;flex-direction:column;gap:3px;transition:filter .15s;cursor:pointer}
-.heat-cell:hover{filter:brightness(1.15)}
-.heat-cell-tick{font-size:9px;font-weight:700;letter-spacing:.8px;color:var(--t3)}
-.heat-cell-pct{font-size:15px;font-weight:600;font-family:'DM Mono',monospace;line-height:1}
-.heat-cell-val{font-size:9px;color:var(--t3)}
+
+
+
+
+
+
 /* Watchlist */
 .wl-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--b1)}
 .wl-row:last-child{border-bottom:none}
@@ -1113,96 +1113,9 @@ function consensus(){
 }
 
 // ── Dashboard portfolio history chart ─────────────────────────
-var dashDays=30;
-var portfolioHistory={};
 
-async function fetchPortfolioHistory(days){
-  var key='ph-'+days;
-  if(portfolioHistory[key])return portfolioHistory[key];
-
-  var cryptos=port.crypto;
-  if(!cryptos.length){portfolioHistory[key]=[];return[];}
-
-  // Fetch OHLC (daily candles) for each crypto — reuse existing fetcher
-  var tickerCandles={};
-  for(var i=0;i<cryptos.length;i++){
-    var candles=await fetchOHLC(cryptos[i].ticker,days);
-    if(candles&&candles.length){tickerCandles[cryptos[i].ticker]=candles;}
-    if(i<cryptos.length-1)await sleep(300);
-  }
-
-  // Build a map: timestamp → {ticker: closePrice}
-  // Only use tickers that actually returned data
-  var validTickers=Object.keys(tickerCandles);
-  if(!validTickers.length){portfolioHistory[key]=[];return[];}
-
-  var byDay={};
-  validTickers.forEach(function(ticker){
-    tickerCandles[ticker].forEach(function(c){
-      var ts=typeof c.time==='number'?c.time:new Date(c.time).getTime()/1000;
-      // Round to day
-      ts=Math.floor(ts/86400)*86400;
-      if(!byDay[ts])byDay[ts]={};
-      byDay[ts][ticker]=c.close; // overwrite → last candle of day wins
-    });
-  });
-
-  // Only keep days where EVERY valid ticker has data (no fallback to current price)
-  var allTs=Object.keys(byDay).filter(function(ts){
-    return validTickers.every(function(t){return byDay[ts][t]!=null;});
-  }).sort(function(a,b){return a-b;});
-
-  // Stock value at current price (flat — no free historical stock data)
-  // Cash is added flat alongside stocks so this series totals to the same
-  // number as totals().tv in the header instead of silently disagreeing.
-  var stockVal=port.stocks.reduce(function(s,h){
-    return s+(prices[h.ticker]?prices[h.ticker].price:h.avg)*h.qty;
-  },0)+(port.cash||0);
-
-  var series=allTs.map(function(ts){
-    var cryptoVal=0;
-    validTickers.forEach(function(ticker){
-      var holding=cryptos.find(function(h){return h.ticker===ticker;});
-      if(holding)cryptoVal+=byDay[ts][ticker]*holding.qty;
-    });
-    return{time:parseInt(ts),value:parseFloat((cryptoVal+stockVal).toFixed(2))};
-  });
-
-  portfolioHistory[key]=series;
-  return series;
-}
 
 var dashChartInst=null;
-async function initDashChart(){
-  var el=document.getElementById('dashChartEl');
-  if(!el)return;
-  var series=await fetchPortfolioHistory(dashDays);
-  if(!series||series.length<2){el.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:160px;color:var(--t3);font-size:11px">Not enough data — add crypto holdings and refresh</div>';return;}
-  el.innerHTML='';
-  if(dashChartInst){try{dashChartInst.remove();}catch(e){}dashChartInst=null;}
-  dashChartInst=LightweightCharts.createChart(el,{
-    width:el.clientWidth,height:180,
-    layout:{background:{color:'transparent'},textColor:'#888'},
-    grid:{vertLines:{color:'#1a1a1a'},horzLines:{color:'#1a1a1a'}},
-    crosshair:{mode:1},
-    rightPriceScale:{borderColor:'#1a1a1a',scaleMargins:{top:0.1,bottom:0.1}},
-    timeScale:{borderColor:'#1a1a1a',timeVisible:false},
-    handleScroll:false,handleScale:false
-  });
-  var first=series[0].value,last=series[series.length-1].value;
-  var up=last>=first;
-  var lineSeries=dashChartInst.addAreaSeries({
-    lineColor:up?'#4ade80':'#e05555',
-    topColor:up?'rgba(74,222,128,0.18)':'rgba(224,85,85,0.18)',
-    bottomColor:'rgba(0,0,0,0)',
-    lineWidth:2,priceLineVisible:false,lastValueVisible:false
-  });
-  lineSeries.setData(series);
-  dashChartInst.timeScale().fitContent();
-  if(window._dashResizer)window._dashResizer.disconnect();
-  window._dashResizer=new ResizeObserver(function(){if(dashChartInst)dashChartInst.applyOptions({width:el.clientWidth});});
-  window._dashResizer.observe(el);
-}
 
 // ── Import: parse CSV ─────────────────────────────────────────
 function parseImportCSV(text,platform){
@@ -1280,7 +1193,7 @@ function handleImportFile(input,platform,resultId){
       var n=parseImportCSV(e.target.result,platform);
       res.className='imp-result imp-ok';res.style.display='block';
       res.textContent='✓ Imported '+n+' holdings successfully';
-      portfolioHistory={};refreshAll();
+      refreshAll();
     }catch(err){
       res.className='imp-result imp-err';res.style.display='block';
       res.textContent='✕ '+err.message;
@@ -1913,7 +1826,7 @@ function render(){
   updateCreditChip();
   renderNav();
   var m=document.getElementById('main');
-  if(tab==='dash'){m.innerHTML=rDash();setTimeout(initDashChart,50);}
+  if(tab==='dash')m.innerHTML=rDash();
   else if(tab==='plan')m.innerHTML=rPlan();
   else if(tab==='port')m.innerHTML=rPort();
   else if(tab==='alloc')m.innerHTML=rAlloc();
@@ -2019,165 +1932,35 @@ function rDash(){
     html+='<button class="btn btn-g" style="width:100%;margin-bottom:14px;padding:13px;font-size:13px;font-weight:700" onclick="assessAll()">Assess My Portfolio — buy &amp; sell signals in one click</button>';
   }
 
-  // First-run explainer (dismissible)
-  var introOff=false;try{introOff=localStorage.getItem('briq-intro-off')==='1';}catch(e){}
-  if(!introOff){
-    html+='<div class="card" style="margin-bottom:14px;position:relative;padding:16px 18px">';
-    html+='<div style="position:absolute;top:8px;right:12px;color:var(--t3);cursor:pointer;font-size:15px;padding:4px" onclick="try{localStorage.setItem(\'briq-intro-off\',\'1\')}catch(e){};render()">✕</div>';
-    html+='<div style="font-size:10px;letter-spacing:1.5px;color:var(--gold);margin-bottom:12px">HOW BULLRUNIQ WORKS — 3 STEPS</div>';
-    html+='<div class="g3" style="gap:10px">';
-    html+='<div><div style="width:24px;height:24px;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">1</div><div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:3px">Add your investments</div><div style="font-size:11px;color:var(--t2);line-height:1.55">Type them in or import from your broker — about 2 minutes. <span style="color:var(--gold);cursor:pointer;text-decoration:underline" onclick="go(\'connect\',null)">Start here</span></div></div>';
-    html+='<div><div style="width:24px;height:24px;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">2</div><div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:3px">Tap Assess</div><div style="font-size:11px;color:var(--t2);line-height:1.55">The AI checks every holding and says buy, sell, or hold — with exact prices.</div></div>';
-    html+='<div><div style="width:24px;height:24px;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">3</div><div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:3px">Set your goal</div><div style="font-size:11px;color:var(--t2);line-height:1.55">Tell us your target number — get a year-by-year roadmap to reach it. <span style="color:var(--gold);cursor:pointer;text-decoration:underline" onclick="go(\'goal\',null)">Set it</span></div></div>';
-    html+='</div></div>';
+  // First-run explainer — empty state only. A returning user has no decision
+  // to make about how the product works, so the dismissal flag is gone too.
+  if(!a.length){
+  html+='<div class="card" style="margin-bottom:14px;position:relative;padding:16px 18px">';
+  html+='<div style="position:absolute;top:8px;right:12px;color:var(--t3);cursor:pointer;font-size:15px;padding:4px" onclick="try{localStorage.setItem(\'briq-intro-off\',\'1\')}catch(e){};render()">✕</div>';
+  html+='<div style="font-size:10px;letter-spacing:1.5px;color:var(--gold);margin-bottom:12px">HOW BULLRUNIQ WORKS — 3 STEPS</div>';
+  html+='<div class="g3" style="gap:10px">';
+  html+='<div><div style="width:24px;height:24px;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">1</div><div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:3px">Add your investments</div><div style="font-size:11px;color:var(--t2);line-height:1.55">Type them in or import from your broker — about 2 minutes. <span style="color:var(--gold);cursor:pointer;text-decoration:underline" onclick="go(\'connect\',null)">Start here</span></div></div>';
+  html+='<div><div style="width:24px;height:24px;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">2</div><div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:3px">Tap Assess</div><div style="font-size:11px;color:var(--t2);line-height:1.55">The AI checks every holding and says buy, sell, or hold — with exact prices.</div></div>';
+  html+='<div><div style="width:24px;height:24px;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">3</div><div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:3px">Set your goal</div><div style="font-size:11px;color:var(--t2);line-height:1.55">Tell us your target number — get a year-by-year roadmap to reach it. <span style="color:var(--gold);cursor:pointer;text-decoration:underline" onclick="go(\'goal\',null)">Set it</span></div></div>';
+  html+='</div></div>';
   }
 
   // AI Daily Brief — leads the dashboard
   html+=briefHtml();
 
-  // Portfolio history chart
-  if(a.length){
-    html+='<div class="dash-chart-wrap">';
-    html+='<div class="dash-chart-hdr">';
-    html+='<span class="dash-chart-title">Portfolio Value</span>';
-    html+='<div style="display:flex;align-items:center;gap:12px">';
-    html+='<div class="dash-tf">';
-    [7,14,30,90].forEach(function(d){html+='<button class="tf-btn'+(dashDays===d?' on':'')+'" onclick="dashDays='+d+';portfolioHistory={};reloadDashChart()">'+d+'D</button>';});
-    html+='</div>';
-    html+='<div style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:var(--grn);display:inline-block;animation:pulse 2s infinite"></span><span style="font-size:10px;color:var(--t3)">Live · 30s</span></div>';
-    html+='<span style="font-size:10px;color:var(--t3)">'+lastUpdatedStr()+'</span>';
-    html+='</div></div>';
-    html+='<div id="dashChartEl" style="height:180px;padding:0 2px"><div style="display:flex;align-items:center;justify-content:center;height:180px;color:var(--t3);font-size:11px;gap:6px"><span class="dot" style="color:var(--gold)">●</span> Loading chart...</div></div>';
-    html+='</div>';
-  }
 
-  // Fear & Greed Index
-  if(fearGreed){
-    var fgv=parseInt(fearGreed.value);
-    var fgColor=fgv<25?'var(--red)':fgv<45?'var(--ora)':fgv<55?'var(--gold)':fgv<75?'var(--grn)':'#4ade80';
-    var fgAdvice=fgv<25?'Extreme panic — historically the best accumulation zone. Be greedy when others are fearful.':fgv<45?'Market is fearful — pullback mode. Good time to scale into quality positions on weakness.':fgv<55?'Neutral — no strong directional bias. Stick to your plan, no chasing.':fgv<75?'Greed rising — take partial profits on extended positions, tighten stops.':'Extreme greed / FOMO phase — high correction risk. Reduce exposure now.';
-    html+='<div class="sh gold">Market Sentiment</div>';
-    html+='<div class="card gl" style="margin-bottom:14px">';
-    html+='<div style="display:flex;align-items:center;gap:20px">';
-    html+='<div><div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--t3);margin-bottom:6px">Fear & Greed</div>';
-    html+='<div style="font-size:34px;font-weight:700;font-family:DM Mono,monospace;color:'+fgColor+';line-height:1">'+fgv+'</div>';
-    html+='<div style="font-size:11px;font-weight:600;color:'+fgColor+';margin-top:3px;letter-spacing:.3px">'+fearGreed.value_classification.toUpperCase()+'</div></div>';
-    html+='<div style="flex:1"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e05555 0%,#e0894a 25%,#c9a84c 50%,#4ade80 75%,#22c55e 100%);position:relative;margin-bottom:8px">';
-    html+='<div style="position:absolute;left:'+(fgv)+'%;transform:translateX(-50%);top:-3px;width:3px;height:14px;background:#fff;border-radius:2px"></div></div>';
-    html+='<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:10px"><span>Extreme Fear</span><span>Fear</span><span>Neutral</span><span>Greed</span><span>Extreme</span></div>';
-    html+='<div style="font-size:10px;color:var(--t3)">'+fgAdvice+'</div></div></div></div>';
-  }
 
-  // Market news
-  if(news.items.length){
-    html+='<div class="sh gold">Market News</div>';
-    html+='<div class="card" style="padding:6px 16px;margin-bottom:14px">';
-    news.items.slice(0,5).forEach(function(x,i){
-      html+='<a href="'+escHtml(x.u)+'" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;text-decoration:none'+(i<4?';border-bottom:1px solid var(--b1)':'')+'">';
-      html+='<span style="font-size:12px;color:var(--t);line-height:1.5">'+escHtml(x.t)+'</span>';
-      html+='<span style="font-size:9px;color:var(--t3);white-space:nowrap;flex-shrink:0">'+escHtml(x.s)+' · '+_ago(x.at)+'</span></a>';
-    });
-    html+='</div>';
-  }
 
-  // Asset heat map
-  if(a.length){
-    html+='<div class="sh gold">Heat Map — 24h Performance</div>';
-    html+='<div class="heat-grid">';
-    var hSorted=[].concat(a).sort(function(x,y){return(chof(y)||0)-(chof(x)||0);});
-    hSorted.forEach(function(h){
-      var ch=chof(h)||0;
-      var val=pof(h)*h.qty;
-      var bg,bc;
-      if(ch>=5){bg='rgba(74,222,128,0.22)';bc='rgba(74,222,128,0.4)';}
-      else if(ch>=2){bg='rgba(74,222,128,0.13)';bc='rgba(74,222,128,0.25)';}
-      else if(ch>=0){bg='rgba(74,222,128,0.05)';bc='rgba(74,222,128,0.12)';}
-      else if(ch>=-2){bg='rgba(224,85,85,0.05)';bc='rgba(224,85,85,0.15)';}
-      else if(ch>=-5){bg='rgba(224,85,85,0.14)';bc='rgba(224,85,85,0.28)';}
-      else{bg='rgba(224,85,85,0.26)';bc='rgba(224,85,85,0.5)';}
-      var clr=ch>=0?'var(--grn)':'var(--red)';
-      html+='<div class="heat-cell" style="background:'+bg+';border:1px solid '+bc+'" onclick="chartAsset=\''+h.ticker+'\';go(\'chart\',document.querySelectorAll(\'.tab\')[5])">';
-      html+='<div class="heat-cell-tick">'+h.ticker+'</div>';
-      html+='<div class="heat-cell-pct" style="color:'+clr+'">'+(ch>=0?'+':'')+ch.toFixed(2)+'%</div>';
-      html+='<div class="heat-cell-val">'+f$(val)+'</div>';
-      html+='</div>';
-    });
-    html+='</div>';
-  }
 
-  // Full holdings table — ALL assets
-  if(a.length){
-    // Crypto section
-    if(port.crypto.length){
-      html+='<div class="sh gold">Crypto Holdings</div>';
-      html+=dashTable(port.crypto);
-    }
-    // Stocks section
-    if(port.stocks.length){
-      html+='<div class="sh blue">Stock Holdings</div>';
-      html+=dashTable(port.stocks);
-    }
-
-    // Portfolio allocation bar
-    html+='<div class="sh">Allocation</div>';
-    html+='<div class="card" style="padding:12px 16px">';
-    var totalV=t.tv||1;
-    html+='<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;margin-bottom:10px">';
-    a.forEach(function(h,i){
-      var pct=(pof(h)*h.qty/totalV*100).toFixed(1);
-      html+='<div style="flex:'+pct+';background:'+HCOLS[i%HCOLS.length]+';opacity:.8;border-radius:2px" title="'+h.ticker+' '+pct+'%"></div>';
-    });
-    html+='</div>';
-    html+='<div style="display:flex;flex-wrap:wrap;gap:10px">';
-    a.forEach(function(h,i){
-      var pct=(pof(h)*h.qty/totalV*100).toFixed(1);
-      html+='<div style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:'+HCOLS[i%HCOLS.length]+';display:inline-block"></span><span style="font-size:10px;color:var(--t2)">'+h.ticker+' <span style="color:var(--t3)">'+pct+'%</span></span></div>';
-    });
-    html+='</div></div>';
-  } else {
+  // Holdings live in My Holdings; allocation lives in Balance & Risk.
+  // Home shows neither — duplicating them here split the source of truth.
+  if(!a.length){
     html+='<div class="card" style="text-align:center;padding:32px"><div style="font-size:13px;color:var(--t2);margin-bottom:12px">Add your holdings in the Portfolio tab — or explore with a sample portfolio first</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-g btn-sm" onclick="go(\'port\',document.querySelectorAll(\'.tab\')[1])">Add Holdings</button><button class="btn btn-o btn-sm" onclick="loadDemo()">Try the demo portfolio</button></div></div>';
   }
 
-  // AI Council snapshot
-  html+='<div class="sh gold">AI Council</div>';
-  if(!agents.length){
-    html+='<div class="card" style="text-align:center;padding:20px"><div style="font-size:12px;color:var(--t2);margin-bottom:12px">5 AI agents analyze your portfolio & market simultaneously</div><button class="btn btn-g btn-sm" onclick="go(\'council\',document.querySelectorAll(\'.tab\')[2]);runCouncil()">Run AI Council</button></div>';
-  } else {
-    html+='<div class="g5" style="margin-bottom:10px">';
-    AGENTS.forEach(function(def,i){
-      var ar=agents[i];var v2=ar&&ar.data?ar.data.verdict:'—';var co=ar&&ar.data?ar.data.confidence:0;
-      var vc=v2==='BUY'?'var(--grn)':v2==='SELL'?'var(--red)':v2==='HOLD'?'var(--gold)':'var(--blue)';
-      html+='<div class="sc" style="border-left:2px solid '+def.color+'"><div style="font-size:9px;color:var(--t3);margin-bottom:4px">'+def.name+'</div><div class="sc-n" style="font-size:16px;color:'+vc+'">'+v2+'</div><div class="sc-l">'+co+'% conf</div></div>';
-    });
-    html+='</div>';
-    if(con){
-      var cv=con.verdict==='BUY'?'var(--grn)':con.verdict==='SELL'?'var(--red)':'var(--gold)';
-      html+='<div class="card" style="text-align:center;padding:12px 16px"><div style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:5px">Council Verdict</div><div style="font-size:22px;font-weight:700;color:'+cv+'">'+con.verdict+'</div><div style="font-size:11px;color:var(--t2);margin-top:3px">'+con.votes[con.verdict]+' of '+con.count+' agents · '+con.avgConf+'% avg confidence</div></div>';
-    }
-  }
-
   return html;
 }
 
-function dashTable(list){
-  var html='<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px"><table class="tbl"><thead><tr><th>Asset</th><th>Price</th><th>24h</th><th>Holdings</th><th>Value</th><th>P&L</th><th>Return</th></tr></thead><tbody>';
-  list.forEach(function(h,i){
-    var p=pof(h),ch=chof(h),val=p*h.qty,pl=(p-h.avg)*h.qty,plp=((p-h.avg)/h.avg*100),col=HCOLS[i%HCOLS.length];
-    var chc=ch===null?'':ch>=0?'pos':'neg';
-    var arrow=ch===null?'':ch>=0?'▲':'▼';
-    html+='<tr>';
-    html+='<td><div class="ac"><div class="aico" style="background:'+col+'22;color:'+col+'">'+h.ticker.slice(0,4)+'</div><div><div class="anm">'+h.name+'</div><div class="atk">'+h.ticker+'</div></div></div></td>';
-    html+='<td class="mono" style="font-size:13px;font-weight:500">'+fp(p)+'</td>';
-    html+='<td class="mono '+chc+'" style="font-size:12px">'+arrow+' '+fpc(ch)+'</td>';
-    html+='<td class="mono" style="color:var(--t2)">'+h.qty+'</td>';
-    html+='<td class="mono" style="font-weight:500">'+f$(val)+'</td>';
-    html+='<td class="mono '+(pl>=0?'pos':'neg')+'">'+(pl>=0?'+':'')+f$(pl)+'</td>';
-    html+='<td class="mono '+(plp>=0?'pos':'neg')+'" style="font-size:11px">'+(plp>=0?'+':'')+plp.toFixed(2)+'%</td>';
-    html+='</tr>';
-  });
-  html+='</tbody></table></div>';
-  return html;
-}
 
 function lastUpdatedStr(){
   if(!window._lastRefresh)return'Never';
@@ -3491,7 +3274,6 @@ function clearAll(){
   savePort();savePr();saveAg();saveLt();render();
 }
 
-function reloadDashChart(){render();}
 
 // ── Fitness tab ───────────────────────────────────────────────
 async function aiSmartImport(){
@@ -3641,7 +3423,7 @@ function handlePasteImport(){
     var n=parseImportCSV(withHeader,'generic');
     res.className='imp-result imp-ok';res.style.display='block';
     res.textContent='✓ Imported '+n+' holdings';
-    portfolioHistory={};refreshAll();
+    refreshAll();
   }catch(e){
     res.className='imp-result imp-err';res.style.display='block';
     res.textContent='✕ '+e.message;
