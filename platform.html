@@ -325,16 +325,17 @@ var SK='briq-p',FK='briq-pr',AK='briq-ag',CK='briq-cfg',LK='briq-lt',CHATK='briq
 var CGMAP={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',LTC:'litecoin',NEAR:'near',APT:'aptos',SHIB:'shiba-inu',UNI:'uniswap',ATOM:'cosmos',TRX:'tron',OP:'optimism',ARB:'arbitrum',SUI:'sui',INJ:'injective-protocol',PEPE:'pepe',WIF:'dogwifcoin',TON:'the-open-network',XLM:'stellar',HBAR:'hedera-hashgraph',QNT:'quant-network',AERO:'aerodrome-finance',ALGO:'algorand',VET:'vechain',FIL:'filecoin',ICP:'internet-computer',RENDER:'render-token',FTM:'fantom',CRO:'crypto-com-chain',LDO:'lido-dao',RUNE:'thorchain',SAND:'the-sandbox',MANA:'decentraland',AXS:'axie-infinity',GALA:'gala',IMX:'immutable-x',BLUR:'blur',SEI:'sei-network',ONDO:'ondo-finance',JUP:'jupiter-exchange-solana',PYTH:'pyth-network',JTO:'jito-governance-token',BONK:'bonk',WEN:'wen-4',STRK:'starknet',ZETA:'zeta-chain',W:'wormhole',BEAM:'beam-2',TAO:'bittensor',FDUSD:'first-digital-usd',ETHFI:'ether-fi',ENA:'ethena',PEOPLE:'constitutiondao',FLOKI:'floki'};
 var HCOLS=['#c9a84c','#4a9eff','#a855f7','#e05555','#c8f135','#e0894a','#4ade80','#f472b6','#06b6d4','#8b5cf6'];
 var _JSON_RULE=' CRITICAL: Your entire response must be a single valid JSON object — no prose, no markdown, no explanation before or after. Start with { and end with }.';
+var _LEVELS_RULE=' PRICE LEVELS — READ CAREFULLY: entry, stopLoss, takeProfit (and tgt/stop inside positions) may ONLY be emitted for tickers that appear in the TECHNICAL READS block, and must be taken from those fitted levels. For ANY ticker without a technical read, output null for all of them. Do not infer, round, extrapolate or estimate a level from spot price, round numbers, or percentages. null is a correct, expected and preferred answer; a plausible-looking invented number is a defect. Never output a placeholder or example value.';
 var _HIST='You are provided with each holding\'s ATH, % from ATH, 1-year return, 200-day return, market cap rank, and supply data. Use these figures directly in your analysis — cite specific numbers, not generalities.';
 var AGENTS=[
   {id:'cycle',name:'CYCLE',role:'Market Cycle Analyst',color:'#e0894a',
-   sys:'OUTPUT FORMAT — respond with ONLY this JSON, no other text:\n{"cyclePhase":"MID_BULL","verdict":"BUY","confidence":75,"historicalAnalog":"Day 387 of 2020 cycle = Apr 2021, BTC ~$55k heading to $69k peak 7 months later","cycleComparison":"2 sentences comparing now to same day in 2020 and 2016 cycles with specific prices","projectedPeak":"estimated cycle peak price and approximate month based on prior cycle timing","topAsset":"BTC","entry":"$80000","stopLoss":"$75000","takeProfit":"$88000","shortTake":"2 sentences on cycle position and 72hr implication","signals":["cycle signal 1","cycle signal 2","cycle signal 3"],"riskLevel":"MEDIUM","biggestRisk":"main cycle risk right now"}\n\nFill in those values using: 2024 halving = Apr 19 2024. 2020 halving = May 11 2020 (→ $69k peak Nov 2021). 2016 halving = Jul 9 2016 (→ $19k peak Dec 2017). Use the daysSinceHalving in the market data to find the equivalent date in prior cycles. Output ONLY the JSON.'},
+   sys:'OUTPUT FORMAT — respond with ONLY this JSON, no other text:\n{"cyclePhase":"MID_BULL","verdict":"BUY","confidence":75,"historicalAnalog":"Day 387 of 2020 cycle = Apr 2021, BTC ~$55k heading to $69k peak 7 months later","cycleComparison":"2 sentences comparing now to same day in 2020 and 2016 cycles with specific prices","projectedPeak":"estimated cycle peak price and approximate month based on prior cycle timing","topAsset":"BTC","entry":null,"stopLoss":null,"takeProfit":null,"shortTake":"2 sentences on cycle position and 72hr implication","signals":["cycle signal 1","cycle signal 2","cycle signal 3"],"riskLevel":"MEDIUM","biggestRisk":"main cycle risk right now"}\n\nFill in those values using: 2024 halving = Apr 19 2024. 2020 halving = May 11 2020 (→ $69k peak Nov 2021). 2016 halving = Jul 9 2016 (→ $19k peak Dec 2017). Use the daysSinceHalving in the market data to find the equivalent date in prior cycles. Output ONLY the JSON.'+_LEVELS_RULE},
   {id:'analog',name:'ANALOG',role:'Historical Pattern Matcher',color:'#4a9eff',
-   sys:'OUTPUT FORMAT — respond with ONLY this JSON, no other text:\n{"verdict":"BUY","confidence":75,"analogDate":"April 2021","analogBTCPrice":"$55000","analogConditions":"2 sentences on why this specific date matches current BTC price, Fear and Greed, and cycle position","what72hLater":"what BTC and altcoins specifically did in the 72 hours after this date","what30dLater":"what happened to BTC and alts in the 30 days after this date","analogOutcome":"BULLISH","topAsset":"BTC","entry":"$80000","stopLoss":"$75000","takeProfit":"$88000","shortTake":"2 sentences on the analog and what it implies for the next 72h","signals":["historical signal 1","historical signal 2","historical signal 3"],"riskLevel":"MEDIUM","biggestRisk":"what historically broke the pattern at this stage"}\n\nFill in those values. Find the closest historical crypto date where conditions matched current BTC price relative to ATH, Fear and Greed level, and cycle position. Cite specific month/year and prices. Output ONLY the JSON.'},
+   sys:'OUTPUT FORMAT — respond with ONLY this JSON, no other text:\n{"verdict":"BUY","confidence":75,"analogDate":"April 2021","analogBTCPrice":null,"analogConditions":"2 sentences on why this specific date matches current BTC price, Fear and Greed, and cycle position","what72hLater":"what BTC and altcoins specifically did in the 72 hours after this date","what30dLater":"what happened to BTC and alts in the 30 days after this date","analogOutcome":"BULLISH","topAsset":"BTC","entry":null,"stopLoss":null,"takeProfit":null,"shortTake":"2 sentences on the analog and what it implies for the next 72h","signals":["historical signal 1","historical signal 2","historical signal 3"],"riskLevel":"MEDIUM","biggestRisk":"what historically broke the pattern at this stage"}\n\nFill in those values. Find the closest historical crypto date where conditions matched current BTC price relative to ATH, Fear and Greed level, and cycle position. Give analogBTCPrice only if you are confident of the actual historical price; otherwise null. Output ONLY the JSON.'+_LEVELS_RULE},
   {id:'divergence',name:'DIVERGE',role:'This Cycle vs History',color:'#a855f7',
-   sys:'OUTPUT FORMAT — you must respond with ONLY this JSON, no other text:\n{"verdict":"BUY","confidence":75,"divergences":["ETF institutional flows did not exist in prior cycles — amplifies moves","Fed rate environment differs from 2020 zero rates","example difference 3"],"patternReliability":"HIGH","willHistoryRepeat":"MODIFIED","modification":"one sentence on how pattern differs","topAsset":"BTC","entry":"$80000","stopLoss":"$75000","takeProfit":"$88000","shortTake":"2 sentences on most critical divergence and what it means","signals":["signal1","signal2","signal3"],"riskLevel":"MEDIUM","biggestRisk":"divergence most likely to break historical pattern","longTermPicks":["ETH","SOL"]}\n\nFill in the values above using real analysis. Your job: identify the 3 most important structural differences between the CURRENT 2024-2026 cycle and the historical halving cycle analogs provided. Consider: Bitcoin ETF flows (new this cycle), Fed rate environment, regulatory clarity, stablecoin supply growth, institutional custody. Do NOT write prose — output ONLY the JSON.'},
+   sys:'OUTPUT FORMAT — you must respond with ONLY this JSON, no other text:\n{"verdict":"BUY","confidence":75,"divergences":["ETF institutional flows did not exist in prior cycles — amplifies moves","Fed rate environment differs from 2020 zero rates","example difference 3"],"patternReliability":"HIGH","willHistoryRepeat":"MODIFIED","modification":"one sentence on how pattern differs","topAsset":"BTC","entry":null,"stopLoss":null,"takeProfit":null,"shortTake":"2 sentences on most critical divergence and what it means","signals":["signal1","signal2","signal3"],"riskLevel":"MEDIUM","biggestRisk":"divergence most likely to break historical pattern","longTermPicks":["ETH","SOL"]}\n\nFill in the values above using real analysis. Your job: identify the 3 most important structural differences between the CURRENT 2024-2026 cycle and the historical halving cycle analogs provided. Consider: Bitcoin ETF flows (new this cycle), Fed rate environment, regulatory clarity, stablecoin supply growth, institutional custody. Do NOT write prose — output ONLY the JSON.'+_LEVELS_RULE},
   {id:'tactical',name:'TACTICAL',role:'72hr History-Informed Execution',color:'#c8f135',
-   sys:'OUTPUT FORMAT — respond with ONLY this JSON, no other text:\n{"verdict":"BUY","confidence":75,"topAsset":"BTC","entry":"$80000","stopLoss":"$75000","takeProfit":"$88000","riskReward":"2.1:1","cycleRead":"one sentence on where we are in the cycle and what it means","analogRead":"one sentence on what the historical analog says happens next","shortTake":"2-sentence overall market stance for next 72h","signals":["action 1","action 2","action 3"],"riskLevel":"MEDIUM","biggestRisk":"top risk in next 72h","topMove":"single most important action to take right now","positions":[{"t":"TICKER","a":"BUY","tgt":"$price","stop":"$price","why":"one sentence citing cycle phase or analog"}],"longTermPicks":["asset1","asset2"]}\n\nFill in those values by synthesizing the CYCLE, ANALOG, and DIVERGE analyses provided. One position entry per portfolio holding. Ground every recommendation in cycle phase and historical analog outcome. Output ONLY the JSON.'}
+   sys:'OUTPUT FORMAT — respond with ONLY this JSON, no other text:\n{"verdict":"BUY","confidence":75,"topAsset":"BTC","entry":null,"stopLoss":null,"takeProfit":null,"riskReward":null,"cycleRead":"one sentence on where we are in the cycle and what it means","analogRead":"one sentence on what the historical analog says happens next","shortTake":"2-sentence overall market stance for next 72h","signals":["action 1","action 2","action 3"],"riskLevel":"MEDIUM","biggestRisk":"top risk in next 72h","topMove":"single most important action to take right now","positions":[{"t":"TICKER","a":"BUY","tgt":null,"stop":null,"why":"one sentence citing cycle phase or analog"}],"longTermPicks":["asset1","asset2"]}\n\nFill in those values by synthesizing the CYCLE, ANALOG, and DIVERGE analyses provided. One position entry per portfolio holding, ONLY for holdings that have a technical read; omit the rest rather than inventing levels. Ground every recommendation in cycle phase and historical analog outcome. Output ONLY the JSON.'+_LEVELS_RULE}
 ];
 
 // ── State ─────────────────────────────────────────────────────
@@ -832,7 +833,11 @@ async function buildCouncilContext(holdings){
 // Computes tradeRead (trend lines / MACD / structure / pressure) for the top
 // holdings so the agents reason FROM real fitted levels instead of inventing
 // numbers. Reuses the chartOHLC cache; fetches at most 5 assets, gently.
+// Tickers that produced real fitted levels on the last buildTechReads() run.
+// The Council may only emit price levels for these; everything else is null.
+var _techTickers=[];
 async function buildTechReads(){
+  _techTickers=[];
   try{
     var byVal=all().slice().sort(function(a,b){return pof(b)*b.qty-pof(a)*a.qty;});
     var picksT=byVal.slice(0,4).map(function(h){return h.ticker;});
@@ -852,12 +857,24 @@ async function buildTechReads(){
           +' | MACD '+(tr2.macd?((tr2.macd.bullish?'bullish':'bearish')+(tr2.macd.cross?' fresh '+tr2.macd.cross+' cross':'')):'n/a')
           +' | buyers '+tr2.pressure+'%'
           +' | buy '+fp(tr2.levels.buyAt)+' / target '+fp(tr2.levels.target)+' / stop '+fp(tr2.levels.stop));
+        _techTickers.push(tk);
       }
       if(!cached&&i<picksT.length-1)await sleep(1500);
     }
     if(!lines.length)return'';
     return'TECHNICAL READS (trend lines auto-fitted through swing pivots on 6-month price action; MACD 12/26/9; buyer pressure from candle anatomy — ground every entry, stop and take-profit in THESE exact levels, do not invent your own):\n'+lines.join('\n')+'\n\n';
   }catch(e){return'';}
+}
+
+// Names the only tickers the model is permitted to price. Stated as its own
+// line in every Council prompt so the constraint is explicit, not implied.
+function _groundedLine(){
+  return _techTickers.length
+    ? '\nTICKERS WITH VERIFIED TECHNICAL LEVELS: '+_techTickers.join(', ')
+      +'. These are the ONLY tickers for which you may output entry, stopLoss, takeProfit, tgt or stop. '
+      +'For every other ticker those fields MUST be null.\n'
+    : '\nNO TECHNICAL READS ARE AVAILABLE this run. Output null for every entry, stopLoss, '
+      +'takeProfit, tgt and stop field. Provide narrative analysis only.\n';
 }
 
 // ── Run AI Council (72hr Tactical) ────────────────────────────
@@ -918,7 +935,8 @@ async function runCouncil(){
     newsBlock+
     techReads+
     'LIVE PORTFOLIO DATA:\n'+JSON.stringify(richHoldings)+'\n\n'+
-    'Compare current moment to the same day in the 2020 and 2016 halving cycles. Find the historical analog. Analyze next 72 hours based on what history shows happened from this cycle position. Anchor all entry/stopLoss/takeProfit values to the TECHNICAL READS levels when provided.\n\nOutput only the JSON object now, starting with {:';
+    _groundedLine()+
+    'Compare current moment to the same day in the 2020 and 2016 halving cycles. Find the historical analog. Analyze next 72 hours based on what history shows happened from this cycle position.\n\nOutput only the JSON object now, starting with {:';
 
   // Step 4: Run CYCLE, ANALOG, DIVERGE in parallel
   var first3=await Promise.allSettled([
@@ -944,7 +962,8 @@ async function runCouncil(){
     'LIVE PORTFOLIO:\n'+JSON.stringify(richHoldings)+'\n\n'+
     techReads+
     'CYCLE, ANALOG, DIVERGE analyses:\n'+agentOutputs.join('\n\n')+
-    '\n\nSynthesize into specific 72hr positions. Ground every recommendation in what cycle position and historical analog show — not opinion. For each position\'s tgt/stop use the TECHNICAL READS levels: entries at or near the buyers\' line, stops just below it, targets at the sellers\' line.\n\nOutput only the JSON object now, starting with {:';
+    _groundedLine()+
+    '\nSynthesize into specific 72hr positions. Ground every recommendation in what cycle position and historical analog show — not opinion. Where a ticker HAS a technical read, take tgt/stop from it: entries at or near the buyers\' line, stops just below it, targets at the sellers\' line.\n\nOutput only the JSON object now, starting with {:';
   try{
     var tText=await claudeJSON(AGENTS[3].sys,tacticalMsg,900,MODEL_HEAVY);
     agents[3]={id:AGENTS[3].id,loading:false,error:null,data:parseJSON(tText)};
@@ -973,9 +992,18 @@ async function runLT(){
   var ctx=await mktCtx();
   try{
     var sys='You are a long-term investment strategist. Respond with ONLY a single-line minified JSON object. No arrays. No markdown. No newlines inside strings. Strict 8-word max per reason.';
-    var tickers=holdings.map(function(h){return h.ticker;}).join(',');
-    var top=ctx.slice(0,6).map(function(c){return c.ticker;}).join(',');
-    var userMsg='My holdings: '+tickers+'\nTop market: '+top+'\nReply with ONLY this exact JSON (fill in values, 8 words max per reason string):\n{"outlook":"","h1":"","h1r":"","h1t":"","h2":"","h2r":"","h2t":"","h3":"","h3r":"","h3t":"","h4":"","h4r":"","h4t":"","a1":"","a1n":"","a1r":"","a2":"","a2n":"","a2r":"","a3":"","a3n":"","a3r":"","x1":"","x1r":"","x2":"","x2r":""}';
+    // Send the real figures, not just symbols. Previously only tickers were
+    // passed, so any price target in the reply was necessarily invented.
+    var holdLines=holdings.map(function(h){
+      return h.ticker+' — live '+fp(h.price)+', avg buy '+fp(h.avgBuy)+', P&L '+f$(h.pnl);
+    }).join('\n');
+    var topLines=ctx.slice(0,6).map(function(c){
+      return c.ticker+(c.price?' '+fp(c.price):'');
+    }).join(', ');
+    var userMsg='MY HOLDINGS (live figures — use these, do not estimate):\n'+holdLines+
+      '\n\nTOP MARKET: '+topLines+
+      '\n\nh1t..h4t are long-term price targets. Give a target ONLY where the data above supports it; otherwise null. A null target is correct and expected — an invented one is a defect.'+
+      '\n\nReply with ONLY this exact JSON (8 words max per reason string; targets may be null):\n{"outlook":"","h1":"","h1r":"","h1t":null,"h2":"","h2r":"","h2t":null,"h3":"","h3r":"","h3t":null,"h4":"","h4r":"","h4t":null,"a1":"","a1n":"","a1r":"","a2":"","a2n":"","a2r":"","a3":"","a3n":"","a3r":"","x1":"","x1r":"","x2":"","x2r":""}';
     var text=await claudeJSON(sys,userMsg,600);
     lt={loading:false,data:parseJSON(text),error:null};
   }catch(e){
@@ -2554,7 +2582,8 @@ async function runOppsAI(items){
         ' → signal '+r.action.label;
     }).join('\n');
     var sys='You are a disciplined portfolio strategist. You are given live technical readings for the user\'s actual holdings. Pick the 2-3 BEST places to BUY/add and the 2-3 best places to SELL/take profit right now, each with a concrete price level drawn from the support/resistance provided. Be specific and risk-aware. This is analysis, not financial advice.';
-    var user='Market: BTC '+(btc?fp(btc.price)+' ('+(btc.change24>=0?'+':'')+btc.change24.toFixed(1)+'%)':'n/a')+' · Fear & Greed '+fg+'\n\nHoldings:\n'+rows+'\n\nRespond ONLY with JSON: {"summary":"2 sentences on the portfolio right now","buys":[{"ticker":"","level":"$price or zone","why":"one sentence"}],"sells":[{"ticker":"","level":"$price","why":"one sentence"}],"risk":"one sentence on the biggest risk to watch"}';
+    var user='Market: BTC '+(btc?fp(btc.price)+' ('+(btc.change24>=0?'+':'')+btc.change24.toFixed(1)+'%)':'n/a')+' · Fear & Greed '+fg+'\n\nHoldings:\n'+rows+'\n\nPRICE LEVELS: "level" may only be given when the data above supports it. If it does not, use null. A null level is correct and expected; an invented or round-numbered level is a defect.'+
+      '\n\nRespond ONLY with JSON: {"summary":"2 sentences on the portfolio right now","buys":[{"ticker":"","level":null,"why":"one sentence"}],"sells":[{"ticker":"","level":null,"why":"one sentence"}],"risk":"one sentence on the biggest risk to watch"}';
     var txt=await claudeJSON(sys,user,750,MODEL_SMART);
     opps.ai={loading:false,data:parseJSON(txt)};
   }catch(e){opps.ai={loading:false,error:e.message};}
@@ -2582,9 +2611,9 @@ function rOpps(){
       html+='<div style="font-size:13px;color:var(--t);line-height:1.6;margin-bottom:10px">'+(d.summary||'')+'</div>';
       html+='<div class="g2">';
       html+='<div><div style="font-size:10px;color:var(--grn);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Best buys</div>';
-      (d.buys||[]).forEach(function(x){html+='<div style="font-size:12px;color:var(--t2);margin-bottom:5px"><b style="color:var(--t)">'+x.ticker+'</b> '+(x.level?'<span style="color:var(--grn)">'+x.level+'</span> ':'')+'— '+(x.why||'')+'</div>';});
+      (d.buys||[]).forEach(function(x){html+='<div style="font-size:12px;color:var(--t2);margin-bottom:5px"><b style="color:var(--t)">'+x.ticker+'</b> '+(x.level?'<span style="color:var(--grn)">'+x.level+'</span> ':'<span style="color:var(--t3);font-size:10px">no level \u2014 insufficient data</span> ')+'— '+(x.why||'')+'</div>';});
       html+='</div><div><div style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Take profit / sell</div>';
-      (d.sells||[]).forEach(function(x){html+='<div style="font-size:12px;color:var(--t2);margin-bottom:5px"><b style="color:var(--t)">'+x.ticker+'</b> '+(x.level?'<span style="color:var(--red)">'+x.level+'</span> ':'')+'— '+(x.why||'')+'</div>';});
+      (d.sells||[]).forEach(function(x){html+='<div style="font-size:12px;color:var(--t2);margin-bottom:5px"><b style="color:var(--t)">'+x.ticker+'</b> '+(x.level?'<span style="color:var(--red)">'+x.level+'</span> ':'<span style="color:var(--t3);font-size:10px">no level \u2014 insufficient data</span> ')+'— '+(x.why||'')+'</div>';});
       html+='</div></div>';
       if(d.risk)html+='<div style="font-size:11px;color:var(--t3);margin-top:8px;border-top:1px solid var(--b1);padding-top:8px">'+d.risk+'</div>';
     }
@@ -3354,6 +3383,11 @@ function agCard(def,ar){
     if(d.topAsset)html+='<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Focus: <strong style="color:'+def.color+'">'+d.topAsset+'</strong></div>';
     html+='<div class="ag-take">'+d.shortTake+'</div>';
     // Entry/Stop/Target row
+    if(!d.entry&&!d.stopLoss&&!d.takeProfit&&d.topAsset){
+      html+='<div style="margin:8px 0;font-size:9.5px;color:var(--t3);padding:6px 8px;background:var(--s2);border:1px dashed var(--b3);border-radius:5px;line-height:1.5">'
+        +'No price levels for '+d.topAsset+' — no fitted technical read was available this run, so none were produced. '
+        +'Levels appear only when they come from real trend-line analysis, never from an estimate.</div>';
+    }
     if(d.entry||d.stopLoss||d.takeProfit){
       html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin:8px 0">';
       if(d.entry)html+='<div style="background:var(--s2);border:1px solid var(--b2);border-radius:5px;padding:5px 7px"><div style="font-size:8px;color:var(--t3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">Entry</div><div style="font-size:10px;font-weight:600;font-family:DM Mono,monospace;color:var(--grn)">'+d.entry+'</div></div>';
@@ -3397,7 +3431,10 @@ function rLT(){
   if(holds.length){
     html+='<div class="sh gold">Hold These</div>';
     holds.forEach(function(h){
-      html+='<div class="lt-card gl"><div class="lt-top"><span class="lt-tick">'+h.ticker+'</span></div><div class="lt-reason">'+h.reason+'</div><div class="lt-target">Target: '+h.target+'</div></div>';
+      var tgtHtml=h.target
+        ? '<div class="lt-target">Target: '+h.target+'</div>'
+        : '<div class="lt-target" style="color:var(--t3)">No target \u2014 insufficient data</div>';
+      html+='<div class="lt-card gl"><div class="lt-top"><span class="lt-tick">'+h.ticker+'</span></div><div class="lt-reason">'+h.reason+'</div>'+tgtHtml+'</div>';
     });
   }
   // Accumulate (flat keys a1-a3)
