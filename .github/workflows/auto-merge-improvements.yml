@@ -1,0 +1,42 @@
+# Auto-merge the daily improvements PR.
+#
+# Why this exists: the routine cuts a branch from current `main` each run. When
+# those PRs were left open, `main` never advanced, so every subsequent run
+# re-derived overlapping changes to the same files from the same stale base —
+# 24 mutually-conflicting PRs accumulated that way before this was added.
+# Merging each run keeps `main` moving so the next run builds on it.
+#
+# Scope is deliberately narrow: only branches matching `improvements-*` from
+# THIS repo. Anything else — including human PRs — is untouched.
+#
+# GitHub auto-merge waits for mergeability, so a run that conflicts stays open
+# for a human instead of being force-merged.
+
+name: Auto-merge improvements PRs
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    # Same-repo branches only. Never auto-merge from a fork.
+    if: >-
+      startsWith(github.event.pull_request.head.ref, 'improvements-') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Enabling auto-merge on PR #${PR_NUMBER} (${HEAD_REF})"
+          gh pr merge "${PR_NUMBER}" --auto --merge --repo "${REPO}"
