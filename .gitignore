@@ -10,3 +10,5 @@ node_modules/
 .env
 .env.*
 !.env.example
+# Local tooling (never deploy — publish = "." serves the repo root)
+.claude/
