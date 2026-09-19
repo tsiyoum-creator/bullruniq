@@ -4,11 +4,14 @@ const crypto = require("crypto");
 const { verifyToken } = require("./_lib");
 
 const ALLOWED_MODELS = new Set([
+  "claude-opus-5",
+  "claude-sonnet-5",
+  "claude-haiku-4-5-20251001",
+  // Previous generation — kept so clients cached mid-deploy don't 400.
   "claude-opus-4-8",
   "claude-sonnet-4-6",
-  "claude-haiku-4-5-20251001",
 ]);
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+const DEFAULT_MODEL = "claude-sonnet-5";
 const MAX_TOKENS_CAP = 1500;
 const MIN_TOKENS = 100;
 const DAILY_IP_CAP = 200;

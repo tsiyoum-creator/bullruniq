@@ -65,15 +65,34 @@ exports.handler = async function (event) {
     if (d.data && d.data[0]) fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
   } catch (e) {}
 
+  // Regime + falsifier watch. Required from macro.js so the email and the app
+  // read the SAME data block rather than a drifting duplicate.
+  let macroLine = "";
+  try {
+    const macro = require("../../macro.js");
+    const fw = macro.checkFalsifiers();
+    const cur = macro.regimeName(macro.MACRO_DATA.current.regime);
+    const parts = ["Regime in force: " + cur + " (confidence " + macro.MACRO_DATA.current.confidence + "%), as of " + macro.MACRO_DATA.asOf + "."];
+    if (fw.clean) {
+      parts.push("No regime threshold has been crossed since the last check — say so plainly and do NOT manufacture an action.");
+    } else {
+      parts.push("Thresholds crossed: " + fw.trips.map(function (t) { return t.n + " at " + t.v + t.u; }).join("; ") + ".");
+    }
+    if (fw.soon.length) {
+      parts.push("Dated catalysts inside 21 days: " + fw.soon.map(function (s) { return s.n + " in " + s.days + "d"; }).join("; ") + ".");
+    }
+    macroLine = " " + parts.join(" ");
+  } catch (e) { console.log("[newsletter] macro layer unavailable:", e.message); }
+
   let brief = "";
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTH, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         max_tokens: 500,
-        messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with one action to consider today. Under 160 words. Educational, not financial advice. Live data: BTC " + btc + ", Fear & Greed " + fg + ". Date " + new Date().toUTCString() }],
+        messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with the macro regime read. Under 160 words. Educational, not financial advice — do NOT give buy or sell instructions. Use only the figures provided; if something is not given, omit it rather than estimating. Live data: BTC " + btc + ", Fear & Greed " + fg + "." + macroLine + " Date " + new Date().toUTCString() }],
       }),
     });
     const d = await r.json();
