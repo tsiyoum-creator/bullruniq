@@ -85,6 +85,21 @@ assert(verifyToken(fakeSig, TEST_SECRET) === null, "random signature rejected");
 // Ensure timing-safe comparison (different-length sigs don't crash)
 assert(verifyToken(parts[0] + "." + "short", TEST_SECRET) === null, "short signature rejected safely");
 
+console.log("\n--- auth: OTP timing-safe comparison ---");
+
+function sha(s) { return crypto.createHash("sha256").update(s).digest("hex"); }
+function verifyOtpHash(codeHash, storedHash) {
+  if (codeHash.length !== storedHash.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(codeHash), Buffer.from(storedHash));
+  } catch (e) { return false; }
+}
+const correctHash = sha("user@example.com:123456");
+assert(verifyOtpHash(correctHash, correctHash), "correct OTP hash matches");
+assert(!verifyOtpHash(sha("user@example.com:654321"), correctHash), "wrong code rejected");
+assert(!verifyOtpHash("short", correctHash), "length mismatch returns false, not exception");
+assert(!verifyOtpHash("", correctHash), "empty hash safely rejected");
+
 console.log("\n--- unsubscribe: email validation ---");
 
 function isValidEmail(s) {
@@ -124,6 +139,18 @@ assert(validateIds("bitcoin,ethereum,solana,cardano,dogecoin").length === 5, "fi
 assert(validateIds("BITCOIN").length === 1, "uppercase is normalized to lowercase and passes");
 assert(validateIds("bitcoin").length === 1, "single valid id passes");
 
+console.log("\n--- market.js: kind validation ---");
+
+const VALID_KINDS = new Set(["top50", "top100", "gainers", "losers", "trending", "fear_greed", "dominance", "sectors"]);
+function isValidKind(kind) { return VALID_KINDS.has(kind); }
+assert(isValidKind("top50"), "top50 valid");
+assert(isValidKind("fear_greed"), "fear_greed valid");
+assert(isValidKind("dominance"), "dominance valid");
+assert(isValidKind("sectors"), "sectors valid (new)");
+assert(!isValidKind("admin"), "admin rejected");
+assert(!isValidKind("__proto__"), "__proto__ rejected");
+assert(!isValidKind(""), "empty rejected");
+
 console.log("\n--- generate.js: max_tokens clamping ---");
 
 const MAX_TOKENS_CAP = 1500;
@@ -140,6 +167,39 @@ assert(clampTokens(800) === 800, "800 (default) passes through");
 assert(clampTokens(1500) === 1500, "1500 (cap) passes through");
 assert(clampTokens(2000) === MAX_TOKENS_CAP, "2000 clamped to MAX_TOKENS_CAP");
 assert(clampTokens("abc") === 800, "non-numeric defaults to 800");
+
+console.log("\n--- generate.js: plan-based daily caps ---");
+
+const PLAN_DAILY_CAPS = { free: 50, pro: 500, elite: 1000, advisor: 2000 };
+const PLAN_TOKEN_CAPS = { free: 800, pro: 1500, elite: 2000, advisor: 3000 };
+
+assert(PLAN_DAILY_CAPS.free < PLAN_DAILY_CAPS.pro, "pro cap > free cap");
+assert(PLAN_DAILY_CAPS.pro < PLAN_DAILY_CAPS.elite, "elite cap > pro cap");
+assert(PLAN_TOKEN_CAPS.free < PLAN_TOKEN_CAPS.elite, "elite gets more tokens per request");
+assert(PLAN_TOKEN_CAPS.elite < PLAN_TOKEN_CAPS.advisor, "advisor gets most tokens");
+
+console.log("\n--- generate.js: message validation ---");
+
+const ALLOWED_ROLES = new Set(["user", "assistant"]);
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
+  for (const m of messages) {
+    if (!m || typeof m !== "object") return false;
+    if (!ALLOWED_ROLES.has(m.role)) return false;
+    if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
+    if (typeof m.content === "string" && m.content.length > 20000) return false;
+  }
+  return true;
+}
+assert(validateMessages([{ role: "user", content: "hello" }]), "single user message valid");
+assert(validateMessages([{ role: "user", content: "q" }, { role: "assistant", content: "a" }]), "conversation turn valid");
+assert(!validateMessages([]), "empty array invalid");
+assert(!validateMessages([{ role: "system", content: "inject" }]), "system role blocked");
+assert(!validateMessages([{ role: "user", content: "x".repeat(20001) }]), "oversized content blocked");
+assert(!validateMessages(null), "null messages invalid");
+assert(!validateMessages("string"), "string instead of array invalid");
+const longConvo = Array.from({ length: 41 }, function (_, i) { return { role: i % 2 ? "assistant" : "user", content: "msg" }; });
+assert(!validateMessages(longConvo), "over 40 messages rejected");
 
 console.log("\n--- generate.js: system prompt length cap ---");
 
@@ -274,9 +334,11 @@ function shouldSendLadderAlert(h, price) {
   const prevHits = h.serverLadderHits || 0;
   return ladder !== null && ladder.hits.length > prevHits;
 }
-function shouldResetLadder(h, price) {
-  const ladder = ladderFor(h.avg, h.qty, price);
-  return ladder === null && (h.serverLadderHits || 0) > 0;
+function shouldResetLadder(avg, price, prevHits) {
+  if (!prevHits) return false;
+  if (!avg || avg <= 0) return false;
+  const gainPct = (price - avg) / avg * 100;
+  return gainPct < 10;
 }
 
 const ladderHolding = { ticker: "SOL", avg: 100, qty: 10 };
@@ -286,8 +348,11 @@ assert(shouldSendLadderAlert({ ...ladderHolding }, 126), "alert when first rung 
 assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 130), "no re-alert same rung");
 assert(shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 151), "alert when second rung (+50%) crossed");
 assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 3 }, 300), "no alert when all rungs already recorded");
-assert(shouldResetLadder({ ...ladderHolding, serverLadderHits: 2 }, 115), "ladder resets below +20%");
-assert(!shouldResetLadder({ ...ladderHolding, serverLadderHits: 0 }, 115), "no reset when already 0 hits");
+// New hysteresis: reset only below +10%, not below +20%
+assert(shouldResetLadder(100, 109, 2), "ladder resets below +10% (hysteresis)");
+assert(!shouldResetLadder(100, 119, 2), "no reset between +10% and +20% (hysteresis holds)");
+assert(!shouldResetLadder(100, 125, 2), "no reset above +25% (position still in profit)");
+assert(!shouldResetLadder(100, 115, 0), "no reset when already 0 hits");
 
 console.log("\n--- cash deployment engine ---");
 
@@ -343,16 +408,75 @@ assert(!verifyStripe(body, "", STRIPE_SECRET), "empty sig header fails");
 assert(!verifyStripe(body, "t=123", STRIPE_SECRET), "sig header missing v1 fails");
 assert(!verifyStripe(body, makeStripeSig(body, STRIPE_SECRET), ""), "empty secret fails");
 
-console.log("\n--- market.js: kind validation ---");
+console.log("\n--- sync.js: user data validation ---");
 
-const VALID_KINDS = new Set(["top50", "top100", "gainers", "losers", "trending", "fear_greed", "dominance"]);
-function isValidKind(kind) { return VALID_KINDS.has(kind); }
-assert(isValidKind("top50"), "top50 valid");
-assert(isValidKind("fear_greed"), "fear_greed valid");
-assert(isValidKind("dominance"), "dominance valid");
-assert(!isValidKind("admin"), "admin rejected");
-assert(!isValidKind("__proto__"), "__proto__ rejected");
-assert(!isValidKind(""), "empty rejected");
+function validateUserData(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  if (data.port && data.port.crypto !== undefined) {
+    if (!Array.isArray(data.port.crypto)) return false;
+    if (data.port.crypto.length > 200) return false;
+    for (const h of data.port.crypto) {
+      if (!h || typeof h !== "object") return false;
+      if (h.ticker && typeof h.ticker !== "string") return false;
+      if (h.ticker && h.ticker.length > 20) return false;
+      if (h.qty !== undefined && typeof h.qty !== "number") return false;
+      if (h.avg !== undefined && typeof h.avg !== "number") return false;
+      if (h.stop !== undefined && typeof h.stop !== "number") return false;
+      if (h.tp !== undefined && typeof h.tp !== "number") return false;
+    }
+  }
+  if (data.wl !== undefined) {
+    if (!Array.isArray(data.wl)) return false;
+    if (data.wl.length > 100) return false;
+    for (const w of data.wl) {
+      if (!w || typeof w !== "object") return false;
+      if (w.ticker && typeof w.ticker !== "string") return false;
+      if (w.ticker && w.ticker.length > 20) return false;
+      if (w.targetPrice !== undefined && typeof w.targetPrice !== "number") return false;
+      if (w.sellTarget !== undefined && typeof w.sellTarget !== "number") return false;
+    }
+  }
+  return true;
+}
+
+assert(validateUserData({}), "empty object is valid");
+assert(validateUserData({ cash: 5000 }), "object with cash is valid");
+assert(validateUserData({ port: { crypto: [] } }), "empty crypto array is valid");
+assert(validateUserData({ port: { crypto: [{ ticker: "BTC", qty: 0.5, avg: 60000 }] } }), "valid holding passes");
+assert(!validateUserData(null), "null rejected");
+assert(!validateUserData([]), "array rejected");
+assert(!validateUserData("string"), "string rejected");
+assert(!validateUserData({ port: { crypto: "not-an-array" } }), "non-array crypto rejected");
+const tooManyHoldings = Array.from({ length: 201 }, function () { return { ticker: "BTC" }; });
+assert(!validateUserData({ port: { crypto: tooManyHoldings } }), "too many holdings rejected");
+assert(!validateUserData({ port: { crypto: [{ ticker: "A".repeat(21) }] } }), "too-long ticker rejected");
+assert(!validateUserData({ port: { crypto: [{ qty: "not-a-number" }] } }), "string qty rejected");
+assert(!validateUserData({ wl: "not-an-array" }), "non-array watchlist rejected");
+const tooManyWatchlist = Array.from({ length: 101 }, function () { return { ticker: "ETH" }; });
+assert(!validateUserData({ wl: tooManyWatchlist }), "too many watchlist items rejected");
+assert(validateUserData({ wl: [{ ticker: "ETH", targetPrice: 2000, sellTarget: 3000 }] }), "valid watchlist entry passes");
+assert(!validateUserData({ wl: [{ targetPrice: "two-thousand" }] }), "string targetPrice rejected");
+
+console.log("\n--- newsletter: briefToHtml formatting ---");
+
+function briefToHtml(text) {
+  function escFn(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  return escFn(text)
+    .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
+    .split(/\n+/)
+    .filter(function (l) { return l.trim(); })
+    .map(function (l) { return "<p style='margin:0 0 12px;color:#c8c4bc;font-size:15px;line-height:1.7'>" + l.trim() + "</p>"; })
+    .join("");
+}
+const html = briefToHtml("📊 **BTC trend** — Bitcoin is above $64k.\n\n⚠️ **Risk** — Watch liquidity.");
+assert(html.includes("<strong"), "bold text rendered as strong");
+assert(html.includes("BTC trend"), "bold label text present");
+assert(!html.includes("**"), "markdown asterisks removed from output");
+assert(html.split("<p").length > 2, "multiple paragraphs generated");
+
+const xssInput = briefToHtml("<script>alert(1)</script>");
+assert(xssInput.includes("&lt;script&gt;"), "script tags escaped in brief HTML");
+assert(!xssInput.includes("<script>"), "raw script tag not present");
 
 // --- Summary ---
 console.log("\n==========================================");

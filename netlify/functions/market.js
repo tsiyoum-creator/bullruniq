@@ -75,6 +75,68 @@ exports.handler = async function (event) {
         updated_at: d.updated_at,
       };
     };
+  } else if (q.kind === "sectors") {
+    // Sector rotation snapshot: representative tokens for major crypto sectors
+    const SECTOR_IDS = [
+      // Layer 1s
+      "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
+      // Layer 2s / scaling
+      "arbitrum", "optimism", "zksync", "starknet",
+      // DeFi
+      "uniswap", "aave", "curve-dao-token", "maker", "pendle",
+      // AI
+      "bittensor", "render-token",
+      // Memes
+      "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
+      // Infrastructure
+      "chainlink", "the-graph", "pyth-network",
+    ].join(",");
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + SECTOR_IDS + "&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:sectors";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      const sectors = {
+        layer1: { label: "Layer 1", coins: [] },
+        layer2: { label: "Layer 2 / Scaling", coins: [] },
+        defi: { label: "DeFi", coins: [] },
+        ai: { label: "AI & Compute", coins: [] },
+        meme: { label: "Meme", coins: [] },
+        infra: { label: "Infrastructure", coins: [] },
+      };
+      const SECTOR_MAP = {
+        "bitcoin": "layer1", "ethereum": "layer1", "solana": "layer1", "avalanche-2": "layer1",
+        "near": "layer1", "aptos": "layer1", "sui": "layer1",
+        "arbitrum": "layer2", "optimism": "layer2", "zksync": "layer2", "starknet": "layer2",
+        "uniswap": "defi", "aave": "defi", "curve-dao-token": "defi", "maker": "defi", "pendle": "defi",
+        "bittensor": "ai", "render-token": "ai",
+        "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
+        "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
+      };
+      data.forEach(function (c) {
+        const sectorKey = SECTOR_MAP[c.id] || "layer1";
+        if (sectors[sectorKey]) {
+          sectors[sectorKey].coins.push({
+            id: c.id, symbol: (c.symbol || "").toUpperCase(), name: c.name,
+            price: c.current_price,
+            change7d: c.price_change_percentage_7d_in_currency,
+            change30d: c.price_change_percentage_30d_in_currency,
+            marketCap: c.market_cap,
+          });
+        }
+      });
+      return Object.fromEntries(
+        Object.entries(sectors).map(function ([k, v]) {
+          const avg7d = v.coins.length
+            ? v.coins.reduce(function (s, c) { return s + (c.change7d || 0); }, 0) / v.coins.length
+            : null;
+          const avg30d = v.coins.length
+            ? v.coins.reduce(function (s, c) { return s + (c.change30d || 0); }, 0) / v.coins.length
+            : null;
+          return [k, { ...v, avg7d: avg7d, avg30d: avg30d }];
+        })
+      );
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -84,7 +146,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");

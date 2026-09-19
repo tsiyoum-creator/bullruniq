@@ -40,7 +40,10 @@ exports.handler = async function (event) {
     const RESEND = process.env.RESEND_API_KEY;
     if (!RESEND) return jsonCors(500, { error: "Email login isn't enabled yet (server needs RESEND_API_KEY)." });
     const prev = await store.get(email, { type: "json" });
-    if (prev && prev.sent >= 3 && Date.now() < prev.exp) return jsonCors(429, { error: "Too many codes requested — try again in a few minutes." });
+    if (prev && prev.sent >= 3 && Date.now() < prev.exp) {
+      const retryAfter = Math.ceil((prev.exp - Date.now()) / 1000);
+      return json(429, { error: "Too many codes requested — try again in a few minutes." }, { ...CORS, "Retry-After": String(retryAfter) });
+    }
     const code = String(crypto.randomInt(100000, 1000000));
     await store.setJSON(email, {
       hash: sha(email + ":" + code),
@@ -71,8 +74,12 @@ exports.handler = async function (event) {
     const code = String(p.code || "").trim();
     const rec = await store.get(email, { type: "json" });
     if (!rec || Date.now() > rec.exp) return jsonCors(400, { error: "Code expired — request a new one." });
-    if (rec.tries >= 5) return jsonCors(429, { error: "Too many attempts — request a new code." });
-    if (sha(email + ":" + code) !== rec.hash) {
+    if (rec.tries >= 5) return json(429, { error: "Too many attempts — request a new code." }, { ...CORS, "Retry-After": "900" });
+    const codeHash = sha(email + ":" + code);
+    const storedHash = rec.hash || "";
+    const hashMatch = codeHash.length === storedHash.length &&
+      crypto.timingSafeEqual(Buffer.from(codeHash), Buffer.from(storedHash));
+    if (!hashMatch) {
       rec.tries = (rec.tries || 0) + 1;
       await store.setJSON(email, rec);
       return jsonCors(400, { error: "Wrong code — check the email and try again." });

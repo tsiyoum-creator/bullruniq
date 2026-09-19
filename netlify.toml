@@ -27,6 +27,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/market/sectors"
+  to = "/.netlify/functions/market?kind=sectors"
+  status = 200
+
+[[redirects]]
   from = "/hub"
   to = "/hub.html"
   status = 200
