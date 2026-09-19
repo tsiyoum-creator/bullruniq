@@ -292,6 +292,7 @@ a{text-decoration:none;color:inherit}
   <div class="logo"><div class="logo-dot"></div><span class="logo-text">Bullrun<span>IQ</span></span><span style="font-size:9px;color:var(--t3);margin-left:6px;font-family:monospace">v2.4</span></div>
   <div class="sep"></div>
   <div class="hdr-date" id="hDate"></div>
+  <div id="opsChip" style="display:none"></div>
   <div class="hdr-stats">
     <div class="hdr-stat" id="aiCredits" style="display:none"></div>
     <div class="hdr-stat"><div class="hdr-val" id="hVal">—</div><div class="hdr-lbl">Portfolio</div></div>
@@ -366,41 +367,97 @@ var auth={token:'',email:''};var AUTHK='briq-auth';var _acctEmailPending='';
 var _cryptoAt=0,_fgAt=0,_stocksAt=0;
 var chatState={agent:'atlas',history:{atlas:[],cipher:[],edge:[],grind:[]}};
 
-// ── Persist ───────────────────────────────────────────────────
-function load(){
-  try{var x=localStorage.getItem(SK);if(x)port=JSON.parse(x);}catch(e){}
-  if(!port.crypto)port.crypto=[];if(!port.stocks)port.stocks=[];if(!port.cash)port.cash=0;
-  try{var x=localStorage.getItem(FK);if(x)prices=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(AK);if(x)agents=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(LK);if(x)lt=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(CK);if(x)cfg=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(WK);if(x)wl=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(CHATK);if(x){var c=JSON.parse(x);chatState.agent=c.agent||'atlas';chatState.history=c.history||{atlas:[],cipher:[],edge:[],grind:[]};}}catch(e){}
-  try{var x=localStorage.getItem(GOALK);if(x)goal=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(BRIEFK);if(x)dailyBrief=JSON.parse(x);}catch(e){}
-  // one-time purge: briefs generated before the price-vs-value context fix
-  if(dailyBrief&&dailyBrief.data&&dailyBrief.cv!==2){dailyBrief=null;try{localStorage.removeItem(BRIEFK);}catch(e){}}
-  try{var x=localStorage.getItem(CALLSK);if(x)calls=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(USAGEK);if(x)usage=JSON.parse(x);}catch(e){}
-  try{var x=localStorage.getItem(AUTHK);if(x)auth=JSON.parse(x);}catch(e){}
+// ── Ops: make failure visible ─────────────────────────────────
+// Doctrine: a failure that tells nobody is worse than an outage. Every
+// swallowed error here is either (a) genuinely ignorable and commented as
+// such, (b) degrades the UI and is surfaced to the user, or (c) is
+// operationally important and reported.
+var _ops={
+  storageFailed:false,   // a write to localStorage was rejected -> data not saved
+  feeds:{},              // feedName -> {ok, at, err}
+  errs:[],               // recent errors, capped, for the operator
+  reported:0
+};
+var _OPS_MAX_ERRS=25, _OPS_REPORT_CAP=5; // sample, never a firehose
+
+// Record an error with enough context to diagnose. Never throws.
+function opsErr(ctx,e,feed){
+  try{
+    var msg=(e&&(e.message||e.name))||String(e||'unknown');
+    var rec={ctx:ctx,msg:String(msg).slice(0,200),at:Date.now()};
+    _ops.errs.unshift(rec);
+    if(_ops.errs.length>_OPS_MAX_ERRS)_ops.errs.length=_OPS_MAX_ERRS;
+    if(feed)_ops.feeds[feed]={ok:false,at:Date.now(),err:rec.msg};
+    if(window.console&&console.error)console.error('[ops] '+ctx+': '+rec.msg);
+    // Sampled report to our own origin. 'self' under CSP — no new host.
+    if(_ops.reported<_OPS_REPORT_CAP&&!isDemo()){
+      _ops.reported++;
+      fetch('/api/clienterr',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ctx:rec.ctx,msg:rec.msg,ua:navigator.userAgent.slice(0,120),
+          path:location.pathname,at:rec.at})}).catch(function(){/* reporting must never cascade */});
+    }
+  }catch(_){/* the error channel itself must never throw */}
 }
-function saveUsage(){try{localStorage.setItem(USAGEK,JSON.stringify(usage));}catch(e){}}
-function saveAuth(){try{localStorage.setItem(AUTHK,JSON.stringify(auth));}catch(e){}}
-function saveGoal(){try{localStorage.setItem(GOALK,JSON.stringify(goal));}catch(e){}schedulePush();}
-function saveCalls(){try{localStorage.setItem(CALLSK,JSON.stringify(calls));}catch(e){}schedulePush();}
-function saveBrief(){try{localStorage.setItem(BRIEFK,JSON.stringify(dailyBrief));}catch(e){}}
-function saveChat(){try{localStorage.setItem(CHATK,JSON.stringify(chatState));}catch(e){}}
-function savePort(){try{localStorage.setItem(SK,JSON.stringify(port));}catch(e){}schedulePush();}
+function opsOk(feed){try{_ops.feeds[feed]={ok:true,at:Date.now()};}catch(_){}}
+function opsDegraded(){
+  if(_ops.storageFailed)return true;
+  for(var k in _ops.feeds){if(_ops.feeds[k]&&!_ops.feeds[k].ok)return true;}
+  return false;
+}
+
+// localStorage write. Returns true on success. A rejected write means the
+// user's data is NOT saved — that is a user-visible fact, not a shrug.
+function lsSet(key,val){
+  try{localStorage.setItem(key,JSON.stringify(val));if(_ops.storageFailed){_ops.storageFailed=false;}return true;}
+  catch(e){_ops.storageFailed=true;opsErr('storage.write:'+key,e);return false;}
+}
+// localStorage read. Absence and unreadability are equivalent and expected
+// (private mode, cleared data, first visit) — category (a), returns null.
+function lsGet(key){
+  try{var x=localStorage.getItem(key);return x?JSON.parse(x):null;}
+  catch(e){return null;}
+}
+
+// ── Persist ───────────────────────────────────────────────────
+// Reads are category (a): absence and unreadability are equivalent and
+// expected (private mode, cleared data, first visit). lsGet returns null and
+// the existing defaults stand. A read failure is not worth telling anyone
+// about; a WRITE failure is, and lsSet handles that.
+function load(){
+  var v;
+  v=lsGet(SK); if(v)port=v;
+  if(!port.crypto)port.crypto=[];if(!port.stocks)port.stocks=[];if(!port.cash)port.cash=0;
+  v=lsGet(FK); if(v)prices=v;
+  v=lsGet(AK); if(v)agents=v;
+  v=lsGet(LK); if(v)lt=v;
+  v=lsGet(CK); if(v)cfg=v;
+  v=lsGet(WK); if(v)wl=v;
+  v=lsGet(CHATK); if(v){chatState.agent=v.agent||'atlas';chatState.history=v.history||{atlas:[],cipher:[],edge:[],grind:[]};}
+  v=lsGet(GOALK); if(v)goal=v;
+  v=lsGet(BRIEFK); if(v)dailyBrief=v;
+  // one-time purge: briefs generated before the price-vs-value context fix
+  if(dailyBrief&&dailyBrief.data&&dailyBrief.cv!==2){dailyBrief=null;try{localStorage.removeItem(BRIEFK);}catch(e){/* (a) purge is best-effort */}}
+  v=lsGet(CALLSK); if(v)calls=v;
+  v=lsGet(USAGEK); if(v)usage=v;
+  v=lsGet(AUTHK); if(v)auth=v;
+}
+function saveUsage(){lsSet(USAGEK,usage);}
+function saveAuth(){lsSet(AUTHK,auth);}
+function saveGoal(){lsSet(GOALK,goal);schedulePush();}
+function saveCalls(){lsSet(CALLSK,calls);schedulePush();}
+function saveBrief(){lsSet(BRIEFK,dailyBrief);}
+function saveChat(){lsSet(CHATK,chatState);}
+function savePort(){lsSet(SK,port);schedulePush();}
 function setCash(){var v=parseFloat(document.getElementById('cashInput').value);if(isNaN(v)||v<0)return;port.cash=Math.round(v*100)/100;savePort();render();}
 // Optional APY on cash. Kept as a separate scalar so port.cash stays a plain
 // number for Autopilot, cashCard and rAlloc. Absent means unknown — the macro
 // layer suppresses the yield claim rather than assuming a rate.
 function setCashApy(){var el=document.getElementById('cashApyInput');if(!el)return;var v=parseFloat(el.value);port.cashApy=(isNaN(v)||v<0)?0:Math.round(v*100)/100;savePort();render();}
-function savePr(){try{localStorage.setItem(FK,JSON.stringify(prices));}catch(e){}}
-function saveAg(){try{localStorage.setItem(AK,JSON.stringify(agents));}catch(e){}}
-function saveLt(){try{localStorage.setItem(LK,JSON.stringify(lt));}catch(e){}}
-function saveCfg(){try{localStorage.setItem(CK,JSON.stringify(cfg));}catch(e){}}
-function saveWl(){try{localStorage.setItem(WK,JSON.stringify(wl));}catch(e){}schedulePush();}
+function savePr(){lsSet(FK,prices);}
+function saveAg(){lsSet(AK,agents);}
+function saveLt(){lsSet(LK,lt);}
+function saveCfg(){lsSet(CK,cfg);}
+function saveWl(){lsSet(WK,wl);schedulePush();}
 
 // ── Format ─────────────────────────────────────────────────────
 function f$(v){if(v===null||v===undefined)return'—';var a=Math.abs(v);var s=v<0?'-':'';return s+'$'+(a>=1e9?(a/1e9).toFixed(2)+'B':a>=1e6?(a/1e6).toFixed(2)+'M':a>=1e4?a.toLocaleString('en-US',{maximumFractionDigits:0}):a>=1e3?a.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):a.toFixed(2));}
@@ -431,8 +488,8 @@ async function fetchCrypto(force){
     var r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+ids.join(',')+'&vs_currencies=usd&include_24hr_change=true');
     var d=await r.json();
     ticks.forEach(function(t){var id=CGMAP[t]||t.toLowerCase();if(d[id])prices[t]={price:d[id].usd,change24:d[id].usd_24h_change||0};});
-    _cryptoAt=Date.now();savePr();
-  }catch(e){}
+    _cryptoAt=Date.now();savePr();opsOk('crypto');
+  }catch(e){opsErr('fetch:crypto',e,'crypto');return false;}
 }
 
 // ── Fetch: Stock prices ───────────────────────────────────────
@@ -446,10 +503,10 @@ async function fetchStockFinnhub(ticker){
     var d=await r.json();
     if(d&&d.c&&d.c>0){
       var pct=d.pc>0?((d.c-d.pc)/d.pc*100):0;
-      prices[ticker]={price:d.c,change24:+pct.toFixed(2),open:d.o,high:d.h,low:d.l,prevClose:d.pc,src:'finnhub'};
+      prices[ticker]={price:d.c,change24:+pct.toFixed(2),open:d.o,high:d.h,low:d.l,prevClose:d.pc,src:'finnhub'};opsOk('stocks');
       return true;
     }
-  }catch(e){}
+  }catch(e){opsErr('fetch:stocks',e,'stocks');return false;}
   return false;
 }
 async function fetchStockAV(ticker){
@@ -459,9 +516,9 @@ async function fetchStockAV(ticker){
     var d=await r.json();var q=d['Global Quote'];
     if(q&&q['05. price']){
       var pct=parseFloat((q['10. change percent']||'0').replace('%',''));
-      prices[ticker]={price:parseFloat(q['05. price']),change24:pct,src:'alphavantage'};
+      prices[ticker]={price:parseFloat(q['05. price']),change24:pct,src:'alphavantage'};opsOk('stocks');
     }
-  }catch(e){}
+  }catch(e){opsErr('fetch:stocks',e,'stocks');return false;}
 }
 async function fetchStocks(force){
   var cacheMs=cfg.fh?60000:720000; // 1 min (Finnhub real-time) vs 12 min (AV delayed)
@@ -483,8 +540,8 @@ async function fetchFearGreed(force){
   try{
     var r=await fetch('https://api.alternative.me/fng/?limit=1');
     var d=await r.json();
-    if(d.data&&d.data[0]){fearGreed=d.data[0];_fgAt=Date.now();}
-  }catch(e){}
+    if(d.data&&d.data[0]){fearGreed=d.data[0];_fgAt=Date.now();opsOk('feargreed');}
+  }catch(e){opsErr('fetch:feargreed',e,'feargreed');return false;}
 }
 
 // ── Market news (via /api/news — CoinDesk + Cointelegraph) ────
@@ -494,8 +551,8 @@ async function fetchNews(force){
   try{
     var r=await fetch('/api/news');
     var d=await r.json();
-    if(d&&Array.isArray(d.items)&&d.items.length){news.items=d.items;news.at=Date.now();}
-  }catch(e){}
+    if(d&&Array.isArray(d.items)&&d.items.length){news.items=d.items;news.at=Date.now();opsOk('news');}
+  }catch(e){opsErr('fetch:news',e,'news');return false;}
 }
 function _ago(ts){
   var m=Math.max(1,Math.round((Date.now()-ts)/60000));
@@ -1911,6 +1968,7 @@ function render(){
   pEl.textContent=(t.pnl>=0?'+':'')+f$(t.pnl);
   pEl.style.color=t.pnl>=0?'var(--grn)':'var(--red)';
   updateCreditChip();
+  renderOpsChip();
   renderNav();
   var m=document.getElementById('main');
   if(tab==='dash'){m.innerHTML=rDash();setTimeout(initDashChart,50);}
@@ -1935,6 +1993,25 @@ function render(){
   // Plain-English one-liner atop each view (safe: all handlers are inline attributes)
   var intro=VIEW_INTROS[tab];
   if(intro)m.innerHTML='<div class="view-intro">'+intro+'</div>'+m.innerHTML;
+}
+
+// Degradation is shown in the header, not swallowed. Clicking it lists what
+// is failing, so the user knows which numbers not to trust.
+function renderOpsChip(){
+  var el=document.getElementById('opsChip'); if(!el)return;
+  var bad=[]; for(var k in _ops.feeds){if(_ops.feeds[k]&&!_ops.feeds[k].ok)bad.push(k);}
+  if(!bad.length&&!_ops.storageFailed){el.style.display='none';el.innerHTML='';return;}
+  var msg=_ops.storageFailed
+    ? 'Not saving'
+    : bad.length+' feed'+(bad.length>1?'s':'')+' down';
+  var detail=_ops.storageFailed
+    ? 'Your browser rejected a save, so changes are NOT being stored. Private browsing or a full storage quota will do this. Copy anything important before closing the tab.'
+    : 'Live data unavailable for: '+bad.join(', ')+'. Figures from these feeds may be stale or missing — they are not being refreshed.';
+  el.style.display='';
+  el.innerHTML='<span onclick="alert('+JSON.stringify(detail).replace(/"/g,'&quot;')+')" '
+    +'style="cursor:pointer;font-size:10px;font-weight:600;letter-spacing:.5px;padding:3px 8px;border-radius:4px;'
+    +'background:var(--r8);border:1px solid var(--r2);color:var(--red);white-space:nowrap" '
+    +'title="Click for detail">\u25CF '+msg+'</span>';
 }
 
 // ── Demo portfolio (placeholder book so new users see the app working) ──
