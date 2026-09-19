@@ -152,7 +152,7 @@ exports.handler = async function (event) {
   if (!RESEND) { console.log("[alerts] skipped — RESEND_API_KEY not set"); return { statusCode: 200, body: "not configured" }; }
 
   const blobs = require("@netlify/blobs");
-  try { blobs.connectLambda(event); } catch (e) {}
+  try { blobs.connectLambda(event); } catch (e) { /* (a) ignorable: absent outside the Lambda runtime; getStore below fails open */ }
   let store, users = [];
   try {
     store = blobs.getStore("userdata");
@@ -183,7 +183,7 @@ exports.handler = async function (event) {
           }
         });
       }
-    } catch (e) {}
+    } catch (e) { skippedUsers++; console.log("[alerts] SKIPPED user " + email + " — record unreadable: " + e.message); }
   }
   if (!ids.size) return { statusCode: 200, body: "no targets" };
 
@@ -198,6 +198,9 @@ exports.handler = async function (event) {
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
   let sent = 0;
+  // Failures were previously swallowed: a send could fail every run forever
+  // and nobody — user, log or operator — would learn. Count and report them.
+  let failed = 0, skippedUsers = 0;
   for (const email of Object.keys(recs)) {
     const rec = recs[email];
     let changed = false;
@@ -223,7 +226,7 @@ exports.handler = async function (event) {
             }),
           });
           if (r.ok) { sent++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + email + " " + h.ticker + " @ " + p); }
-        } catch (e) {}
+        } catch (e) { failed++; console.log("[alerts] FAILED " + "stop" + " " + email + " " + ((h&&h.ticker)||"?") + ": " + e.message); }
       } else if (h.stop && p >= h.stop * 1.05 && h.serverStopAlerted) {
         h.serverStopAlerted = false; changed = true; // re-arm once price recovers 5% above the stop
       }
@@ -241,7 +244,7 @@ exports.handler = async function (event) {
             }),
           });
           if (r.ok) { sent++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + email + " " + h.ticker + " @ " + p); }
-        } catch (e) {}
+        } catch (e) { failed++; console.log("[alerts] FAILED " + "tp" + " " + email + " " + ((h&&h.ticker)||"?") + ": " + e.message); }
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
       }
@@ -268,7 +271,7 @@ exports.handler = async function (event) {
               changed = true;
               console.log("[alerts] ladder " + email + " " + h.ticker + " " + ladder.hits.length + " rung(s) @ " + p);
             }
-          } catch (e) {}
+          } catch (e) { failed++; console.log("[alerts] FAILED " + "ladder" + " " + email + " " + ((h&&h.ticker)||"?") + ": " + e.message); }
         } else if (shouldResetLadder(h.avg, p, prevHits)) {
           // Price dropped well below +10% gain — reset counter with hysteresis
           h.serverLadderHits = 0; changed = true;
@@ -298,7 +301,7 @@ exports.handler = async function (event) {
               }),
             });
             if (r.ok) { sent++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + email + " " + w.ticker + " @ " + p); }
-          } catch (e) {}
+          } catch (e) { failed++; console.log("[alerts] FAILED " + "buy" + " " + email + " " + ((w&&w.ticker)||"?") + ": " + e.message); }
         } else if (dist >= 5 && w.serverAlerted) {
           w.serverAlerted = false; changed = true; // re-arm once price moves away
         }
@@ -319,13 +322,16 @@ exports.handler = async function (event) {
             }),
           });
           if (r.ok) { sent++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + email + " " + w.ticker + " @ " + p); }
-        } catch (e) {}
+        } catch (e) { failed++; console.log("[alerts] FAILED " + "sell" + " " + email + " " + ((w&&w.ticker)||"?") + ": " + e.message); }
       } else if (w.sellTarget && p < w.sellTarget * 0.95 && w.serverSellAlerted) {
         w.serverSellAlerted = false; changed = true; // re-arm once price retraces 5%
       }
     }
-    if (changed) { try { await store.setJSON(email, rec); } catch (e) {} }
+    if (changed) { try { await store.setJSON(email, rec); } catch (e) { failed++; console.log("[alerts] STATE WRITE FAILED for " + email + " — alert flags not persisted, may repeat or miss next run: " + e.message); } }
   }
-  console.log("[alerts] done — " + sent + " email(s) sent across " + Object.keys(recs).length + " user(s)");
-  return { statusCode: 200, body: "sent " + sent };
+  const summary = "sent " + sent + ", failed " + failed + ", skipped " + skippedUsers
+    + " across " + Object.keys(recs).length + " user(s)";
+  if (failed || skippedUsers) console.log("[alerts] DEGRADED — " + summary);
+  else console.log("[alerts] done — " + summary);
+  return { statusCode: 200, body: summary };
 };
