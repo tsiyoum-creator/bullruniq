@@ -11,6 +11,7 @@
 // No-ops gracefully until RESEND_API_KEY is set.
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
+const { listAllKeys } = require("./_lib");
 
 const CGMAP = {
   BTC:"bitcoin", ETH:"ethereum", SOL:"solana", BNB:"binancecoin", XRP:"ripple",
@@ -39,9 +40,31 @@ const CGMAP = {
   PEOPLE:"constitutiondao", DEGEN:"degen-base", HIGHER:"higher",
   MOTHER:"mother-iggy", ANDY:"andy-on-base", TOSHI:"toshi",
   CBBTC:"coinbase-wrapped-btc", WEETH:"wrapped-eeth", WSTETH:"wrapped-staked-ether",
+  // Additional tokens (2026)
+  VIRTUAL:"virtual-protocol", AI16Z:"ai16z", ARC:"arc", GRIFFAIN:"griffain",
+  GOAT:"goat", ZEREBRO:"zerebro", FARTCOIN:"fartcoin", TRUMP:"official-trump",
+  MELANIA:"melania-meme", VINE:"vine-coin", AUSD:"agora-dollar",
+  USDE:"ethena-usde", SUSDE:"ethena-staked-usde",
+  MORPHO:"morpho", EULER:"euler", FLUID:"instadapp-fluid",
+  ZORA:"zora-token", DEGEN2:"degen-base-2",
+  S:"sonic-3", MON:"monad", MEW:"cat-in-a-dogs-world",
+  BOME:"book-of-meme", PONKE:"ponke", RETARDIO:"retardio",
+  WOJAK:"wojak", NEIRO:"neiro-ethereum", MOODENG:"moo-deng",
+  COW:"cow-protocol", SAFE:"safe", ENS:"ethereum-name-service",
+  LPT:"livepeer", OCEAN:"ocean-protocol", FET:"fetch-ai",
+  AGIX:"singularitynet",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+
+async function sendEmail(RESEND, to, subject, html, FROM) {
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: FROM, to: to, subject: subject, html: html }),
+  });
+  return r.ok;
+}
 
 function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
@@ -150,13 +173,14 @@ function shouldResetLadder(avg, price, prevHits) {
 exports.handler = async function (event) {
   const RESEND = process.env.RESEND_API_KEY;
   if (!RESEND) { console.log("[alerts] skipped — RESEND_API_KEY not set"); return { statusCode: 200, body: "not configured" }; }
+  const FROM = process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>";
 
   const blobs = require("@netlify/blobs");
   try { blobs.connectLambda(event); } catch (e) {}
   let store, users = [];
   try {
     store = blobs.getStore("userdata");
-    users = ((await store.list()).blobs || []).map(function (b) { return b.key; });
+    users = await listAllKeys(store);
   } catch (e) { console.log("[alerts] storage error:", e.message); return { statusCode: 200, body: "storage error" }; }
   if (!users.length) return { statusCode: 200, body: "no users" };
 
@@ -212,36 +236,18 @@ exports.handler = async function (event) {
 
       if (h.stop && p <= h.stop && !h.serverStopAlerted && sent < MAX_EMAILS_PER_RUN) {
         try {
-          const r = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
-              to: email,
-              subject: "⛔ " + h.ticker + " fell below your stop-loss — now " + fp(p),
-              html: stopAlertHtml(h, p, email),
-            }),
-          });
-          if (r.ok) { sent++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + email + " " + h.ticker + " @ " + p); }
-        } catch (e) {}
+          const ok = await sendEmail(RESEND, email, "⛔ " + h.ticker + " fell below your stop-loss — now " + fp(p), stopAlertHtml(h, p, email), FROM);
+          if (ok) { sent++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + email + " " + h.ticker + " @ " + p); }
+        } catch (e) { console.log("[alerts] stop email error:", e.message); }
       } else if (h.stop && p >= h.stop * 1.05 && h.serverStopAlerted) {
         h.serverStopAlerted = false; changed = true; // re-arm once price recovers 5% above the stop
       }
 
       if (h.tp && p >= h.tp && !h.serverTpAlerted && sent < MAX_EMAILS_PER_RUN) {
         try {
-          const r = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
-              to: email,
-              subject: "🎯 " + h.ticker + " hit your take-profit — now " + fp(p),
-              html: tpAlertHtml(h, p, email),
-            }),
-          });
-          if (r.ok) { sent++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + email + " " + h.ticker + " @ " + p); }
-        } catch (e) {}
+          const ok = await sendEmail(RESEND, email, "🎯 " + h.ticker + " hit your take-profit — now " + fp(p), tpAlertHtml(h, p, email), FROM);
+          if (ok) { sent++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + email + " " + h.ticker + " @ " + p); }
+        } catch (e) { console.log("[alerts] tp email error:", e.message); }
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
       }
@@ -252,23 +258,14 @@ exports.handler = async function (event) {
         const prevHits = h.serverLadderHits || 0;
         if (ladder && ladder.hits.length > prevHits) {
           try {
-            const r = await fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
-                to: email,
-                subject: "📈 " + h.ticker + " profit ladder — up " + pct(ladder.gainPct) + " from your avg cost",
-                html: ladderAlertHtml(h, p, ladder, email),
-              }),
-            });
-            if (r.ok) {
+            const ok = await sendEmail(RESEND, email, "📈 " + h.ticker + " profit ladder — up " + pct(ladder.gainPct) + " from your avg cost", ladderAlertHtml(h, p, ladder, email), FROM);
+            if (ok) {
               sent++;
               h.serverLadderHits = ladder.hits.length;
               changed = true;
               console.log("[alerts] ladder " + email + " " + h.ticker + " " + ladder.hits.length + " rung(s) @ " + p);
             }
-          } catch (e) {}
+          } catch (e) { console.log("[alerts] ladder email error:", e.message); }
         } else if (shouldResetLadder(h.avg, p, prevHits)) {
           // Price dropped well below +10% gain — reset counter with hysteresis
           h.serverLadderHits = 0; changed = true;
@@ -287,18 +284,9 @@ exports.handler = async function (event) {
         const dist = Math.abs((w.targetPrice - p) / p * 100);
         if (dist < 2 && p <= w.targetPrice * 1.02 && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN) {
           try {
-            const r = await fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
-                to: email,
-                subject: "🎯 " + w.ticker + " hit your buy zone — now " + fp(p),
-                html: buyAlertHtml(w, p, email),
-              }),
-            });
-            if (r.ok) { sent++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + email + " " + w.ticker + " @ " + p); }
-          } catch (e) {}
+            const ok = await sendEmail(RESEND, email, "🎯 " + w.ticker + " hit your buy zone — now " + fp(p), buyAlertHtml(w, p, email), FROM);
+            if (ok) { sent++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + email + " " + w.ticker + " @ " + p); }
+          } catch (e) { console.log("[alerts] buy email error:", e.message); }
         } else if (dist >= 5 && w.serverAlerted) {
           w.serverAlerted = false; changed = true; // re-arm once price moves away
         }
@@ -308,18 +296,9 @@ exports.handler = async function (event) {
       if (w.sellTarget && p >= w.sellTarget && !w.serverSellAlerted && sent < MAX_EMAILS_PER_RUN) {
         const gainPct = w.targetPrice ? ((w.sellTarget - w.targetPrice) / w.targetPrice * 100) : null;
         try {
-          const r = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>",
-              to: email,
-              subject: "💰 " + w.ticker + " hit your sell target — now " + fp(p),
-              html: sellAlertHtml(w, p, gainPct, email),
-            }),
-          });
-          if (r.ok) { sent++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + email + " " + w.ticker + " @ " + p); }
-        } catch (e) {}
+          const ok = await sendEmail(RESEND, email, "💰 " + w.ticker + " hit your sell target — now " + fp(p), sellAlertHtml(w, p, gainPct, email), FROM);
+          if (ok) { sent++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + email + " " + w.ticker + " @ " + p); }
+        } catch (e) { console.log("[alerts] sell email error:", e.message); }
       } else if (w.sellTarget && p < w.sellTarget * 0.95 && w.serverSellAlerted) {
         w.serverSellAlerted = false; changed = true; // re-arm once price retraces 5%
       }

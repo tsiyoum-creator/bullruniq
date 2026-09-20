@@ -1,6 +1,7 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
 const MAX_SEND = 1000;
+const { listAllKeys } = require("./_lib");
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -105,8 +106,7 @@ exports.handler = async function (event) {
 
   let subs = [];
   try {
-    const list = await getStore("subscribers").list();
-    subs = (list.blobs || []).map(function (b) { return b.key; });
+    subs = await listAllKeys(getStore("subscribers"));
   } catch (e) { console.log("[newsletter] subscriber list failed:", e.message); }
   if (!subs.length) { console.log("[newsletter] no subscribers yet"); return { statusCode: 200, body: "no subscribers" }; }
 

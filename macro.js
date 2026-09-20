@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-09-18",
+  asOf: "2026-09-20",
 
   current: {
     regime: "longend",
@@ -61,7 +61,7 @@ var MACRO_DATA = {
 
   /* thresholds[] drive checkFalsifiers(). op: 'gt' | 'lt' */
   indicators: [
-    { k:"dxy",      n:"DXY",                 v:100.30, u:"",      asOf:"2026-09-18", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
+    { k:"dxy",      n:"DXY",                 v:100.30, u:"",      asOf:"2026-09-20", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
     { k:"ust30",    n:"UST 30y",             v:5.36,   u:"%",     asOf:"2026-09-16", src:"US Treasury",     op:"gt", th:5.75, trips:"longend"   },
     { k:"ust10",    n:"UST 10y",             v:5.00,   u:"%",     asOf:"2026-09-16", src:"US Treasury",     op:"gt", th:5.25, trips:"longend"   },
     { k:"ust2",     n:"UST 2y",              v:4.67,   u:"%",     asOf:"2026-09-16", src:"US Treasury",     op:null, th:null, trips:null        },
@@ -73,7 +73,7 @@ var MACRO_DATA = {
     { k:"stables",  n:"Stablecoin supply",   v:310.95, u:"bn",    asOf:"2026-09-10", src:"DefiLlama",       op:"lt", th:280,  trips:"deflation" },
     { k:"cofer",    n:"COFER USD share",     v:57.13,  u:"%",     asOf:"2026-Q1",    src:"IMF COFER",       op:null, th:null, trips:null        },
     { k:"ism",      n:"ISM Manufacturing",   v:54.6,   u:"",      asOf:"2026-08",    src:"ISM",             op:"lt", th:48,   trips:"deflation" },
-    { k:"btc",      n:"Bitcoin",             v:81000,  u:"",      asOf:"2026-09-18", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
+    { k:"btc",      n:"Bitcoin",             v:81000,  u:"",      asOf:"2026-09-20", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
     { k:"termprem", n:"ACM term premium",    v:null,   u:"",      asOf:null,         src:"NY Fed",          op:null, th:null, trips:null        },
     { k:"real10",   n:"10y TIPS real",       v:null,   u:"%",     asOf:null,         src:"US Treasury",     op:null, th:null, trips:null        },
     { k:"move",     n:"MOVE index",          v:null,   u:"",      asOf:null,         src:"ICE",             op:null, th:null, trips:null        }

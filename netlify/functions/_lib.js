@@ -47,4 +47,22 @@ function json(code, obj, extraHeaders) {
   return { statusCode: code, headers: { "Content-Type": "application/json", ...(extraHeaders || {}) }, body: JSON.stringify(obj) };
 }
 
-module.exports = { secretKey, signToken, verifyToken, planFor, json };
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+}
+
+// Fetch all blobs across pagination pages. Returns a flat array of keys.
+async function listAllKeys(store) {
+  const keys = [];
+  let cursor;
+  do {
+    const page = await store.list(cursor ? { cursor } : undefined);
+    for (const b of (page.blobs || [])) keys.push(b.key);
+    cursor = page.cursor;
+  } while (cursor);
+  return keys;
+}
+
+module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys };
