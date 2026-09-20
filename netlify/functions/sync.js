@@ -16,6 +16,13 @@ const MAX_BYTES = 256 * 1024;
 
 function validateUserData(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  // Validate cash fields
+  if (data.cash !== undefined) {
+    if (typeof data.cash !== "number" || !isFinite(data.cash) || data.cash < 0 || data.cash > 1e9) return false;
+  }
+  if (data.cashApy !== undefined) {
+    if (typeof data.cashApy !== "number" || !isFinite(data.cashApy) || data.cashApy < 0 || data.cashApy > 100) return false;
+  }
   // Validate portfolio crypto holdings if present
   if (data.port && data.port.crypto !== undefined) {
     if (!Array.isArray(data.port.crypto)) return false;

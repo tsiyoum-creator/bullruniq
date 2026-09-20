@@ -478,7 +478,110 @@ const xssInput = briefToHtml("<script>alert(1)</script>");
 assert(xssInput.includes("&lt;script&gt;"), "script tags escaped in brief HTML");
 assert(!xssInput.includes("<script>"), "raw script tag not present");
 
-// --- Summary ---
-console.log("\n==========================================");
-console.log("Results: " + passed + " passed, " + failed + " failed");
-if (failed > 0) process.exit(1);
+console.log("\n--- sync.js: cash and cashApy validation ---");
+
+function validateUserDataWithCash(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  if (data.cash !== undefined) {
+    if (typeof data.cash !== "number" || !isFinite(data.cash) || data.cash < 0 || data.cash > 1e9) return false;
+  }
+  if (data.cashApy !== undefined) {
+    if (typeof data.cashApy !== "number" || !isFinite(data.cashApy) || data.cashApy < 0 || data.cashApy > 100) return false;
+  }
+  return true;
+}
+
+assert(validateUserDataWithCash({}), "empty data valid");
+assert(validateUserDataWithCash({ cash: 0 }), "zero cash valid");
+assert(validateUserDataWithCash({ cash: 5000 }), "positive cash valid");
+assert(validateUserDataWithCash({ cash: 1e9 }), "max cash (1bn) valid");
+assert(!validateUserDataWithCash({ cash: -1 }), "negative cash rejected");
+assert(!validateUserDataWithCash({ cash: 1e9 + 1 }), "cash over 1bn rejected");
+assert(!validateUserDataWithCash({ cash: "5000" }), "string cash rejected");
+assert(!validateUserDataWithCash({ cash: Infinity }), "Infinity cash rejected");
+assert(!validateUserDataWithCash({ cash: NaN }), "NaN cash rejected");
+assert(validateUserDataWithCash({ cashApy: 0 }), "zero APY valid");
+assert(validateUserDataWithCash({ cashApy: 5.25 }), "positive APY valid");
+assert(validateUserDataWithCash({ cashApy: 100 }), "max APY (100%) valid");
+assert(!validateUserDataWithCash({ cashApy: -0.1 }), "negative APY rejected");
+assert(!validateUserDataWithCash({ cashApy: 100.01 }), "APY over 100% rejected");
+assert(!validateUserDataWithCash({ cashApy: "5" }), "string APY rejected");
+assert(!validateUserDataWithCash({ cashApy: Infinity }), "Infinity APY rejected");
+assert(validateUserDataWithCash({ cash: 10000, cashApy: 5.25 }), "valid cash+APY combo passes");
+
+console.log("\n--- _lib: listAllKeys pagination logic ---");
+
+async function listAllKeysMock(store) {
+  const keys = [];
+  let cursor;
+  do {
+    const page = await store.list(cursor ? { cursor } : undefined);
+    for (const b of (page.blobs || [])) keys.push(b.key);
+    cursor = page.cursor;
+  } while (cursor);
+  return keys;
+}
+
+async function runPaginationTests() {
+  // Single page, no cursor
+  const singlePage = { blobs: [{ key: "a@b.com" }, { key: "c@d.com" }] };
+  const keys1 = await listAllKeysMock({ list: async () => singlePage });
+  assert(keys1.length === 2 && keys1[0] === "a@b.com", "single page returns all keys");
+
+  // Two pages with cursor
+  let call2 = 0;
+  const pages2 = [
+    { blobs: [{ key: "a@b.com" }], cursor: "page2" },
+    { blobs: [{ key: "c@d.com" }, { key: "e@f.com" }] },
+  ];
+  const keys2 = await listAllKeysMock({ list: async () => pages2[call2++] });
+  assert(keys2.length === 3, "two pages returns all 3 keys");
+  assert(keys2[2] === "e@f.com", "last key from second page is correct");
+
+  // Empty store
+  const keys3 = await listAllKeysMock({ list: async () => ({ blobs: [] }) });
+  assert(keys3.length === 0, "empty store returns empty array");
+}
+runPaginationTests().then(function () {
+
+console.log("\n--- news.js: feed source deduplication ---");
+
+function dedupeByUrl(items) {
+  const seen = new Set();
+  return items.filter(function (item) {
+    if (seen.has(item.u)) return false;
+    seen.add(item.u);
+    return true;
+  });
+}
+
+const feedItems = [
+  { t: "BTC breaks $100k", u: "https://coindesk.com/btc-100k", s: "CoinDesk", at: 1000 },
+  { t: "BTC breaks $100k (dup)", u: "https://coindesk.com/btc-100k", s: "Cointelegraph", at: 999 },
+  { t: "ETH upgrade live", u: "https://cointelegraph.com/eth-upgrade", s: "Cointelegraph", at: 998 },
+];
+const deduped = dedupeByUrl(feedItems);
+assert(deduped.length === 2, "duplicate URL removed from feed items");
+assert(deduped[0].s === "CoinDesk", "first occurrence kept on dedup");
+
+console.log("\n--- alerts: CGMAP coverage ---");
+
+const CGMAP_TEST = {
+  BTC:"bitcoin", ETH:"ethereum", SOL:"solana", VIRTUAL:"virtual-protocol",
+  AI16Z:"ai16z", MORPHO:"morpho", ENS:"ethereum-name-service",
+};
+assert(CGMAP_TEST["BTC"] === "bitcoin", "BTC maps to bitcoin");
+assert(CGMAP_TEST["VIRTUAL"] === "virtual-protocol", "VIRTUAL (new) mapped");
+assert(CGMAP_TEST["AI16Z"] === "ai16z", "AI16Z (new) mapped");
+assert(CGMAP_TEST["MORPHO"] === "morpho", "MORPHO (new DeFi) mapped");
+assert(!CGMAP_TEST["UNKNOWN"], "unknown ticker returns undefined");
+
+}).catch(function (err) {
+  console.error("Async test error:", err);
+  failed++;
+}).finally(function () {
+  // --- Summary ---
+  console.log("\n==========================================");
+  console.log("Results: " + passed + " passed, " + failed + " failed");
+  if (failed > 0) process.exit(1);
+});
