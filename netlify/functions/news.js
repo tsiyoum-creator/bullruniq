@@ -55,9 +55,11 @@ exports.handler = async function (event) {
     fetchFeed("https://thedefiant.io/feed", "The Defiant"),
     fetchFeed("https://decrypt.co/feed", "Decrypt"),
   ]);
+  const seen = new Set();
   let items = results.filter(function (r) { return r.status === "fulfilled"; })
     .flatMap(function (r) { return r.value; })
     .sort(function (a, b) { return b.at - a.at; })
+    .filter(function (item) { if (seen.has(item.u)) return false; seen.add(item.u); return true; })
     .slice(0, 20);
 
   if (!items.length && cache) {

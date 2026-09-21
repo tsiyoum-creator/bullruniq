@@ -211,14 +211,20 @@ exports.handler = async function (event) {
   }
   if (!ids.size) return { statusCode: 200, body: "no targets" };
 
-  // One batched price call — include User-Agent so CoinGecko doesn't rate-limit us
+  // Batch CoinGecko calls at 50 IDs each to stay within URL length limits
+  const CG_BATCH = 50;
+  const idList = [...ids];
   let prices = {};
   try {
-    const r = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=" + [...ids].join(",") + "&vs_currencies=usd",
-      { headers: CG_UA }
-    );
-    prices = await r.json();
+    for (let i = 0; i < idList.length; i += CG_BATCH) {
+      const chunk = idList.slice(i, i + CG_BATCH);
+      const r = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=" + chunk.join(",") + "&vs_currencies=usd",
+        { headers: CG_UA }
+      );
+      if (!r.ok) { console.log("[alerts] CoinGecko error:", r.status); continue; }
+      Object.assign(prices, await r.json());
+    }
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
   let sent = 0;
