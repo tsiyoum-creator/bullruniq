@@ -1,7 +1,7 @@
 // BullrunIQ — Secure Anthropic proxy
 
 const crypto = require("crypto");
-const { verifyToken } = require("./_lib");
+const { verifyToken, planFor } = require("./_lib");
 
 const ALLOWED_MODELS = new Set([
   "claude-opus-5",
@@ -123,7 +123,6 @@ exports.handler = async function (event) {
   const authz = (h.authorization || h.Authorization || "").replace(/^Bearer\s+/i, "").trim();
   const authedEmail = verifyToken(authz);
 
-  const { planFor } = require("./_lib");
   let userPlan = "free";
 
   if (authedEmail) {

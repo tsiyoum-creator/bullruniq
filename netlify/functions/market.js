@@ -137,6 +137,30 @@ exports.handler = async function (event) {
         })
       );
     };
+  } else if (q.kind === "volume_leaders") {
+    // Volume leaders: tokens with the highest 24h volume / market cap ratio.
+    // A spike here (>50%) often precedes a large directional move.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h";
+    key = "mkt:top250";
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) { return c.market_cap > 0 && c.total_volume > 0; })
+        .map(function (c) {
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            market_cap: c.market_cap,
+            volume_24h: c.total_volume,
+            volume_mcap_ratio: c.total_volume / c.market_cap,
+            change_24h: c.price_change_percentage_24h,
+          };
+        })
+        .sort(function (a, b) { return b.volume_mcap_ratio - a.volume_mcap_ratio; })
+        .slice(0, 20);
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -146,7 +170,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");

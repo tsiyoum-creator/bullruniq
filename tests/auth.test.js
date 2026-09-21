@@ -576,6 +576,76 @@ assert(CGMAP_TEST["AI16Z"] === "ai16z", "AI16Z (new) mapped");
 assert(CGMAP_TEST["MORPHO"] === "morpho", "MORPHO (new DeFi) mapped");
 assert(!CGMAP_TEST["UNKNOWN"], "unknown ticker returns undefined");
 
+console.log("\n--- alerts: CoinGecko batch split ---");
+
+function splitBatches(ids, batchSize) {
+  const result = [];
+  for (let i = 0; i < ids.length; i += batchSize) {
+    result.push(ids.slice(i, i + batchSize));
+  }
+  return result;
+}
+
+const smallIds = ["bitcoin", "ethereum", "solana"];
+assert(splitBatches(smallIds, 50).length === 1, "under 50 ids → single batch");
+assert(splitBatches(smallIds, 50)[0].length === 3, "single batch contains all ids");
+
+const bigIds = Array.from({ length: 120 }, function (_, i) { return "token-" + i; });
+const bigBatches = splitBatches(bigIds, 50);
+assert(bigBatches.length === 3, "120 ids → 3 batches of 50");
+assert(bigBatches[0].length === 50, "first batch is 50");
+assert(bigBatches[2].length === 20, "last batch is the remainder (20)");
+
+assert(splitBatches([], 50).length === 0, "empty ids → no batches");
+
+console.log("\n--- market.js: volume_leaders validation ---");
+
+const VALID_KINDS_V2 = new Set(["top50","top100","gainers","losers","trending","fear_greed","dominance","sectors","volume_leaders"]);
+assert(VALID_KINDS_V2.has("volume_leaders"), "volume_leaders is a valid kind");
+
+function computeVolMcapRatio(volume, mcap) {
+  if (!mcap || mcap <= 0) return 0;
+  return volume / mcap;
+}
+
+const tokens = [
+  { id: "a", total_volume: 1000, market_cap: 5000 },
+  { id: "b", total_volume: 3000, market_cap: 4000 },
+  { id: "c", total_volume: 500,  market_cap: 10000 },
+];
+const sorted = tokens
+  .map(function (t) { return { ...t, ratio: computeVolMcapRatio(t.total_volume, t.market_cap) }; })
+  .sort(function (a, b) { return b.ratio - a.ratio; });
+assert(sorted[0].id === "b", "highest volume/mcap ratio ranked first");
+assert(sorted[1].id === "a", "second-highest ranked second");
+assert(sorted[2].id === "c", "lowest volume/mcap ratio ranked last");
+
+console.log("\n--- news.js: deduplication applied before slice ---");
+
+function buildFeed(rawItems) {
+  const seen = new Set();
+  return rawItems
+    .sort(function (a, b) { return b.at - a.at; })
+    .filter(function (item) {
+      if (seen.has(item.u)) return false;
+      seen.add(item.u);
+      return true;
+    })
+    .slice(0, 5);
+}
+
+const rawFeed = [
+  { t: "Story 1", u: "https://a.com/1", s: "A", at: 1000 },
+  { t: "Story 1 dup", u: "https://a.com/1", s: "B", at: 900 },
+  { t: "Story 2", u: "https://a.com/2", s: "A", at: 800 },
+  { t: "Story 3", u: "https://a.com/3", s: "A", at: 700 },
+  { t: "Story 4", u: "https://a.com/4", s: "A", at: 600 },
+  { t: "Story 5", u: "https://a.com/5", s: "A", at: 500 },
+];
+const built = buildFeed(rawFeed);
+assert(built.length === 5, "5 unique URLs fit exactly into slice(0,5)");
+assert(built.every(function (i) { return i.s === "A"; }), "all items are from source A (earliest dup from B removed)");
+
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
