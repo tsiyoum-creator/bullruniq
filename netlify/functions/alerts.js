@@ -53,6 +53,10 @@ const CGMAP = {
   COW:"cow-protocol", SAFE:"safe", ENS:"ethereum-name-service",
   LPT:"livepeer", OCEAN:"ocean-protocol", FET:"fetch-ai",
   AGIX:"singularitynet",
+  // Mid-2026 additions
+  HYPE:"hyperliquid", KAITO:"kaito", IP:"story-2", MOVE:"movement-2",
+  LAYER:"solayer", ORCA:"orca", PYUSD:"paypal-usd", USUAL:"usual",
+  RESOLV:"resolv", INIT:"initia",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };

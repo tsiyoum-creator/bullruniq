@@ -12,9 +12,11 @@ function secretKey() {
 }
 
 function signToken(email, days) {
+  const key = secretKey();
+  if (!key) throw new Error("AUTH_SECRET not configured — cannot sign token");
   const exp = Date.now() + (days || 30) * 864e5;
   const p = Buffer.from(email + "|" + exp).toString("base64url");
-  const sig = crypto.createHmac("sha256", secretKey()).update(p).digest("base64url");
+  const sig = crypto.createHmac("sha256", key).update(p).digest("base64url");
   return p + "." + sig;
 }
 
