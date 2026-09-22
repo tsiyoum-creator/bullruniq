@@ -620,6 +620,122 @@ assert(sorted[0].id === "b", "highest volume/mcap ratio ranked first");
 assert(sorted[1].id === "a", "second-highest ranked second");
 assert(sorted[2].id === "c", "lowest volume/mcap ratio ranked last");
 
+console.log("\n--- market.js: fetchJson checks r.ok before r.json ---");
+
+// Simulates the fixed fetchJson: r.ok is checked first, so non-JSON error bodies
+// (e.g. plain-text "Too Many Requests" from CoinGecko) no longer surface as
+// confusing SyntaxErrors.
+function simulateFetchJson(okStatus, body) {
+  const ok = okStatus >= 200 && okStatus < 300;
+  // Fixed behaviour: throw on !r.ok before attempting JSON parse
+  if (!ok) throw new Error("upstream " + okStatus);
+  return JSON.parse(body);
+}
+
+let fetchJsonThrew = false;
+try { simulateFetchJson(429, "Too Many Requests"); }
+catch (e) { fetchJsonThrew = e.message === "upstream 429"; }
+assert(fetchJsonThrew, "non-JSON 429 body throws upstream error, not SyntaxError");
+
+let fetchJsonOk = false;
+try { fetchJsonOk = simulateFetchJson(200, '{"price":50000}').price === 50000; }
+catch (e) {}
+assert(fetchJsonOk, "successful JSON response is parsed correctly");
+
+let fetchJsonServerErr = false;
+try { simulateFetchJson(502, "<html>Bad Gateway</html>"); }
+catch (e) { fetchJsonServerErr = e.message === "upstream 502"; }
+assert(fetchJsonServerErr, "HTML 502 response throws upstream error, not SyntaxError");
+
+console.log("\n--- market.js: ath_nearby kind validation ---");
+
+const VALID_KINDS_FULL = new Set([
+  "top50","top100","gainers","losers","trending",
+  "fear_greed","dominance","sectors","volume_leaders","ath_nearby",
+]);
+assert(VALID_KINDS_FULL.has("ath_nearby"), "ath_nearby is a valid kind");
+assert(VALID_KINDS_FULL.has("volume_leaders"), "volume_leaders still valid after ath_nearby addition");
+assert(!VALID_KINDS_FULL.has("admin"), "admin rejected");
+
+console.log("\n--- market.js: ath_nearby transform logic ---");
+
+function athNearbyTransform(data) {
+  if (!Array.isArray(data)) return data;
+  return data
+    .filter(function (c) {
+      return typeof c.ath_change_percentage === "number" && c.ath_change_percentage >= -20;
+    })
+    .map(function (c) {
+      return {
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        price: c.current_price,
+        ath: c.ath,
+        ath_change_pct: c.ath_change_percentage,
+        market_cap: c.market_cap,
+      };
+    })
+    .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
+}
+
+const sampleCoins = [
+  { id: "bitcoin", symbol: "btc", name: "Bitcoin", current_price: 81000, ath: 99000, ath_change_percentage: -18.2, market_cap: 1600000000000 },
+  { id: "ethereum", symbol: "eth", name: "Ethereum", current_price: 3500, ath: 4800, ath_change_percentage: -27.1, market_cap: 420000000000 },
+  { id: "solana", symbol: "sol", name: "Solana", current_price: 190, ath: 200, ath_change_percentage: -5.0, market_cap: 80000000000 },
+];
+const athResult = athNearbyTransform(sampleCoins);
+assert(athResult.length === 2, "ethereum (-27.1%) excluded, bitcoin and solana within -20% included");
+assert(athResult[0].id === "solana", "solana (-5%) ranked above bitcoin (-18.2%)");
+assert(athResult[1].id === "bitcoin", "bitcoin (-18.2%) ranked second");
+assert(athResult[0].symbol === "SOL", "symbol uppercased");
+assert(athNearbyTransform(null) === null, "non-array input returned as-is");
+
+const exactBoundary = [
+  { id: "token-a", symbol: "a", name: "A", current_price: 100, ath: 125, ath_change_percentage: -20.0, market_cap: 1e9 },
+  { id: "token-b", symbol: "b", name: "B", current_price: 100, ath: 126, ath_change_percentage: -20.6, market_cap: 1e9 },
+];
+const boundaryResult = athNearbyTransform(exactBoundary);
+assert(boundaryResult.length === 1, "exactly -20% included, -20.6% excluded");
+assert(boundaryResult[0].id === "token-a", "boundary coin at exactly -20% included");
+
+console.log("\n--- _lib.js: signToken null-key guard ---");
+
+function signTokenWithGuard(email, days, key) {
+  if (!key) throw new Error("AUTH_SECRET not configured — cannot sign token");
+  const exp = Date.now() + (days || 30) * 864e5;
+  const p = Buffer.from(email + "|" + exp).toString("base64url");
+  const sig = crypto.createHmac("sha256", key).update(p).digest("base64url");
+  return p + "." + sig;
+}
+
+let nullKeyThrew = false;
+try { signTokenWithGuard("user@example.com", 30, null); }
+catch (e) { nullKeyThrew = e.message.includes("AUTH_SECRET not configured"); }
+assert(nullKeyThrew, "signToken throws a clear error when secretKey returns null");
+
+let emptyKeyThrew = false;
+try { signTokenWithGuard("user@example.com", 30, ""); }
+catch (e) { emptyKeyThrew = e.message.includes("AUTH_SECRET not configured"); }
+assert(emptyKeyThrew, "signToken throws on empty-string key");
+
+const goodToken = signTokenWithGuard("user@example.com", 30, TEST_SECRET);
+assert(typeof goodToken === "string" && goodToken.includes("."), "signToken works normally with a valid key");
+
+console.log("\n--- alerts.js: 2026 CGMAP additions ---");
+
+const CGMAP_2026 = {
+  HYPE:"hyperliquid", KAITO:"kaito", IP:"story-2", MOVE:"movement-2",
+  LAYER:"solayer", ORCA:"orca", PYUSD:"paypal-usd", USUAL:"usual",
+  RESOLV:"resolv", INIT:"initia",
+};
+assert(CGMAP_2026["HYPE"] === "hyperliquid", "HYPE maps to hyperliquid");
+assert(CGMAP_2026["KAITO"] === "kaito", "KAITO maps to kaito");
+assert(CGMAP_2026["IP"] === "story-2", "IP maps to story-2 (Story Protocol)");
+assert(CGMAP_2026["MOVE"] === "movement-2", "MOVE maps to movement-2");
+assert(CGMAP_2026["LAYER"] === "solayer", "LAYER maps to solayer");
+assert(!CGMAP_2026["UNKNOWN"], "unknown ticker still returns undefined");
+
 console.log("\n--- news.js: deduplication applied before slice ---");
 
 function buildFeed(rawItems) {

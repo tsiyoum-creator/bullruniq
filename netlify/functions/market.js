@@ -7,9 +7,8 @@ const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
 async function fetchJson(url, headers) {
   const r = await fetch(url, { headers: headers || UA });
-  const data = await r.json();
   if (!r.ok) throw new Error("upstream " + r.status);
-  return data;
+  return r.json();
 }
 
 exports.handler = async function (event) {
@@ -137,6 +136,34 @@ exports.handler = async function (event) {
         })
       );
     };
+  } else if (q.kind === "ath_nearby") {
+    // Coins trading within 20% of their all-time high — key distribution zone during a bull run.
+    // A coin in this band has historically been a profit-taking signal; approaching ATH with volume
+    // is the strongest short-term sell trigger tracked by this app.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=30d";
+    key = "mkt:top250_ath";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) {
+          // ath_change_percentage is ≤ 0 (e.g. -15 means 15% below ATH)
+          return typeof c.ath_change_percentage === "number" && c.ath_change_percentage >= -20;
+        })
+        .map(function (c) {
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            ath: c.ath,
+            ath_change_pct: c.ath_change_percentage,
+            market_cap: c.market_cap,
+            change_30d: c.price_change_percentage_30d_in_currency,
+          };
+        })
+        .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
+    };
   } else if (q.kind === "volume_leaders") {
     // Volume leaders: tokens with the highest 24h volume / market cap ratio.
     // A spike here (>50%) often precedes a large directional move.
@@ -170,7 +197,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");
