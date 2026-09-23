@@ -132,6 +132,39 @@ function tpAlertHtml(h, price, email) {
     + "</body></html>";
 }
 
+function athProximityAlertHtml(h, price, athPrice, athChangePct, email) {
+  const name = esc(h.name || h.ticker);
+  const ticker = esc(h.ticker);
+  const gainPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
+  const value = price * (h.qty || 0);
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;margin-bottom:10px'>🏔️ Near all-time high</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " within 10% of its ATH</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 12px'>"
+    + name + " is at <b style='color:#c9a84c'>" + fp(price) + "</b> — just <b style='color:#c9a84c'>" + Math.abs(athChangePct).toFixed(1) + "%</b> below its all-time high of <b style='color:#f0ece4'>" + fp(athPrice) + "</b>.</div>"
+    + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:6px'>Your position is up <b>" + pct(gainPct) + "</b> from your avg cost of " + fp(h.avg) + ".</div>" : "")
+    + (value > 0 ? "<div style='font-size:13px;color:#f0ece4;margin-bottom:22px'>Current value: <b>" + fp(value) + "</b></div>" : "<div style='margin-bottom:22px'></div>")
+    + "<div style='color:#8a8278;font-size:13px;line-height:1.7;max-width:420px;margin:0 auto 22px'>ATH proximity is historically one of the strongest distribution signals. Consider taking partial profits here if you haven't started yet — the profit-ladder framework suggests selling 25% increments at +25%, +50%, and +100% from cost.</div>"
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
+    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. This fired because your holding entered the top 10% of its all-time high range.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + "</body></html>";
+}
+
+function concentrationAlertHtml(ticker, holdingValue, totalValue, pctOfPortfolio, email) {
+  const t = esc(ticker);
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>⚠️ Concentration risk</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + t + " is " + pctOfPortfolio.toFixed(0) + "% of your portfolio</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 22px'>"
+    + "Your <b style='color:#c9a84c'>" + t + "</b> position (" + fp(holdingValue) + ") now represents over <b style='color:#e05555'>" + pctOfPortfolio.toFixed(0) + "%</b> of your tracked portfolio (" + fp(totalValue) + " total). "
+    + "High concentration in a single asset amplifies both gains and losses — consider whether this aligns with your risk plan.</div>"
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your portfolio →</a>"
+    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. This fired because a single position exceeded 60% of your tracked portfolio value.<br><a href='https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + "</body></html>";
+}
+
 function ladderAlertHtml(h, price, ladder, email) {
   const name = esc(h.name || h.ticker);
   const ticker = esc(h.ticker);
@@ -231,6 +264,28 @@ exports.handler = async function (event) {
     }
   } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
+  // Fetch ATH data for all tracked IDs via /coins/markets (needed for ATH proximity alerts).
+  // Separate from the simple/price fetch so a failure here doesn't block price alerts.
+  const athData = {};
+  try {
+    for (let i = 0; i < idList.length; i += CG_BATCH) {
+      const chunk = idList.slice(i, i + CG_BATCH);
+      const r = await fetch(
+        "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + chunk.join(",") + "&sparkline=false",
+        { headers: CG_UA }
+      );
+      if (!r.ok) { console.log("[alerts] CoinGecko ATH fetch error:", r.status); continue; }
+      const coins = await r.json();
+      if (Array.isArray(coins)) {
+        coins.forEach(function (c) {
+          if (c.id && typeof c.ath === "number" && typeof c.ath_change_percentage === "number") {
+            athData[c.id] = { ath: c.ath, ath_change_pct: c.ath_change_percentage };
+          }
+        });
+      }
+    }
+  } catch (e) { console.log("[alerts] ATH data fetch failed (non-fatal):", e.message); }
+
   let sent = 0;
   for (const email of Object.keys(recs)) {
     const rec = recs[email];
@@ -279,6 +334,52 @@ exports.handler = async function (event) {
         } else if (shouldResetLadder(h.avg, p, prevHits)) {
           // Price dropped well below +10% gain — reset counter with hysteresis
           h.serverLadderHits = 0; changed = true;
+        }
+      }
+
+      // ── ATH proximity alert: fires when price enters top 10% of all-time high ──
+      // ATH zone is one of the strongest historical distribution signals in crypto.
+      if (h.avg && h.qty && sent < MAX_EMAILS_PER_RUN) {
+        const coinId = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
+        const ath = athData[coinId];
+        if (ath && ath.ath_change_pct >= -10 && ath.ath_change_pct <= 0) {
+          if (!h.serverAthAlerted) {
+            try {
+              const ok = await sendEmail(RESEND, email, "🏔️ " + h.ticker + " within 10% of its all-time high — profit-taking zone", athProximityAlertHtml(h, p, ath.ath, ath.ath_change_pct, email), FROM);
+              if (ok) { sent++; h.serverAthAlerted = true; changed = true; console.log("[alerts] ath-proximity " + email + " " + h.ticker + " @ " + p + " (" + ath.ath_change_pct.toFixed(1) + "% from ATH)"); }
+            } catch (e) { console.log("[alerts] ath proximity email error:", e.message); }
+          }
+        } else if (ath && ath.ath_change_pct < -20 && h.serverAthAlerted) {
+          // Re-arm once price falls more than 20% below ATH (moved out of distribution zone)
+          h.serverAthAlerted = false; changed = true;
+        }
+      }
+    }
+
+    // ── Concentration risk alert: fires when one holding exceeds 60% of tracked portfolio ──
+    if (sent < MAX_EMAILS_PER_RUN) {
+      const holdWithPrices = hold.filter(function (h) {
+        if (!h || !h.qty) return false;
+        const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
+        return !!(prices[id] && prices[id].usd);
+      });
+      if (holdWithPrices.length >= 2) {
+        const totalValue = holdWithPrices.reduce(function (s, h) {
+          const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
+          return s + (prices[id].usd * h.qty);
+        }, 0);
+        for (const h of holdWithPrices) {
+          const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
+          const holdVal = prices[id].usd * h.qty;
+          const pctOfPortfolio = totalValue > 0 ? (holdVal / totalValue * 100) : 0;
+          if (pctOfPortfolio >= 60 && !h.serverConcentrationAlerted) {
+            try {
+              const ok = await sendEmail(RESEND, email, "⚠️ " + h.ticker + " is " + pctOfPortfolio.toFixed(0) + "% of your portfolio — concentration risk", concentrationAlertHtml(h.ticker, holdVal, totalValue, pctOfPortfolio, email), FROM);
+              if (ok) { sent++; h.serverConcentrationAlerted = true; changed = true; console.log("[alerts] concentration " + email + " " + h.ticker + " @ " + pctOfPortfolio.toFixed(0) + "%"); }
+            } catch (e) { console.log("[alerts] concentration email error:", e.message); }
+          } else if (pctOfPortfolio < 50 && h.serverConcentrationAlerted) {
+            h.serverConcentrationAlerted = false; changed = true;
+          }
         }
       }
     }

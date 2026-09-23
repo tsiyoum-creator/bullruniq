@@ -762,6 +762,123 @@ const built = buildFeed(rawFeed);
 assert(built.length === 5, "5 unique URLs fit exactly into slice(0,5)");
 assert(built.every(function (i) { return i.s === "A"; }), "all items are from source A (earliest dup from B removed)");
 
+console.log("\n--- alerts.js: ATH proximity alert logic ---");
+
+function shouldSendAthAlert(h, athChangePct) {
+  return athChangePct >= -10 && athChangePct <= 0 && !h.serverAthAlerted;
+}
+function shouldRearmAthAlert(h, athChangePct) {
+  return !!h.serverAthAlerted && athChangePct < -20;
+}
+
+const athHolding = { ticker: "BTC", avg: 60000, qty: 0.5 };
+assert(shouldSendAthAlert({ ...athHolding }, -5), "ATH alert fires within 5% of ATH");
+assert(shouldSendAthAlert({ ...athHolding }, -10), "ATH alert fires at exactly -10% boundary");
+assert(shouldSendAthAlert({ ...athHolding }, 0), "ATH alert fires at new ATH (0% change)");
+assert(!shouldSendAthAlert({ ...athHolding }, -11), "ATH alert suppressed at -11% (outside window)");
+assert(!shouldSendAthAlert({ ...athHolding }, -50), "ATH alert suppressed far below ATH");
+assert(!shouldSendAthAlert({ ...athHolding, serverAthAlerted: true }, -5), "no duplicate ATH alert");
+assert(shouldRearmAthAlert({ ...athHolding, serverAthAlerted: true }, -25), "ATH alert re-arms at -25% (below -20%)");
+assert(!shouldRearmAthAlert({ ...athHolding, serverAthAlerted: true }, -15), "no re-arm at -15% (above -20% threshold)");
+assert(!shouldRearmAthAlert({ ...athHolding }, -25), "no re-arm if alert was never sent");
+
+console.log("\n--- alerts.js: concentration risk alert logic ---");
+
+function concentrationOf(holdings, cgid, prices) {
+  let total = 0, myVal = 0;
+  let priced = 0;
+  for (const h of holdings) {
+    const price = prices[h.cgid];
+    if (price == null) continue;
+    const val = (h.qty || 0) * price;
+    total += val;
+    if (h.cgid === cgid) myVal = val;
+    priced++;
+  }
+  if (priced < 2 || total === 0) return 0;
+  return myVal / total;
+}
+
+function shouldSendConcentrationAlert(ratio, alerted) {
+  return ratio >= 0.60 && !alerted;
+}
+function shouldRearmConcentrationAlert(ratio, alerted) {
+  return !!alerted && ratio < 0.50;
+}
+
+const holdings = [
+  { cgid: "bitcoin", qty: 1 },
+  { cgid: "ethereum", qty: 5 },
+];
+const prices60 = { bitcoin: 60000, ethereum: 3000 };  // BTC: 60k (80%), ETH: 15k (20%)
+const ratio80 = concentrationOf(holdings, "bitcoin", prices60);
+assert(ratio80 > 0.79 && ratio80 < 0.81, "concentration correctly computed at ~80%");
+assert(shouldSendConcentrationAlert(ratio80, false), "concentration alert fires at 80%");
+assert(!shouldSendConcentrationAlert(ratio80, true), "no duplicate concentration alert");
+
+const pricesLow = { bitcoin: 10000, ethereum: 3000 };  // BTC: 10k (40%), ETH: 15k (60%)
+const ratioLow = concentrationOf(holdings, "bitcoin", pricesLow);
+assert(ratioLow < 0.60, "concentration below 60% at equal value");
+assert(!shouldSendConcentrationAlert(ratioLow, false), "no alert below 60% threshold");
+assert(shouldRearmConcentrationAlert(ratioLow, true), "concentration alert re-arms below 50%");
+
+const ratioExact60 = 0.60;
+assert(shouldSendConcentrationAlert(ratioExact60, false), "alert fires at exactly 60% boundary");
+assert(!shouldRearmConcentrationAlert(0.50, true), "no re-arm at exactly 50% (above threshold)");
+assert(shouldRearmConcentrationAlert(0.49, true), "re-arms just below 50%");
+
+const singleHolding = [{ cgid: "bitcoin", qty: 1 }];
+const ratioSingle = concentrationOf(singleHolding, "bitcoin", { bitcoin: 60000 });
+assert(ratioSingle === 0, "single holding returns 0 (requires >=2 priced holdings)");
+
+console.log("\n--- macro.js: date fix — catalyst window uses real current time ---");
+
+function isCatalystInsideWindow(catalystDateStr, windowDays) {
+  const catalystMs = new Date(catalystDateStr).getTime();
+  const nowMs = Date.now();
+  const diff = (catalystMs - nowMs) / (1000 * 60 * 60 * 24);
+  return diff >= 0 && diff <= windowDays;
+}
+
+function daysUntilCatalyst(catalystDateStr) {
+  const catalystMs = new Date(catalystDateStr).getTime();
+  const nowMs = Date.now();
+  return (catalystMs - nowMs) / (1000 * 60 * 60 * 24);
+}
+
+// A catalyst well in the past should not be inside the 21-day window
+const pastCatalyst = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+assert(!isCatalystInsideWindow(pastCatalyst, 21), "past catalyst not inside 21-day window");
+
+// A catalyst 10 days from now should be inside
+const futureCatalyst10d = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+assert(isCatalystInsideWindow(futureCatalyst10d, 21), "catalyst 10 days out is inside 21-day window");
+
+// A catalyst 25 days from now is outside
+const futureCatalyst25d = new Date(Date.now() + 25 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+assert(!isCatalystInsideWindow(futureCatalyst25d, 21), "catalyst 25 days out is outside 21-day window");
+
+// Days-until should be positive for future, negative for past
+const daysUntilFuture = daysUntilCatalyst(futureCatalyst10d);
+assert(daysUntilFuture > 9 && daysUntilFuture < 11, "days-until correctly ~10 days for near-future catalyst");
+
+const daysUntilPast = daysUntilCatalyst(pastCatalyst);
+assert(daysUntilPast < 0, "days-until is negative for past catalyst");
+
+// Verify that using a stale reference date (like MACRO_DATA.asOf) gives wrong results
+const staleAsOf = "2026-09-21";
+function isCatalystInsideWindowStale(catalystDateStr, windowDays) {
+  const catalystMs = new Date(catalystDateStr).getTime();
+  const nowMs = new Date(staleAsOf).getTime();
+  const diff = (catalystMs - nowMs) / (1000 * 60 * 60 * 24);
+  return diff >= 0 && diff <= windowDays;
+}
+// futureCatalyst10d is 10 days from today (2026-09-23). With stale date 2026-09-21 it appears 12 days out.
+// With real Date.now() it's 10 days. Both are in window, but stale date gives wrong day count.
+const realDays = Math.round((new Date(futureCatalyst10d).getTime() - Date.now()) / 864e5);
+const staleDays = Math.round((new Date(futureCatalyst10d).getTime() - new Date(staleAsOf).getTime()) / 864e5);
+assert(staleDays > realDays, "stale reference date overstates days remaining vs real Date.now()");
+
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
