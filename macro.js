@@ -214,7 +214,9 @@ function checkFalsifiers(){
     var hit=(i.op==='gt'&&i.v>i.th)||(i.op==='lt'&&i.v<i.th);
     if(hit)trips.push({n:i.n,v:i.v,u:i.u,op:i.op,th:i.th,trips:i.trips,asOf:i.asOf});
   });
-  var soon=[],now=new Date(MACRO_DATA.asOf).getTime();
+  // Use real current time so "inside 21 days" reflects actual remaining days,
+  // not days from the last data refresh.
+  var soon=[],now=Date.now();
   MACRO_DATA.catalysts.forEach(function(c){
     var d=new Date(c.d).getTime(),days=Math.round((d-now)/86400000);
     if(days>=0&&days<=21)soon.push({n:c.n,d:c.d,days:days,tests:c.tests});
@@ -300,7 +302,7 @@ function rFlows(){
   });
 
   h+='<div class="sh gold">Dated catalysts</div><div class="card">';
-  var now=new Date(MACRO_DATA.asOf).getTime();
+  var now=Date.now();
   MACRO_DATA.catalysts.forEach(function(c){
     var days=Math.round((new Date(c.d).getTime()-now)/86400000);
     var urgent=days>=0&&days<=14;

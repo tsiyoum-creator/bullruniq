@@ -4,8 +4,10 @@ const crypto = require("crypto");
 const { verifyToken, planFor } = require("./_lib");
 
 const ALLOWED_MODELS = new Set([
+  "claude-opus-5-5",
   "claude-opus-5",
   "claude-sonnet-5",
+  "claude-haiku-4-5",
   "claude-haiku-4-5-20251001",
   // Previous generation — kept so clients cached mid-deploy don't 400.
   "claude-opus-4-8",
@@ -135,14 +137,16 @@ exports.handler = async function (event) {
       const resetMsg = userPlan === "free"
         ? "Daily AI limit reached on the Free plan. Upgrade to Pro for 10× more AI calls."
         : "Daily AI limit reached. Resets at midnight UTC.";
-      return { statusCode: 429, headers: { ...CORS, "Retry-After": secondsUntilMidnightUTC() }, body: JSON.stringify({ error: { message: resetMsg } }) };
+      const retryAfter = secondsUntilMidnightUTC();
+      return { statusCode: 429, headers: { ...CORS, "Retry-After": retryAfter, "X-RateLimit-Limit": String(dailyCap), "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + parseInt(retryAfter, 10)) }, body: JSON.stringify({ error: { message: resetMsg } }) };
     }
   } else {
     if (!burstOk(ip)) {
-      return { statusCode: 429, headers: { ...CORS, "Retry-After": "60" }, body: JSON.stringify({ error: { message: "Too many requests — slow down a moment and try again." } }) };
+      return { statusCode: 429, headers: { ...CORS, "Retry-After": "60", "X-RateLimit-Limit": String(BURST_MAX), "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 60) }, body: JSON.stringify({ error: { message: "Too many requests — slow down a moment and try again." } }) };
     }
     if (!(await dailyOk("ip:" + ip, DAILY_IP_CAP))) {
-      return { statusCode: 429, headers: { ...CORS, "Retry-After": secondsUntilMidnightUTC() }, body: JSON.stringify({ error: { message: "Daily AI limit reached for this network. Log in or add your own API key in Settings for more." } }) };
+      const retryAfter = secondsUntilMidnightUTC();
+      return { statusCode: 429, headers: { ...CORS, "Retry-After": retryAfter, "X-RateLimit-Limit": String(DAILY_IP_CAP), "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + parseInt(retryAfter, 10)) }, body: JSON.stringify({ error: { message: "Daily AI limit reached for this network. Log in or add your own API key in Settings for more." } }) };
     }
   }
 

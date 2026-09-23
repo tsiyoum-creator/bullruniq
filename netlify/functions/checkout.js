@@ -6,6 +6,7 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const VALID_TIERS = new Set(["pro", "elite", "advisor"]);
 const PRICE_ENV = {
   pro: "STRIPE_PRICE_PRO",
   elite: "STRIPE_PRICE_ELITE",
@@ -23,6 +24,10 @@ exports.handler = async function (event) {
   const tier = String(payload.tier || "").toLowerCase();
   const rawEmail = payload.email ? String(payload.email).trim().toLowerCase().slice(0, 200) : "";
   const email = rawEmail && rawEmail.indexOf("@") > 0 ? rawEmail : "";
+
+  if (!VALID_TIERS.has(tier)) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Invalid tier. Must be one of: pro, elite, advisor." }) };
+  }
 
   if (!SECRET) {
     return { statusCode: 200, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify({ configured: false }) };
