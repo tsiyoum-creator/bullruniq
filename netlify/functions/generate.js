@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { verifyToken, planFor } = require("./_lib");
 
 const ALLOWED_MODELS = new Set([
+  "claude-fable-5-1",
   "claude-opus-5-5",
   "claude-opus-5",
   "claude-sonnet-5",
