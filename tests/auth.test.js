@@ -309,7 +309,7 @@ function ladderFor(avg, qty, price) {
   if (!avg || avg <= 0 || !qty || qty <= 0) return null;
   const g = (price - avg) / avg * 100;
   if (g < 20) return null;
-  const rungs = [25, 50, 100].map(pc => {
+  const rungs = [25, 50, 100, 200].map(pc => {
     const lp = avg * (1 + pc / 100);
     return { pct: pc, price: lp, qty: qty * 0.25, hit: price >= lp };
   });
@@ -319,11 +319,13 @@ assert(ladderFor(100, 10, 110) === null, "no ladder under +20% gain");
 assert(ladderFor(0, 10, 500) === null, "no ladder without cost basis");
 assert(ladderFor(100, 0, 500) === null, "no ladder without qty");
 const lad = ladderFor(100, 10, 160);
-assert(lad !== null && lad.rungs.length === 3, "ladder has 3 rungs");
-assert(lad.rungs[0].price === 125 && lad.rungs[1].price === 150 && lad.rungs[2].price === 200, "rung prices at +25/+50/+100%");
+assert(lad !== null && lad.rungs.length === 4, "ladder has 4 rungs");
+assert(lad.rungs[0].price === 125 && lad.rungs[1].price === 150 && lad.rungs[2].price === 200 && lad.rungs[3].price === 300, "rung prices at +25/+50/+100/+200%");
 assert(lad.hits.length === 2, "at +60%, first two rungs are hit");
 assert(lad.rungs[0].qty === 2.5, "each rung sells 25% of the position");
-assert(ladderFor(100, 10, 250).hits.length === 3, "at +150%, all rungs hit");
+assert(ladderFor(100, 10, 250).hits.length === 3, "at +150%, three rungs hit");
+assert(ladderFor(100, 10, 300).hits.length === 4, "at exactly +200%, all four rungs hit");
+assert(ladderFor(100, 10, 400).hits.length === 4, "above +200%, all four rungs hit");
 assert(ladderFor(100, 10, 125).hits.length === 1, "at exactly +25%, one rung hit");
 assert(ladderFor(100, 10, 124).hits.length === 0, "just below +25%, no rung hit but ladder active");
 
@@ -347,7 +349,8 @@ assert(!shouldSendLadderAlert({ ...ladderHolding }, 120), "no alert at +20% (bel
 assert(shouldSendLadderAlert({ ...ladderHolding }, 126), "alert when first rung (+25%) crossed");
 assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 130), "no re-alert same rung");
 assert(shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 151), "alert when second rung (+50%) crossed");
-assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 3 }, 300), "no alert when all rungs already recorded");
+assert(shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 3 }, 301), "alert when 4th rung (+200%) crossed after 3 already recorded");
+assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 4 }, 400), "no alert when all four rungs already recorded");
 // New hysteresis: reset only below +10%, not below +20%
 assert(shouldResetLadder(100, 109, 2), "ladder resets below +10% (hysteresis)");
 assert(!shouldResetLadder(100, 119, 2), "no reset between +10% and +20% (hysteresis holds)");
@@ -878,6 +881,120 @@ function isCatalystInsideWindowStale(catalystDateStr, windowDays) {
 const realDays = Math.round((new Date(futureCatalyst10d).getTime() - Date.now()) / 864e5);
 const staleDays = Math.round((new Date(futureCatalyst10d).getTime() - new Date(staleAsOf).getTime()) / 864e5);
 assert(staleDays > realDays, "stale reference date overstates days remaining vs real Date.now()");
+
+console.log("\n--- sync.js: ticker character validation ---");
+
+function isValidTicker(ticker) {
+  if (!ticker) return true; // falsy tickers are skipped, not rejected
+  if (typeof ticker !== "string") return false;
+  if (ticker.length > 20) return false;
+  return /^[A-Za-z0-9._-]{1,20}$/.test(ticker);
+}
+assert(isValidTicker("BTC"), "BTC passes");
+assert(isValidTicker("bitcoin"), "lowercase passes");
+assert(isValidTicker("WSTETH"), "long uppercase ticker passes");
+assert(isValidTicker("BTC.B"), "ticker with dot passes (Avalanche bridge)");
+assert(isValidTicker("token-2"), "ticker with hyphen passes (CG-style IDs)");
+assert(isValidTicker("T_K"), "ticker with underscore passes");
+assert(!isValidTicker("bitcoin,ethereum"), "comma injection rejected");
+assert(!isValidTicker("bitcoin?q=1"), "query-string injection rejected");
+assert(!isValidTicker("../../etc"), "path traversal rejected");
+assert(!isValidTicker("<script>"), "angle bracket injection rejected");
+assert(!isValidTicker("a".repeat(21)), "ticker over 20 chars rejected");
+assert(isValidTicker(null), "null ticker is falsy — passes (skipped, not rejected)");
+
+console.log("\n--- sync.js: validateUserData structure ---");
+
+function validateUserData(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  if (data.cash !== undefined) {
+    if (typeof data.cash !== "number" || !isFinite(data.cash) || data.cash < 0 || data.cash > 1e9) return false;
+  }
+  if (data.cashApy !== undefined) {
+    if (typeof data.cashApy !== "number" || !isFinite(data.cashApy) || data.cashApy < 0 || data.cashApy > 100) return false;
+  }
+  if (data.port && data.port.crypto !== undefined) {
+    if (!Array.isArray(data.port.crypto)) return false;
+    if (data.port.crypto.length > 200) return false;
+    for (const h of data.port.crypto) {
+      if (!h || typeof h !== "object") return false;
+      if (h.ticker && typeof h.ticker !== "string") return false;
+      if (h.ticker && h.ticker.length > 20) return false;
+      if (h.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(h.ticker)) return false;
+      if (h.qty !== undefined && typeof h.qty !== "number") return false;
+      if (h.avg !== undefined && typeof h.avg !== "number") return false;
+      if (h.stop !== undefined && typeof h.stop !== "number") return false;
+      if (h.tp !== undefined && typeof h.tp !== "number") return false;
+    }
+  }
+  if (data.wl !== undefined) {
+    if (!Array.isArray(data.wl)) return false;
+    if (data.wl.length > 100) return false;
+    for (const w of data.wl) {
+      if (!w || typeof w !== "object") return false;
+      if (w.ticker && typeof w.ticker !== "string") return false;
+      if (w.ticker && w.ticker.length > 20) return false;
+      if (w.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(w.ticker)) return false;
+      if (w.targetPrice !== undefined && typeof w.targetPrice !== "number") return false;
+      if (w.sellTarget !== undefined && typeof w.sellTarget !== "number") return false;
+    }
+  }
+  return true;
+}
+
+assert(validateUserData({ cash: 1000, port: { crypto: [{ ticker: "BTC", qty: 1, avg: 60000 }] } }), "valid holding passes");
+assert(!validateUserData({ port: { crypto: [{ ticker: "bitcoin,ethereum", qty: 1 }] } }), "comma-injection ticker rejected");
+assert(!validateUserData({ port: { crypto: [{ ticker: "<script>", qty: 1 }] } }), "XSS ticker rejected");
+assert(!validateUserData({ wl: [{ ticker: "bitcoin?q=1", targetPrice: 50000 }] }), "query-string ticker in watchlist rejected");
+assert(validateUserData({ wl: [{ ticker: "BTC", targetPrice: 50000, sellTarget: 70000 }] }), "valid watchlist entry passes");
+assert(!validateUserData({ cash: -1 }), "negative cash rejected");
+assert(!validateUserData({ cash: 2e9 }), "cash over 1bn rejected");
+assert(!validateUserData({ cashApy: 101 }), "APY over 100% rejected");
+assert(!validateUserData({ port: { crypto: Array.from({ length: 201 }, () => ({ ticker: "BTC" })) } }), "over 200 holdings rejected");
+assert(validateUserData({}), "empty object is valid");
+assert(!validateUserData(null), "null rejected");
+assert(!validateUserData([]), "array rejected");
+
+console.log("\n--- alerts.js: cgId safe ticker resolution ---");
+
+const TEST_CGMAP = {
+  BTC: "bitcoin",
+  ETH: "ethereum",
+  "BTC.B": "bitcoin", // hypothetical bridge token mapped in CGMAP
+};
+
+function cgIdTest(ticker) {
+  const upper = String(ticker).toUpperCase();
+  if (TEST_CGMAP[upper]) return TEST_CGMAP[upper];
+  const lower = String(ticker).toLowerCase();
+  return /^[a-z0-9-]+$/.test(lower) ? lower : null;
+}
+
+assert(cgIdTest("BTC") === "bitcoin", "known CGMAP ticker resolves correctly");
+assert(cgIdTest("ETH") === "ethereum", "ETH resolves via CGMAP");
+assert(cgIdTest("solana") === "solana", "safe lowercase fallback accepted");
+assert(cgIdTest("injective-protocol") === "injective-protocol", "hyphenated CG ID accepted");
+assert(cgIdTest("bitcoin,ethereum") === null, "comma-injection returns null");
+assert(cgIdTest("../../etc/passwd") === null, "path traversal returns null");
+assert(cgIdTest("<script>alert(1)</script>") === null, "XSS string returns null");
+assert(cgIdTest("token.with.dots") === null, "dots not allowed in CG fallback ID");
+assert(cgIdTest("TOKEN_UNDER") === null, "underscore not allowed in CG fallback ID");
+
+console.log("\n--- profit-ladder: +200% rung addition ---");
+
+const lad200 = ladderFor(100, 8, 301);
+assert(lad200 !== null, "ladder active at +201%");
+assert(lad200.rungs.length === 4, "four rungs total with +200% addition");
+assert(lad200.rungs[3].pct === 200, "fourth rung is +200%");
+assert(lad200.rungs[3].price === 300, "fourth rung price is 3x avg cost");
+assert(lad200.hits.length === 4, "all four rungs hit at +201%");
+assert(lad200.rungs[3].qty === 2, "each rung still sells 25% of initial qty");
+// At exactly +200% all 4 should hit
+const ladExact200 = ladderFor(100, 8, 300);
+assert(ladExact200.hits.length === 4, "all four rungs hit at exactly +200%");
+// At +190% only 3 should hit (below the +200% threshold)
+const ladBelow200 = ladderFor(100, 8, 290);
+assert(ladBelow200.hits.length === 3, "only three rungs hit at +190% (below +200% rung)");
 
 }).catch(function (err) {
   console.error("Async test error:", err);

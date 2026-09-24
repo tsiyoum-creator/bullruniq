@@ -5,7 +5,7 @@
 //   • SELL alert: watchlist price rises to or above their sellTarget.
 //   • STOP alert: a holding falls to/below its stop-loss (portfolio guard).
 //   • TP alert: a holding rises to/above its take-profit (portfolio guard).
-//   • LADDER alert: a holding crosses a new +25/+50/+100% profit rung vs avg cost.
+//   • LADDER alert: a holding crosses a new +25/+50/+100/+200% profit rung vs avg cost.
 // server*Alerted flags with ~5% hysteresis prevent repeat emails.
 // Crypto tickers only — stock quotes would need per-user broker keys server-side.
 // No-ops gracefully until RESEND_API_KEY is set.
@@ -60,6 +60,16 @@ const CGMAP = {
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+
+// Returns a CoinGecko-safe ID for a ticker, or null if the ticker cannot be safely resolved.
+// Prevents URL injection when tickers are interpolated into CoinGecko API calls.
+function cgId(ticker) {
+  const upper = String(ticker).toUpperCase();
+  if (CGMAP[upper]) return CGMAP[upper];
+  const lower = String(ticker).toLowerCase();
+  // Only accept CG-safe IDs: lowercase letters, digits, hyphens
+  return /^[a-z0-9-]+$/.test(lower) ? lower : null;
+}
 
 async function sendEmail(RESEND, to, subject, html, FROM) {
   const r = await fetch("https://api.resend.com/emails", {
@@ -190,7 +200,7 @@ function computeLadder(avg, qty, price) {
   if (!avg || avg <= 0 || !qty || qty <= 0) return null;
   const gainPct = (price - avg) / avg * 100;
   if (gainPct < 20) return null;
-  const rungs = [25, 50, 100].map(function (pc) {
+  const rungs = [25, 50, 100, 200].map(function (pc) {
     const ladderPrice = avg * (1 + pc / 100);
     return { pct: pc, price: ladderPrice, qty: qty * 0.25, hit: price >= ladderPrice };
   });
@@ -235,12 +245,14 @@ exports.handler = async function (event) {
         recs[email] = rec;
         wlist.forEach(function (w) {
           if (w && (w.targetPrice || w.sellTarget)) {
-            ids.add(CGMAP[String(w.ticker).toUpperCase()] || String(w.ticker).toLowerCase());
+            const id = cgId(w.ticker);
+            if (id) ids.add(id);
           }
         });
         hold.forEach(function (h) {
           if (h && (h.stop || h.tp || (h.avg && h.qty))) {
-            ids.add(CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase());
+            const id = cgId(h.ticker);
+            if (id) ids.add(id);
           }
         });
       }
@@ -295,8 +307,8 @@ exports.handler = async function (event) {
     const hold = rec.data.port && Array.isArray(rec.data.port.crypto) ? rec.data.port.crypto : [];
     for (const h of hold) {
       if (!h) continue;
-      const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
-      const p = prices[id] && prices[id].usd;
+      const id = cgId(h.ticker);
+      const p = id && prices[id] && prices[id].usd;
       if (!p) continue;
 
       if (h.stop && p <= h.stop && !h.serverStopAlerted && sent < MAX_EMAILS_PER_RUN) {
@@ -317,7 +329,7 @@ exports.handler = async function (event) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
       }
 
-      // ── Profit-ladder alert: fires when a new +25/+50/+100% rung is crossed ──
+      // ── Profit-ladder alert: fires when a new +25/+50/+100/+200% rung is crossed ──
       if (h.avg && h.qty && sent < MAX_EMAILS_PER_RUN) {
         const ladder = computeLadder(h.avg, h.qty, p);
         const prevHits = h.serverLadderHits || 0;
@@ -340,8 +352,7 @@ exports.handler = async function (event) {
       // ── ATH proximity alert: fires when price enters top 10% of all-time high ──
       // ATH zone is one of the strongest historical distribution signals in crypto.
       if (h.avg && h.qty && sent < MAX_EMAILS_PER_RUN) {
-        const coinId = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
-        const ath = athData[coinId];
+        const ath = id && athData[id];
         if (ath && ath.ath_change_pct >= -10 && ath.ath_change_pct <= 0) {
           if (!h.serverAthAlerted) {
             try {
@@ -360,17 +371,17 @@ exports.handler = async function (event) {
     if (sent < MAX_EMAILS_PER_RUN) {
       const holdWithPrices = hold.filter(function (h) {
         if (!h || !h.qty) return false;
-        const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
-        return !!(prices[id] && prices[id].usd);
+        const hid = cgId(h.ticker);
+        return !!(hid && prices[hid] && prices[hid].usd);
       });
       if (holdWithPrices.length >= 2) {
         const totalValue = holdWithPrices.reduce(function (s, h) {
-          const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
-          return s + (prices[id].usd * h.qty);
+          const hid = cgId(h.ticker);
+          return s + (prices[hid].usd * h.qty);
         }, 0);
         for (const h of holdWithPrices) {
-          const id = CGMAP[String(h.ticker).toUpperCase()] || String(h.ticker).toLowerCase();
-          const holdVal = prices[id].usd * h.qty;
+          const hid = cgId(h.ticker);
+          const holdVal = prices[hid].usd * h.qty;
           const pctOfPortfolio = totalValue > 0 ? (holdVal / totalValue * 100) : 0;
           if (pctOfPortfolio >= 60 && !h.serverConcentrationAlerted) {
             try {
@@ -386,8 +397,8 @@ exports.handler = async function (event) {
 
     for (const w of rec.data.wl || []) {
       if (!w) continue;
-      const id = CGMAP[String(w.ticker).toUpperCase()] || String(w.ticker).toLowerCase();
-      const p = prices[id] && prices[id].usd;
+      const id = cgId(w.ticker);
+      const p = id && prices[id] && prices[id].usd;
       if (!p) continue; // unknown ticker / stock — skip
 
       // BUY alert: price within 2% of the buy target (approaching from any direction)
