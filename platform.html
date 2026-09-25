@@ -536,8 +536,8 @@ async function mktCtx(){
 // ── Model tiers ───────────────────────────────────────────────
 // Heavy reasoning (council synthesis, sports edge) → Opus 4.8.
 // Most analysis/chat → Sonnet 4.6. Cheap parsing → Haiku 4.5.
-var MODEL_HEAVY='claude-opus-4-8';
-var MODEL_SMART='claude-sonnet-4-6';
+var MODEL_HEAVY='claude-opus-5';
+var MODEL_SMART='claude-sonnet-5';
 var MODEL_FAST='claude-haiku-4-5-20251001';
 
 // ── AI router ─────────────────────────────────────────────────
@@ -2354,12 +2354,13 @@ function saveEditHold(type,id){
 }
 
 // ── Autopilot: automated daily plan ──────────────────────────
-// Profit-lock ladder: for any holding up 20%+, tiered sells at +25/+50/+100%
+// Profit-lock ladder: for any holding up 20%+, tiered sells at +25/+50/+100/+200%
 // from cost basis — 25% of the position at each rung, rest rides.
+// Must match computeLadder() rungs in netlify/functions/alerts.js.
 function ladderFor(h){
   var p=pof(h);if(!h.avg||h.avg<=0)return null;
   var g=(p-h.avg)/h.avg*100;if(g<20)return null;
-  var rungs=[25,50,100].map(function(pc){var lp=h.avg*(1+pc/100);return{pct:pc,price:lp,qty:h.qty*0.25,usd:h.qty*0.25*lp,hit:p>=lp};});
+  var rungs=[25,50,100,200].map(function(pc){var lp=h.avg*(1+pc/100);return{pct:pc,price:lp,qty:h.qty*0.25,usd:h.qty*0.25*lp,hit:p>=lp};});
   return{gain:g,rungs:rungs,hits:rungs.filter(function(r){return r.hit;}),next:rungs.filter(function(r){return !r.hit;})[0]||null};
 }
 // Cash deployment: splits 80% of idle cash across the watchlist entries closest

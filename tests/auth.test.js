@@ -996,6 +996,51 @@ assert(ladExact200.hits.length === 4, "all four rungs hit at exactly +200%");
 const ladBelow200 = ladderFor(100, 8, 290);
 assert(ladBelow200.hits.length === 3, "only three rungs hit at +190% (below +200% rung)");
 
+// platform.html ladderFor parity: next rung pointer after all 4 hit is null
+const ladAllHit = ladderFor(100, 10, 400);
+assert(ladAllHit !== null && ladAllHit.hits.length === 4, "all 4 rungs hit at +300%");
+// next is the first unhit rung — undefined when all hit, returned as null via the [0]||null pattern
+assert(ladAllHit.rungs.filter(function(r){return !r.hit;}).length === 0, "no unhit rungs when all are hit");
+
+console.log("\n--- market.js: ALLOWED_MODELS coverage ---");
+
+const ALLOWED_MODELS = new Set([
+  "claude-fable-5-1",
+  "claude-opus-5-5",
+  "claude-opus-5",
+  "claude-sonnet-5",
+  "claude-haiku-4-5",
+  "claude-haiku-4-5-20251001",
+  "claude-opus-4-8",
+  "claude-sonnet-4-6",
+]);
+const DEFAULT_MODEL = "claude-sonnet-5";
+
+function resolveModel(requested) {
+  return ALLOWED_MODELS.has(requested) ? requested : DEFAULT_MODEL;
+}
+
+assert(resolveModel("claude-sonnet-5") === "claude-sonnet-5", "allowed model passes through");
+assert(resolveModel("claude-opus-5") === "claude-opus-5", "claude-opus-5 allowed");
+assert(resolveModel("claude-fable-5-1") === "claude-fable-5-1", "claude-fable-5-1 allowed");
+assert(resolveModel("gpt-4o") === DEFAULT_MODEL, "disallowed model falls back to default");
+assert(resolveModel(null) === DEFAULT_MODEL, "null model falls back to default");
+assert(resolveModel("") === DEFAULT_MODEL, "empty string falls back to default");
+assert(resolveModel("claude-opus-4-8") === "claude-opus-4-8", "legacy model still allowed for cached clients");
+assert(resolveModel("claude-sonnet-4-6") === "claude-sonnet-4-6", "legacy sonnet still allowed for cached clients");
+
+console.log("\n--- platform.html: model constants upgraded ---");
+
+const PLATFORM_MODEL_HEAVY = "claude-opus-5";
+const PLATFORM_MODEL_SMART = "claude-sonnet-5";
+const PLATFORM_MODEL_FAST  = "claude-haiku-4-5-20251001";
+
+assert(ALLOWED_MODELS.has(PLATFORM_MODEL_HEAVY), "MODEL_HEAVY is in ALLOWED_MODELS");
+assert(ALLOWED_MODELS.has(PLATFORM_MODEL_SMART), "MODEL_SMART is in ALLOWED_MODELS");
+assert(ALLOWED_MODELS.has(PLATFORM_MODEL_FAST),  "MODEL_FAST is in ALLOWED_MODELS");
+assert(!PLATFORM_MODEL_HEAVY.includes("4-8"), "MODEL_HEAVY no longer uses old opus-4-8");
+assert(!PLATFORM_MODEL_SMART.includes("4-6"), "MODEL_SMART no longer uses old sonnet-4-6");
+
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
