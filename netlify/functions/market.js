@@ -168,7 +168,7 @@ exports.handler = async function (event) {
     // Volume leaders: tokens with the highest 24h volume / market cap ratio.
     // A spike here (>50%) often precedes a large directional move.
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h";
-    key = "mkt:top250";
+    key = "mkt:top250_vol";
     transform = function (data) {
       if (!Array.isArray(data)) return data;
       return data
@@ -188,6 +188,64 @@ exports.handler = async function (event) {
         .sort(function (a, b) { return b.volume_mcap_ratio - a.volume_mcap_ratio; })
         .slice(0, 20);
     };
+  } else if (q.kind === "sector_leaders") {
+    // Sector leaders: the single strongest-performing token in each crypto sector over 7 days.
+    // This gives investors a focused "what is rotating into" view without scanning every coin.
+    // Only tokens with market cap > $200M are considered to filter micro-caps.
+    const SECTOR_IDS_L = [
+      "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
+      "arbitrum", "optimism", "zksync", "starknet",
+      "uniswap", "aave", "curve-dao-token", "maker", "pendle",
+      "bittensor", "render-token",
+      "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
+      "chainlink", "the-graph", "pyth-network",
+    ].join(",");
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + SECTOR_IDS_L + "&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:sectors";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      const SECTOR_MAP = {
+        "bitcoin": "layer1", "ethereum": "layer1", "solana": "layer1", "avalanche-2": "layer1",
+        "near": "layer1", "aptos": "layer1", "sui": "layer1",
+        "arbitrum": "layer2", "optimism": "layer2", "zksync": "layer2", "starknet": "layer2",
+        "uniswap": "defi", "aave": "defi", "curve-dao-token": "defi", "maker": "defi", "pendle": "defi",
+        "bittensor": "ai", "render-token": "ai",
+        "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
+        "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
+      };
+      const SECTOR_LABELS = {
+        layer1: "Layer 1", layer2: "Layer 2 / Scaling", defi: "DeFi",
+        ai: "AI & Compute", meme: "Meme", infra: "Infrastructure",
+      };
+      const bySector = {};
+      data.forEach(function (c) {
+        const sk = SECTOR_MAP[c.id] || "layer1";
+        if (!bySector[sk]) bySector[sk] = [];
+        if (c.market_cap >= 200e6) {
+          bySector[sk].push({
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            change7d: c.price_change_percentage_7d_in_currency,
+            change30d: c.price_change_percentage_30d_in_currency,
+            market_cap: c.market_cap,
+          });
+        }
+      });
+      return Object.keys(bySector).map(function (sk) {
+        const coins = bySector[sk];
+        const sorted = coins.slice().sort(function (a, b) {
+          return (b.change7d || -Infinity) - (a.change7d || -Infinity);
+        });
+        const leader = sorted[0] || null;
+        const avg7d = coins.length
+          ? coins.reduce(function (s, c) { return s + (c.change7d || 0); }, 0) / coins.length
+          : null;
+        return { sector: sk, label: SECTOR_LABELS[sk] || sk, leader: leader, avg7d: avg7d, coins: coins.length };
+      }).sort(function (a, b) { return (b.avg7d || -Infinity) - (a.avg7d || -Infinity); });
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -197,7 +255,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");
