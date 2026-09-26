@@ -551,11 +551,9 @@ async function anthropicCall(body){
       body:JSON.stringify(body)
     });
   }
-  return fetch('/api/generate',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body)
-  });
+  var _gh={'Content-Type':'application/json'};
+  if(auth&&auth.token)_gh['Authorization']='Bearer '+auth.token;
+  return fetch('/api/generate',{method:'POST',headers:_gh,body:JSON.stringify(body)});
 }
 function _aiErr(status,raw){
   var msg='HTTP '+status+' — '+raw.slice(0,400);
@@ -690,10 +688,16 @@ async function claudeJSON(system,user,maxTok,model){
   var r=await anthropicCall(body);
   var raw=await r.text();
   if(!r.ok)throw _aiErr(r.status,raw);
-  try{var d=JSON.parse(raw);return d.content[0].text;}
-  catch(ex){throw new Error('Bad response from Claude: '+raw.slice(0,300));}
+  try{
+    var d=JSON.parse(raw);
+    // Find the first text block — Claude 5 may prepend a thinking block before the text block
+    var tb=(d.content||[]).find(function(c){return c&&c.type==='text';});
+    if(!tb||typeof tb.text!=='string')throw new Error('no text block in response');
+    return tb.text;
+  }catch(ex){throw new Error('Bad response from Claude: '+raw.slice(0,300));}
 }
 function parseJSON(text){
+  if(!text)throw new Error('Empty response from Claude');
   // Strip markdown code fences
   text=text.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
   // Extract first JSON object
