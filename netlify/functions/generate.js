@@ -190,7 +190,21 @@ exports.handler = async function (event) {
       return { statusCode: 503, headers: { "Content-Type": "application/json", ...CORS, "Retry-After": "30" }, body: JSON.stringify({ error: { message: "AI service temporarily overloaded. Please try again shortly." } }) };
     }
     const text = await response.text();
-    return { statusCode: response.status, headers: { "Content-Type": "application/json", ...CORS }, body: text };
+    // Strip thinking blocks — clients expect only text content blocks.
+    // Claude 5 models can return thinking blocks even when not requested;
+    // forwarding them causes parse failures in clients built for text-only responses.
+    let body = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && Array.isArray(parsed.content)) {
+        const textBlocks = parsed.content.filter(function(c) { return c && c.type !== "thinking"; });
+        if (textBlocks.length > 0 && textBlocks.length < parsed.content.length) {
+          parsed.content = textBlocks;
+          body = JSON.stringify(parsed);
+        }
+      }
+    } catch (e) {}
+    return { statusCode: response.status, headers: { "Content-Type": "application/json", ...CORS }, body: body };
   } catch (err) {
     return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: { message: "AI service temporarily unavailable. Please try again." } }) };
   }
