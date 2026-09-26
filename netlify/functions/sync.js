@@ -32,6 +32,7 @@ function validateUserData(data) {
       if (h.ticker && typeof h.ticker !== "string") return false;
       if (h.ticker && h.ticker.length > 20) return false;
       if (h.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(h.ticker)) return false;
+      if (h.name !== undefined && (typeof h.name !== "string" || h.name.length > 100)) return false;
       if (h.qty !== undefined && typeof h.qty !== "number") return false;
       if (h.avg !== undefined && typeof h.avg !== "number") return false;
       if (h.stop !== undefined && typeof h.stop !== "number") return false;
@@ -47,6 +48,7 @@ function validateUserData(data) {
       if (w.ticker && typeof w.ticker !== "string") return false;
       if (w.ticker && w.ticker.length > 20) return false;
       if (w.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(w.ticker)) return false;
+      if (w.name !== undefined && (typeof w.name !== "string" || w.name.length > 100)) return false;
       if (w.targetPrice !== undefined && typeof w.targetPrice !== "number") return false;
       if (w.sellTarget !== undefined && typeof w.sellTarget !== "number") return false;
     }
