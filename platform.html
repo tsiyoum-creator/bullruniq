@@ -51,6 +51,10 @@ a{text-decoration:none;color:inherit}
 .icon-btn:hover{border-color:var(--g15);color:var(--gold)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinning{display:inline-block;animation:spin .7s linear infinite}
+@keyframes price-flash{0%{background:rgba(201,168,76,.22)}100%{background:transparent}}
+.price-flash{animation:price-flash .8s ease-out}
+@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4ade80;animation:live-pulse 2s ease-in-out infinite;vertical-align:middle;margin-right:5px}
 @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
 .chat-bubble-agent{background:var(--s2);border:1px solid var(--b2);border-radius:14px;border-bottom-left-radius:3px;padding:11px 15px;font-size:12px;line-height:1.6;max-width:82%;color:var(--t)}
 .chat-bubble-user{background:var(--b2);border-radius:14px;border-bottom-right-radius:3px;padding:11px 15px;font-size:12px;line-height:1.6;max-width:75%;color:var(--t)}
@@ -299,6 +303,7 @@ a{text-decoration:none;color:inherit}
     <div class="hdr-stat"><div class="hdr-val" id="hPnl">—</div><div class="hdr-lbl">P&L</div></div>
     <div class="sep"></div>
     <button class="icon-btn" id="refBtn" onclick="refreshAll(true)"><span id="refIco">↻</span> Refresh</button>
+    <span id="liveDot" class="live-dot" style="display:none" title="Prices auto-updating every 20s"></span>
     <a class='icon-btn' href='/'>← Home</a>
   </div>
 </div>
@@ -422,7 +427,7 @@ function chof(h){var p=prices[h.ticker];return p?p.change24:null;}
 // ── Fetch: Crypto prices (CoinGecko) ──────────────────────────
 // Min 50s between auto-fetches; pass force=true to bypass
 async function fetchCrypto(force){
-  if(!force&&Date.now()-_cryptoAt<50000)return;
+  if(!force&&Date.now()-_cryptoAt<15000)return;
   var ANCHORS=['BTC','ETH'];
   var portfolioTicks=port.crypto.map(function(h){return h.ticker.toUpperCase();});
   var ticks=[...new Set(ANCHORS.concat(portfolioTicks))];
@@ -430,9 +435,22 @@ async function fetchCrypto(force){
   try{
     var r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+ids.join(',')+'&vs_currencies=usd&include_24hr_change=true');
     var d=await r.json();
-    ticks.forEach(function(t){var id=CGMAP[t]||t.toLowerCase();if(d[id])prices[t]={price:d[id].usd,change24:d[id].usd_24h_change||0};});
+    var changed=[];
+    ticks.forEach(function(t){var id=CGMAP[t]||t.toLowerCase();if(d[id]){var prev=prices[t];prices[t]={price:d[id].usd,change24:d[id].usd_24h_change||0};if(prev&&prev.price!==d[id].usd)changed.push(t);}});
     _cryptoAt=Date.now();savePr();
+    if(changed.length){_flashPrices(changed);}
+    var ld=document.getElementById('liveDot');if(ld)ld.style.display='';
   }catch(e){}
+}
+
+function _flashPrices(tickers){
+  tickers.forEach(function(t){
+    document.querySelectorAll('[data-ticker="'+t+'"]').forEach(function(el){
+      el.classList.remove('price-flash');
+      void el.offsetWidth;
+      el.classList.add('price-flash');
+    });
+  });
 }
 
 // ── Fetch: Stock prices ───────────────────────────────────────
@@ -4136,7 +4154,7 @@ setTimeout(function(){gradeCalls();},5000); // grade any matured calls shortly a
 // Refresh every 60s with Finnhub (real-time), 90s otherwise
 setInterval(function(){
   if(!busy)refreshAll();
-},cfg.fh?60000:90000);
+},20000);
 </script>
 </body>
 </html>
