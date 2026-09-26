@@ -551,11 +551,9 @@ async function anthropicCall(body){
       body:JSON.stringify(body)
     });
   }
-  return fetch('/api/generate',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body)
-  });
+  var _gh={'Content-Type':'application/json'};
+  if(auth&&auth.token)_gh['Authorization']='Bearer '+auth.token;
+  return fetch('/api/generate',{method:'POST',headers:_gh,body:JSON.stringify(body)});
 }
 function _aiErr(status,raw){
   var msg='HTTP '+status+' — '+raw.slice(0,400);
