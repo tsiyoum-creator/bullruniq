@@ -709,7 +709,7 @@ document.getElementById('briefBtn').addEventListener('click',async function(){
       +'Live Projects: '+projects.filter(function(p){return p.status==='live';}).map(function(p){return p.name;}).join(', ')+'\n'
       +'In Progress: '+projects.filter(function(p){return p.status==='progress';}).map(function(p){return p.name;}).join(', ');
     var aiBody={
-      model:'claude-sonnet-5',max_tokens:450,
+      model:'claude-sonnet-4-6',max_tokens:450,
       messages:[{role:'user',content:'You are the Command Centcom briefing system for a serial entrepreneur. Generate a sharp, direct morning briefing. Format: 5-6 bullet points. Each bullet: emoji + bold category name + 1 concrete sentence. Call out wins, flag anything needing attention, end with one motivating priority for today. Under 220 words.\n\nData snapshot:\n'+snapshot+'\n\nToday: '+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}]
     };
     var res=cfg.ak
