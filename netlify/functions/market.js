@@ -5,6 +5,31 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
+// Shared sector taxonomy — used by both `sectors` and `sector_leaders` endpoints.
+const SECTOR_IDS_LIST = [
+  "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
+  "arbitrum", "optimism", "zksync", "starknet",
+  "uniswap", "aave", "curve-dao-token", "maker", "pendle",
+  "bittensor", "render-token",
+  "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
+  "chainlink", "the-graph", "pyth-network",
+];
+
+const SECTOR_MAP = {
+  "bitcoin": "layer1", "ethereum": "layer1", "solana": "layer1", "avalanche-2": "layer1",
+  "near": "layer1", "aptos": "layer1", "sui": "layer1",
+  "arbitrum": "layer2", "optimism": "layer2", "zksync": "layer2", "starknet": "layer2",
+  "uniswap": "defi", "aave": "defi", "curve-dao-token": "defi", "maker": "defi", "pendle": "defi",
+  "bittensor": "ai", "render-token": "ai",
+  "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
+  "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
+};
+
+const SECTOR_LABELS = {
+  layer1: "Layer 1", layer2: "Layer 2 / Scaling", defi: "DeFi",
+  ai: "AI & Compute", meme: "Meme", infra: "Infrastructure",
+};
+
 async function fetchJson(url, headers) {
   const r = await fetch(url, { headers: headers || UA });
   if (!r.ok) throw new Error("upstream " + r.status);
@@ -76,42 +101,13 @@ exports.handler = async function (event) {
     };
   } else if (q.kind === "sectors") {
     // Sector rotation snapshot: representative tokens for major crypto sectors
-    const SECTOR_IDS = [
-      // Layer 1s
-      "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
-      // Layer 2s / scaling
-      "arbitrum", "optimism", "zksync", "starknet",
-      // DeFi
-      "uniswap", "aave", "curve-dao-token", "maker", "pendle",
-      // AI
-      "bittensor", "render-token",
-      // Memes
-      "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
-      // Infrastructure
-      "chainlink", "the-graph", "pyth-network",
-    ].join(",");
-    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + SECTOR_IDS + "&sparkline=false&price_change_percentage=7d,30d";
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + SECTOR_IDS_LIST.join(",") + "&sparkline=false&price_change_percentage=7d,30d";
     key = "mkt:sectors";
     ttl = 15 * 60000;
     transform = function (data) {
       if (!Array.isArray(data)) return data;
-      const sectors = {
-        layer1: { label: "Layer 1", coins: [] },
-        layer2: { label: "Layer 2 / Scaling", coins: [] },
-        defi: { label: "DeFi", coins: [] },
-        ai: { label: "AI & Compute", coins: [] },
-        meme: { label: "Meme", coins: [] },
-        infra: { label: "Infrastructure", coins: [] },
-      };
-      const SECTOR_MAP = {
-        "bitcoin": "layer1", "ethereum": "layer1", "solana": "layer1", "avalanche-2": "layer1",
-        "near": "layer1", "aptos": "layer1", "sui": "layer1",
-        "arbitrum": "layer2", "optimism": "layer2", "zksync": "layer2", "starknet": "layer2",
-        "uniswap": "defi", "aave": "defi", "curve-dao-token": "defi", "maker": "defi", "pendle": "defi",
-        "bittensor": "ai", "render-token": "ai",
-        "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
-        "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
-      };
+      const sectors = {};
+      for (const k of Object.keys(SECTOR_LABELS)) sectors[k] = { label: SECTOR_LABELS[k], coins: [] };
       data.forEach(function (c) {
         const sectorKey = SECTOR_MAP[c.id] || "layer1";
         if (sectors[sectorKey]) {
@@ -192,32 +188,11 @@ exports.handler = async function (event) {
     // Sector leaders: the single strongest-performing token in each crypto sector over 7 days.
     // This gives investors a focused "what is rotating into" view without scanning every coin.
     // Only tokens with market cap > $200M are considered to filter micro-caps.
-    const SECTOR_IDS_L = [
-      "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
-      "arbitrum", "optimism", "zksync", "starknet",
-      "uniswap", "aave", "curve-dao-token", "maker", "pendle",
-      "bittensor", "render-token",
-      "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
-      "chainlink", "the-graph", "pyth-network",
-    ].join(",");
-    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + SECTOR_IDS_L + "&sparkline=false&price_change_percentage=7d,30d";
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + SECTOR_IDS_LIST.join(",") + "&sparkline=false&price_change_percentage=7d,30d";
     key = "mkt:sectors";
     ttl = 15 * 60000;
     transform = function (data) {
       if (!Array.isArray(data)) return data;
-      const SECTOR_MAP = {
-        "bitcoin": "layer1", "ethereum": "layer1", "solana": "layer1", "avalanche-2": "layer1",
-        "near": "layer1", "aptos": "layer1", "sui": "layer1",
-        "arbitrum": "layer2", "optimism": "layer2", "zksync": "layer2", "starknet": "layer2",
-        "uniswap": "defi", "aave": "defi", "curve-dao-token": "defi", "maker": "defi", "pendle": "defi",
-        "bittensor": "ai", "render-token": "ai",
-        "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
-        "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
-      };
-      const SECTOR_LABELS = {
-        layer1: "Layer 1", layer2: "Layer 2 / Scaling", defi: "DeFi",
-        ai: "AI & Compute", meme: "Meme", infra: "Infrastructure",
-      };
       const bySector = {};
       data.forEach(function (c) {
         const sk = SECTOR_MAP[c.id] || "layer1";

@@ -17,12 +17,12 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-09-26",
+  asOf: "2026-09-27",
 
   current: {
     regime: "longend",
     confidence: 78,
-    summary: "The 30-year sits at 5.36% and the 10-year touched 5.00%, the highest since July 2007. There is a buyers' strike in the 10–30y sector and Treasury has doubled buyback operations to $4bn+. The Fed hiked to 3.75–4.00%, its first increase since July 2023, and the dollar has reclaimed 100.",
+    summary: "The 30-year sits at 5.36% and the 10-year touched 5.00%, the highest since July 2007. There is a buyers' strike in the 10–30y sector and Treasury has doubled buyback operations to $4bn+. The Fed hiked to 3.75–4.00%, its first increase since July 2023, and the dollar has reclaimed 100. IIJA authority expires Tuesday (2026-09-30), removing a $282bn unallocated infrastructure outflow.",
     forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. This is not the regime a debasement or liquidity thesis needs."
   },
 
