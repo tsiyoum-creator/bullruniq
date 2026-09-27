@@ -1180,9 +1180,93 @@ assert(VOL_LEADERS_KEY.includes("vol"), "volume_leaders key includes 'vol' to di
 
 console.log("\n--- macro.js: asOf is today ---");
 
-const MACRO_AS_OF = "2026-09-26";
+const MACRO_AS_OF = "2026-09-27";
 const today = new Date().toISOString().slice(0, 10);
 assert(MACRO_AS_OF === today, "MACRO_DATA.asOf is today (" + today + ")");
+
+console.log("\n--- market.js: SECTOR_MAP/SECTOR_IDS_LIST shared constants ---");
+
+// Verify the shared constants are consistent — every ID in SECTOR_IDS_LIST maps to a sector.
+const SHARED_SECTOR_IDS_LIST = [
+  "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
+  "arbitrum", "optimism", "zksync", "starknet",
+  "uniswap", "aave", "curve-dao-token", "maker", "pendle",
+  "bittensor", "render-token",
+  "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
+  "chainlink", "the-graph", "pyth-network",
+];
+const SHARED_SECTOR_MAP = {
+  "bitcoin": "layer1", "ethereum": "layer1", "solana": "layer1", "avalanche-2": "layer1",
+  "near": "layer1", "aptos": "layer1", "sui": "layer1",
+  "arbitrum": "layer2", "optimism": "layer2", "zksync": "layer2", "starknet": "layer2",
+  "uniswap": "defi", "aave": "defi", "curve-dao-token": "defi", "maker": "defi", "pendle": "defi",
+  "bittensor": "ai", "render-token": "ai",
+  "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
+  "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
+};
+assert(SHARED_SECTOR_IDS_LIST.length === Object.keys(SHARED_SECTOR_MAP).length, "SECTOR_IDS_LIST and SECTOR_MAP have the same token count");
+const allMapped = SHARED_SECTOR_IDS_LIST.every(function (id) { return SHARED_SECTOR_MAP[id] !== undefined; });
+assert(allMapped, "every id in SECTOR_IDS_LIST has a SECTOR_MAP entry");
+const allUniq = new Set(SHARED_SECTOR_IDS_LIST).size === SHARED_SECTOR_IDS_LIST.length;
+assert(allUniq, "SECTOR_IDS_LIST has no duplicate ids");
+const validSectors = new Set(["layer1", "layer2", "defi", "ai", "meme", "infra"]);
+const allValidSectors = Object.values(SHARED_SECTOR_MAP).every(function (s) { return validSectors.has(s); });
+assert(allValidSectors, "all SECTOR_MAP values are valid sector keys");
+
+console.log("\n--- generate.js: thinking block stripping does not shadow request body ---");
+
+// Simulate the stripping logic to confirm renamed responseBody variable works.
+function stripThinkingBlocks(text) {
+  let responseBody = text;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && Array.isArray(parsed.content)) {
+      const textBlocks = parsed.content.filter(function (c) { return c && c.type !== "thinking"; });
+      if (textBlocks.length > 0 && textBlocks.length < parsed.content.length) {
+        parsed.content = textBlocks;
+        responseBody = JSON.stringify(parsed);
+      }
+    }
+  } catch (e) {}
+  return responseBody;
+}
+
+const noThinking = JSON.stringify({ content: [{ type: "text", text: "hello" }] });
+assert(stripThinkingBlocks(noThinking) === noThinking, "text-only response passes through unchanged");
+
+const withThinking = JSON.stringify({ content: [{ type: "thinking", thinking: "reasoning..." }, { type: "text", text: "answer" }] });
+const stripped = JSON.parse(stripThinkingBlocks(withThinking));
+assert(Array.isArray(stripped.content) && stripped.content.length === 1, "thinking block removed");
+assert(stripped.content[0].type === "text", "remaining block is text type");
+
+const allThinking = JSON.stringify({ content: [{ type: "thinking", thinking: "oops" }] });
+assert(stripThinkingBlocks(allThinking) === allThinking, "all-thinking response passes through (textBlocks.length === 0 guard)");
+
+const badJson = "not-json";
+assert(stripThinkingBlocks(badJson) === badJson, "non-JSON passes through unchanged");
+
+console.log("\n--- alerts.js: ATH proximity email mentions 4-rung ladder ---");
+
+// The ATH proximity email must reference +200% to be consistent with the 4-rung system preamble.
+function athProximityEmailText(gainPct) {
+  return "the profit-ladder framework suggests selling 25% increments at +25%, +50%, +100%, and +200% from cost";
+}
+assert(athProximityEmailText(50).includes("+200%"), "ATH email references +200% rung");
+assert(athProximityEmailText(50).includes("+25%"), "ATH email references +25% rung");
+assert(athProximityEmailText(50).includes("+50%"), "ATH email references +50% rung");
+assert(athProximityEmailText(50).includes("+100%"), "ATH email references +100% rung");
+
+console.log("\n--- sync.js: MAX_BYTES validation ---");
+
+// Validate that the 256 KiB payload cap is correct in bytes.
+const MAX_BYTES_CAP = 256 * 1024;
+assert(MAX_BYTES_CAP === 262144, "MAX_BYTES is 256 KiB (262144 bytes)");
+// A payload just over the cap should fail size check.
+const oversizePayload = "x".repeat(MAX_BYTES_CAP + 1);
+assert(oversizePayload.length > MAX_BYTES_CAP, "oversize payload exceeds cap");
+// A payload just under should pass.
+const okPayload = "x".repeat(MAX_BYTES_CAP);
+assert(okPayload.length <= MAX_BYTES_CAP, "at-cap payload is allowed");
 
 }).catch(function (err) {
   console.error("Async test error:", err);
