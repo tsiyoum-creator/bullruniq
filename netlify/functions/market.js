@@ -136,7 +136,7 @@ exports.handler = async function (event) {
     // Coins trading within 20% of their all-time high — key distribution zone during a bull run.
     // A coin in this band has historically been a profit-taking signal; approaching ATH with volume
     // is the strongest short-term sell trigger tracked by this app.
-    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=30d";
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=7d,30d";
     key = "mkt:top250_ath";
     ttl = 15 * 60000;
     transform = function (data) {
@@ -155,6 +155,7 @@ exports.handler = async function (event) {
             ath: c.ath,
             ath_change_pct: c.ath_change_percentage,
             market_cap: c.market_cap,
+            change_7d: c.price_change_percentage_7d_in_currency,
             change_30d: c.price_change_percentage_30d_in_currency,
           };
         })
