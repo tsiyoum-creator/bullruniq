@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-09-27",
+  asOf: "2026-09-28",
 
   current: {
     regime: "longend",
@@ -262,7 +262,7 @@ function rRegime(){
   h+='<div class="sh gold">All regimes &amp; transition triggers</div>';
   MACRO_DATA.regimes.forEach(function(r){
     var on=r.id===c.regime;
-    h+='<div class="card" style="'+(on?'border:1px solid var(--o2);background:var(--o8)':'')+'">';
+    h+='<div class="card" style="'+(on?'border:1px solid var(--o2);background:var(--o8)':'')+'">'
     h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:13px;font-weight:600">'+r.name+'</span>';
     if(on)h+='<span style="font-size:9px;background:var(--ora);color:#000;padding:2px 6px;border-radius:3px;letter-spacing:1px;font-weight:700">NOW</span>';
     h+='</div><div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:8px">'+r.d+'</div>';
@@ -428,7 +428,7 @@ function buildMacroContext(){
     cashApy: hasCashApy() ? +cashYield().toFixed(2) : null,
     untaggedPct:e.tv?+((e.untaggedVal/e.tv)*100).toFixed(1):0,
     thresholdsCrossed:fw.trips.map(function(t){return t.n;}),
-    catalystsWithin21d:fw.soon.map(function(s){return s.n+' ('+s.d+')';})
+    catalystsWithin21d:fw.soon.map(function(s){return s.n+' ('+s.d+')';});
   };
 }
 var MACRO_AI_RULE=' You are given a macro regime read and an exposure map computed from the user\'s real holdings. Use these figures directly. If a value you need appears in noDataFor or is absent, say "insufficient data" for that point — never estimate or invent a number. Do not issue buy or sell instructions.';

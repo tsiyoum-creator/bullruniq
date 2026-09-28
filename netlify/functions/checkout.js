@@ -60,7 +60,9 @@ exports.handler = async function (event) {
       },
       body: params.toString(),
     });
-    const data = await r.json();
+    const text = await r.text();
+    let data = {};
+    try { data = JSON.parse(text); } catch (e) {}
     if (!r.ok) {
       return { statusCode: r.status, headers: CORS, body: JSON.stringify({ error: (data.error && data.error.message) || "Stripe error" }) };
     }

@@ -497,6 +497,7 @@ var STALE=new Set(['Add URL and client info.','Add URL and details.','Add market
 
 /* ── Helpers ────────────────────────────────────────────── */
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function safeColor(c){return/^#[0-9a-fA-F]{3,8}$/.test(String(c||''))?c:'#888888';}
 function fmtD(n){n=Number(n)||0;if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return'$'+(n/1e3).toFixed(1)+'K';return'$'+n.toLocaleString('en-US');}
 function timeAgo(ts){var d=Date.now()-ts,m=Math.floor(d/6e4),h=Math.floor(d/36e5),dy=Math.floor(d/864e5);if(m<1)return'just now';if(m<60)return m+'m ago';if(h<24)return h+'h ago';if(dy<7)return dy+'d ago';return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 function todayStr(){return new Date().toISOString().split('T')[0];}
@@ -558,7 +559,7 @@ function migrate(){
 }
 
 /* ── Data ───────────────────────────────────────────────── */
-function getProjects(){try{var r=localStorage.getItem(STORE_KEY);return r?JSON.parse(r):DEFAULTS.map(function(d){return Object.assign({},d);});}catch(e){return DEFAULTS.map(function(d){return Object.assign({},d);});}}
+function getProjects(){try{var r=localStorage.getItem(STORE_KEY);return r?JSON.parse(r):DEFAULTS.map(function(d){return Object.assign({},d);});}catch(e){return DEFAULTS.map(function(d){return Object.assign({},d);})}}
 function setProjects(list){localStorage.setItem(STORE_KEY,JSON.stringify(list));}
 
 /* ── Live KPIs from platform.html's storage ─────────────── */
@@ -709,7 +710,7 @@ document.getElementById('briefBtn').addEventListener('click',async function(){
       +'Live Projects: '+projects.filter(function(p){return p.status==='live';}).map(function(p){return p.name;}).join(', ')+'\n'
       +'In Progress: '+projects.filter(function(p){return p.status==='progress';}).map(function(p){return p.name;}).join(', ');
     var aiBody={
-      model:'claude-sonnet-4-6',max_tokens:450,
+      model:'claude-sonnet-5',max_tokens:450,
       messages:[{role:'user',content:'You are the Command Centcom briefing system for a serial entrepreneur. Generate a sharp, direct morning briefing. Format: 5-6 bullet points. Each bullet: emoji + bold category name + 1 concrete sentence. Call out wins, flag anything needing attention, end with one motivating priority for today. Under 220 words.\n\nData snapshot:\n'+snapshot+'\n\nToday: '+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}]
     };
     var res=cfg.ak
@@ -796,7 +797,7 @@ function renderGrid(projects){
     var ua=p.updatedAt?timeAgo(p.updatedAt):'';
     var stats=cardLiveStats(p.id);
     card.innerHTML=
-      '<div class="card-accent" style="background:'+p.color+'"></div>'
+      '<div class="card-accent" style="background:'+safeColor(p.color)+'"></div>'
       +'<div class="drag-handle" title="Drag to reorder">⠿</div>'
       +'<div class="card-body">'
         +'<div class="card-head">'
@@ -805,11 +806,11 @@ function renderGrid(projects){
         +'</div>'
         +(p.deadline?deadlinePill(p.deadline):'')
         +(p.url?'<div class="card-url"><a href="'+esc(p.url)+'" target="_blank" rel="noopener">'+esc(p.url.replace(/https?:\/\//,''))+'</a></div>':'')
-        +(stats.length?'<div class="card-live">'+stats.map(function(s){return'<div class="live-stat"><div class="ls-val" style="color:'+s.c+'">'+esc(s.v)+'</div><div class="ls-lbl">'+esc(s.l)+'</div></div>';}).join('')+'</div>':'')
+        +(stats.length?'<div class="card-live">'+stats.map(function(s){return'<div class="live-stat"><div class="ls-val" style="color:'+safeColor(s.c)+'">'+esc(s.v)+'</div><div class="ls-lbl">'+esc(s.l)+'</div></div>';}).join('')+'</div>':'')
         +(p.notes?'<div class="card-notes">'+esc(p.notes)+'</div>':'<div class="card-notes empty">No notes yet…</div>')
         +(goal?'<div class="card-rev"><div class="card-rev-row"><span>REVENUE '+pct+'%</span><span>'+fmtD(curr)+' / '+fmtD(goal)+'</span></div><div class="card-rev-bar"><div class="card-rev-fill" style="width:'+pct+'%;background:'+revClr+'"></div></div></div>':'')
         +'<div class="card-foot">'
-          +(p.url?'<a class="open-btn" href="'+esc(p.url)+'" target="_blank" rel="noopener" style="border-color:'+p.color+'30;color:'+p.color+'">Open →</a>':'<span class="no-url-txt">No URL set</span>')
+          +(p.url?'<a class="open-btn" href="'+esc(p.url)+'" target="_blank" rel="noopener" style="border-color:'+safeColor(p.color)+'30;color:'+safeColor(p.color)+'">Open →</a>':'<span class="no-url-txt">No URL set</span>')
           +(ua?'<span class="card-ts">'+ua+'</span>':'')
           +'<button class="card-edit-btn" data-id="'+p.id+'" title="Edit">✎</button>'
         +'</div>'
@@ -872,7 +873,7 @@ function renderActivity(){
   var items=getActivity();
   if(!items.length){el.innerHTML='<div class="act-empty">No activity yet — start building.</div>';return;}
   el.innerHTML=items.slice(0,12).map(function(item){
-    return'<div class="act-row"><div class="act-dot" style="background:'+item.color+'"></div><span class="act-text">'+item.html+'</span><span class="act-ts">'+timeAgo(item.time)+'</span></div>';
+    return'<div class="act-row"><div class="act-dot" style="background:'+safeColor(item.color)+'"></div><span class="act-text">'+item.html+'</span><span class="act-ts">'+timeAgo(item.time)+'</span></div>';
   }).join('');
 }
 document.getElementById('actClear').addEventListener('click',function(){localStorage.removeItem(ACT_KEY);renderActivity();});
