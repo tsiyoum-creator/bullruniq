@@ -166,6 +166,7 @@ exports.handler = async function (event) {
     // A spike here (>50%) often precedes a large directional move.
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h";
     key = "mkt:top250_vol";
+    ttl = 15 * 60000;
     transform = function (data) {
       if (!Array.isArray(data)) return data;
       return data
@@ -190,7 +191,7 @@ exports.handler = async function (event) {
     // This gives investors a focused "what is rotating into" view without scanning every coin.
     // Only tokens with market cap > $200M are considered to filter micro-caps.
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + SECTOR_IDS_LIST.join(",") + "&sparkline=false&price_change_percentage=7d,30d";
-    key = "mkt:sectors";
+    key = "mkt:sector_leaders";
     ttl = 15 * 60000;
     transform = function (data) {
       if (!Array.isArray(data)) return data;

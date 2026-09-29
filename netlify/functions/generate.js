@@ -54,6 +54,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "X-Content-Type-Options": "nosniff",
 };
 
 function clientIp(event) {
@@ -108,7 +109,10 @@ async function dailyOk(key, cap) {
     cur.count++;
     await store.setJSON(storeKey, cur);
     return true;
-  } catch (e) { return true; }
+  } catch (e) {
+    console.log("[generate] dailyOk store error:", e.message);
+    return false;
+  }
 }
 
 exports.handler = async function (event) {
