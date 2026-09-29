@@ -12,6 +12,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "X-Content-Type-Options": "nosniff",
 };
 
 function sha(s) { return crypto.createHash("sha256").update(s).digest("hex"); }

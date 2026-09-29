@@ -11,8 +11,39 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "X-Content-Type-Options": "nosniff",
 };
 const MAX_BYTES = 256 * 1024;
+
+// Server-managed alert flags that users must not be able to set directly.
+// If a client POSTs these, we strip them before saving so alerts cannot be silenced.
+const SERVER_ALERT_FLAGS = new Set([
+  "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
+  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
+]);
+
+function stripServerFlags(data) {
+  if (!data || typeof data !== "object") return data;
+  const out = Object.assign({}, data);
+  if (out.port && Array.isArray(out.port.crypto)) {
+    out.port = Object.assign({}, out.port);
+    out.port.crypto = out.port.crypto.map(function (h) {
+      if (!h || typeof h !== "object") return h;
+      const cleaned = Object.assign({}, h);
+      for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+      return cleaned;
+    });
+  }
+  if (Array.isArray(out.wl)) {
+    out.wl = out.wl.map(function (w) {
+      if (!w || typeof w !== "object") return w;
+      const cleaned = Object.assign({}, w);
+      for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+      return cleaned;
+    });
+  }
+  return out;
+}
 
 function validateUserData(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;
@@ -84,7 +115,8 @@ exports.handler = async function (event) {
     try { p = JSON.parse(event.body || "{}"); } catch (e) { return jsonCors(400, { error: "Bad JSON" }); }
     if (!p.data || typeof p.data !== "object") return jsonCors(400, { error: "Missing data" });
     if (!validateUserData(p.data)) return jsonCors(400, { error: "Invalid data structure" });
-    await store.setJSON(email, { data: p.data, updatedAt: new Date().toISOString() });
+    const safeData = stripServerFlags(p.data);
+    await store.setJSON(email, { data: safeData, updatedAt: new Date().toISOString() });
     return jsonCors(200, { ok: true, plan: await planFor(email, getStore) });
   }
 

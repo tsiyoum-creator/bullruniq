@@ -39,7 +39,7 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Unknown or unconfigured tier: " + tier }) };
   }
 
-  const origin = process.env.SITE_URL || (event.headers && (event.headers.origin || ("https://" + event.headers.host))) || "https://bullruniq.com";
+  const origin = process.env.SITE_URL || "https://bullruniq.com";
 
   const params = new URLSearchParams();
   params.append("mode", "subscription");
