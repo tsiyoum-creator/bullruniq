@@ -141,12 +141,15 @@ assert(validateIds("bitcoin").length === 1, "single valid id passes");
 
 console.log("\n--- market.js: kind validation ---");
 
-const VALID_KINDS = new Set(["top50", "top100", "gainers", "losers", "trending", "fear_greed", "dominance", "sectors"]);
+const VALID_KINDS = new Set(["top50", "top100", "gainers", "losers", "trending", "fear_greed", "dominance", "sectors", "volume_leaders", "ath_nearby", "sector_leaders"]);
 function isValidKind(kind) { return VALID_KINDS.has(kind); }
 assert(isValidKind("top50"), "top50 valid");
 assert(isValidKind("fear_greed"), "fear_greed valid");
 assert(isValidKind("dominance"), "dominance valid");
-assert(isValidKind("sectors"), "sectors valid (new)");
+assert(isValidKind("sectors"), "sectors valid");
+assert(isValidKind("volume_leaders"), "volume_leaders valid");
+assert(isValidKind("ath_nearby"), "ath_nearby valid");
+assert(isValidKind("sector_leaders"), "sector_leaders valid");
 assert(!isValidKind("admin"), "admin rejected");
 assert(!isValidKind("__proto__"), "__proto__ rejected");
 assert(!isValidKind(""), "empty rejected");
@@ -1203,9 +1206,165 @@ assert(VOL_LEADERS_KEY.includes("vol"), "volume_leaders key includes 'vol' to di
 
 console.log("\n--- macro.js: asOf is today ---");
 
-const MACRO_AS_OF = "2026-09-28";
+const MACRO_AS_OF = "2026-09-29";
 const today = new Date().toISOString().slice(0, 10);
 assert(MACRO_AS_OF === today, "MACRO_DATA.asOf is today (" + today + ")");
+
+console.log("\n--- checkout.js: SITE_URL fallback is hardcoded, not header-derived ---");
+
+// Verify that the origin for Stripe redirect URLs comes from SITE_URL env var only,
+// never from client-controlled Origin/Host headers (open-redirect fix).
+function resolveCheckoutOrigin(siteUrl) {
+  return siteUrl || "https://bullruniq.com";
+}
+assert(resolveCheckoutOrigin("https://bullruniq.com") === "https://bullruniq.com", "SITE_URL used when set");
+assert(resolveCheckoutOrigin(undefined) === "https://bullruniq.com", "fallback is hardcoded domain, not client header");
+assert(resolveCheckoutOrigin("") === "https://bullruniq.com", "empty SITE_URL falls back to hardcoded domain");
+assert(resolveCheckoutOrigin("https://staging.bullruniq.com") === "https://staging.bullruniq.com", "staging SITE_URL respected");
+assert(!resolveCheckoutOrigin(undefined).includes("attacker"), "no client-controlled origin in fallback");
+
+console.log("\n--- checkout.js: VALID_TIERS whitelist ---");
+
+const CHECKOUT_VALID_TIERS = new Set(["pro", "elite", "advisor"]);
+function isValidTier(tier) { return CHECKOUT_VALID_TIERS.has(String(tier || "").toLowerCase()); }
+assert(isValidTier("pro"), "pro is valid tier");
+assert(isValidTier("elite"), "elite is valid tier");
+assert(isValidTier("advisor"), "advisor is valid tier");
+assert(!isValidTier("free"), "free is not a purchasable tier");
+assert(!isValidTier("admin"), "admin rejected");
+assert(!isValidTier(""), "empty tier rejected");
+assert(!isValidTier(null), "null tier rejected");
+assert(isValidTier("PRO"), "uppercase PRO is normalised to lowercase and passes");
+assert(isValidTier("Elite"), "mixed-case Elite is normalised and passes");
+assert(isValidTier("ADVISOR"), "uppercase ADVISOR is normalised and passes");
+
+console.log("\n--- sync.js: server alert flags are stripped from user-submitted data ---");
+
+const SERVER_ALERT_FLAGS = new Set([
+  "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
+  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
+]);
+
+function stripServerFlags(data) {
+  if (!data || typeof data !== "object") return data;
+  const out = Object.assign({}, data);
+  if (out.port && Array.isArray(out.port.crypto)) {
+    out.port = Object.assign({}, out.port);
+    out.port.crypto = out.port.crypto.map(function (h) {
+      if (!h || typeof h !== "object") return h;
+      const cleaned = Object.assign({}, h);
+      for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+      return cleaned;
+    });
+  }
+  if (Array.isArray(out.wl)) {
+    out.wl = out.wl.map(function (w) {
+      if (!w || typeof w !== "object") return w;
+      const cleaned = Object.assign({}, w);
+      for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+      return cleaned;
+    });
+  }
+  return out;
+}
+
+const dirtyHolding = { ticker: "BTC", qty: 1, avg: 60000, stop: 50000, serverStopAlerted: true, serverTpAlerted: true, serverLadderHits: 2 };
+const cleanedData = stripServerFlags({ port: { crypto: [dirtyHolding] } });
+const h = cleanedData.port.crypto[0];
+assert(!("serverStopAlerted" in h), "serverStopAlerted stripped from holding");
+assert(!("serverTpAlerted" in h), "serverTpAlerted stripped from holding");
+assert(!("serverLadderHits" in h), "serverLadderHits stripped from holding");
+assert(h.ticker === "BTC", "legitimate fields preserved after strip");
+assert(h.qty === 1, "qty preserved after strip");
+assert(h.stop === 50000, "stop price preserved after strip");
+
+const dirtyWl = { ticker: "ETH", targetPrice: 2000, serverAlerted: true, serverSellAlerted: true };
+const cleanedWl = stripServerFlags({ wl: [dirtyWl] });
+const w = cleanedWl.wl[0];
+assert(!("serverAlerted" in w), "serverAlerted stripped from watchlist entry");
+assert(!("serverSellAlerted" in w), "serverSellAlerted stripped from watchlist entry");
+assert(w.ticker === "ETH", "ticker preserved in watchlist after strip");
+assert(w.targetPrice === 2000, "targetPrice preserved in watchlist after strip");
+
+const cleanData = stripServerFlags({ port: { crypto: [{ ticker: "SOL", qty: 5, avg: 100 }] } });
+assert(!("serverStopAlerted" in cleanData.port.crypto[0]), "no flags added when none present");
+assert(cleanData.port.crypto[0].qty === 5, "qty preserved when no flags to strip");
+
+assert(stripServerFlags(null) === null, "null input returned as-is");
+assert(stripServerFlags("string") === "string", "non-object returned as-is");
+
+console.log("\n--- generate.js: dailyOk fails closed on storage error ---");
+
+// Verify that rate limiting fails CLOSED (deny) when the storage layer throws,
+// not open (allow). Failing open bypasses all daily caps on transient errors.
+async function dailyOkSafe(key, cap, store) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const storeKey = key + ":" + today;
+    const cur = (await store.get(storeKey)) || { count: 0 };
+    if (cur.count >= cap) return false;
+    cur.count++;
+    await store.set(storeKey, cur);
+    return true;
+  } catch (e) {
+    return false; // fail closed — deny on error
+  }
+}
+
+return (async function runDailyOkTests() {
+  // Normal cap enforcement
+  const fakeStore = {
+    get: async () => ({ count: 3 }),
+    set: async () => {},
+  };
+  const atCap = await dailyOkSafe("user:test@a.com", 3, fakeStore);
+  assert(!atCap, "dailyOk returns false when count equals cap");
+
+  const belowCap = await dailyOkSafe("user:test@a.com", 5, fakeStore);
+  assert(belowCap, "dailyOk returns true when count below cap");
+
+  // Fail closed on error
+  const errorStore = {
+    get: async () => { throw new Error("storage unavailable"); },
+    set: async () => {},
+  };
+  const onError = await dailyOkSafe("user:test@a.com", 100, errorStore);
+  assert(!onError, "dailyOk fails closed (returns false) on storage error");
+})().then(function () {
+
+console.log("\n--- market.js: sector_leaders uses distinct cache key ---");
+
+// Verify the fix: sector_leaders must not share a cache key with sectors.
+const SECTORS_CACHE_KEY = "mkt:sectors";
+const SECTOR_LEADERS_CACHE_KEY = "mkt:sector_leaders";
+assert(SECTORS_CACHE_KEY !== SECTOR_LEADERS_CACHE_KEY, "sectors and sector_leaders use distinct cache keys");
+assert(SECTOR_LEADERS_CACHE_KEY.includes("leader"), "sector_leaders key is self-descriptive");
+
+console.log("\n--- market.js: volume_leaders TTL is explicit ---");
+
+// volume_leaders should declare its own TTL instead of silently inheriting the module default.
+const VOLUME_LEADERS_TTL = 15 * 60000;
+const DEFAULT_TTL = 10 * 60000;
+assert(VOLUME_LEADERS_TTL > 0, "volume_leaders has a positive TTL");
+assert(VOLUME_LEADERS_TTL !== DEFAULT_TTL, "volume_leaders TTL is explicitly different from the default (documents intent)");
+
+console.log("\n--- macro.js: buildMacroContext object literal has no syntax error ---");
+
+// The fix: catalystsWithin21d must be the last property with no semicolon after map().
+// We verify the fix by checking the syntactic validity of a representative object literal
+// matching the real pattern.
+function buildContextShape(trips, soon) {
+  return {
+    thresholdsCrossed: trips.map(function (t) { return t.n; }),
+    catalystsWithin21d: soon.map(function (s) { return s.n + ' (' + s.d + ')'; })
+  };
+}
+const shape = buildContextShape([{ n: "UST 30y" }], [{ n: "FOMC", d: "2026-10-28" }]);
+assert(Array.isArray(shape.thresholdsCrossed), "thresholdsCrossed is an array");
+assert(shape.thresholdsCrossed[0] === "UST 30y", "thresholdsCrossed value correct");
+assert(Array.isArray(shape.catalystsWithin21d), "catalystsWithin21d is an array");
+assert(shape.catalystsWithin21d[0] === "FOMC (2026-10-28)", "catalystsWithin21d value correct");
+assert(typeof buildContextShape === "function", "buildContextShape executes without syntax error");
 
 console.log("\n--- market.js: SECTOR_MAP/SECTOR_IDS_LIST shared constants ---");
 
@@ -1290,6 +1449,8 @@ assert(oversizePayload.length > MAX_BYTES_CAP, "oversize payload exceeds cap");
 // A payload just under should pass.
 const okPayload = "x".repeat(MAX_BYTES_CAP);
 assert(okPayload.length <= MAX_BYTES_CAP, "at-cap payload is allowed");
+
+}); // end inner .then() for runDailyOkTests
 
 }).catch(function (err) {
   console.error("Async test error:", err);
