@@ -188,6 +188,7 @@ function validateMessages(messages) {
     if (!ALLOWED_ROLES.has(m.role)) return false;
     if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
     if (typeof m.content === "string" && m.content.length > 20000) return false;
+    if (Array.isArray(m.content) && m.content.length > 20) return false;
   }
   return true;
 }
@@ -625,12 +626,8 @@ assert(sorted[2].id === "c", "lowest volume/mcap ratio ranked last");
 
 console.log("\n--- market.js: fetchJson checks r.ok before r.json ---");
 
-// Simulates the fixed fetchJson: r.ok is checked first, so non-JSON error bodies
-// (e.g. plain-text "Too Many Requests" from CoinGecko) no longer surface as
-// confusing SyntaxErrors.
 function simulateFetchJson(okStatus, body) {
   const ok = okStatus >= 200 && okStatus < 300;
-  // Fixed behaviour: throw on !r.ok before attempting JSON parse
   if (!ok) throw new Error("upstream " + okStatus);
   return JSON.parse(body);
 }
@@ -696,7 +693,6 @@ assert(athNearbyTransform(null) === null, "non-array input returned as-is");
 
 console.log("\n--- market.js: ath_nearby includes change_7d for momentum ---");
 
-// change_7d field is included for momentum signals (added alongside change_30d)
 function athNearbyTransformV2(data) {
   if (!Array.isArray(data)) return data;
   return data
@@ -880,26 +876,21 @@ function daysUntilCatalyst(catalystDateStr) {
   return (catalystMs - nowMs) / (1000 * 60 * 60 * 24);
 }
 
-// A catalyst well in the past should not be inside the 21-day window
 const pastCatalyst = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 assert(!isCatalystInsideWindow(pastCatalyst, 21), "past catalyst not inside 21-day window");
 
-// A catalyst 10 days from now should be inside
 const futureCatalyst10d = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 assert(isCatalystInsideWindow(futureCatalyst10d, 21), "catalyst 10 days out is inside 21-day window");
 
-// A catalyst 25 days from now is outside
 const futureCatalyst25d = new Date(Date.now() + 25 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 assert(!isCatalystInsideWindow(futureCatalyst25d, 21), "catalyst 25 days out is outside 21-day window");
 
-// Days-until should be positive for future, negative for past
 const daysUntilFuture = daysUntilCatalyst(futureCatalyst10d);
 assert(daysUntilFuture > 9 && daysUntilFuture < 11, "days-until correctly ~10 days for near-future catalyst");
 
 const daysUntilPast = daysUntilCatalyst(pastCatalyst);
 assert(daysUntilPast < 0, "days-until is negative for past catalyst");
 
-// Verify that using a stale reference date (like MACRO_DATA.asOf) gives wrong results
 const staleAsOf = "2026-09-21";
 function isCatalystInsideWindowStale(catalystDateStr, windowDays) {
   const catalystMs = new Date(catalystDateStr).getTime();
@@ -907,8 +898,6 @@ function isCatalystInsideWindowStale(catalystDateStr, windowDays) {
   const diff = (catalystMs - nowMs) / (1000 * 60 * 60 * 24);
   return diff >= 0 && diff <= windowDays;
 }
-// futureCatalyst10d is 10 days from today (2026-09-23). With stale date 2026-09-21 it appears 12 days out.
-// With real Date.now() it's 10 days. Both are in window, but stale date gives wrong day count.
 const realDays = Math.round((new Date(futureCatalyst10d).getTime() - Date.now()) / 864e5);
 const staleDays = Math.round((new Date(futureCatalyst10d).getTime() - new Date(staleAsOf).getTime()) / 864e5);
 assert(staleDays > realDays, "stale reference date overstates days remaining vs real Date.now()");
@@ -916,7 +905,7 @@ assert(staleDays > realDays, "stale reference date overstates days remaining vs 
 console.log("\n--- sync.js: ticker character validation ---");
 
 function isValidTicker(ticker) {
-  if (!ticker) return true; // falsy tickers are skipped, not rejected
+  if (!ticker) return true;
   if (typeof ticker !== "string") return false;
   if (ticker.length > 20) return false;
   return /^[A-Za-z0-9._-]{1,20}$/.test(ticker);
@@ -991,7 +980,7 @@ console.log("\n--- alerts.js: cgId safe ticker resolution ---");
 const TEST_CGMAP = {
   BTC: "bitcoin",
   ETH: "ethereum",
-  "BTC.B": "bitcoin", // hypothetical bridge token mapped in CGMAP
+  "BTC.B": "bitcoin",
 };
 
 function cgIdTest(ticker) {
@@ -1020,17 +1009,13 @@ assert(lad200.rungs[3].pct === 200, "fourth rung is +200%");
 assert(lad200.rungs[3].price === 300, "fourth rung price is 3x avg cost");
 assert(lad200.hits.length === 4, "all four rungs hit at +201%");
 assert(lad200.rungs[3].qty === 2, "each rung still sells 25% of initial qty");
-// At exactly +200% all 4 should hit
 const ladExact200 = ladderFor(100, 8, 300);
 assert(ladExact200.hits.length === 4, "all four rungs hit at exactly +200%");
-// At +190% only 3 should hit (below the +200% threshold)
 const ladBelow200 = ladderFor(100, 8, 290);
 assert(ladBelow200.hits.length === 3, "only three rungs hit at +190% (below +200% rung)");
 
-// platform.html ladderFor parity: next rung pointer after all 4 hit is null
 const ladAllHit = ladderFor(100, 10, 400);
 assert(ladAllHit !== null && ladAllHit.hits.length === 4, "all 4 rungs hit at +300%");
-// next is the first unhit rung — undefined when all hit, returned as null via the [0]||null pattern
 assert(ladAllHit.rungs.filter(function(r){return !r.hit;}).length === 0, "no unhit rungs when all are hit");
 
 console.log("\n--- market.js: ALLOWED_MODELS coverage ---");
@@ -1172,7 +1157,6 @@ const sectorCoins = [
   { id: "solana", symbol: "sol", name: "Solana", current_price: 190, price_change_percentage_7d_in_currency: 3.0, price_change_percentage_30d_in_currency: 5.0, market_cap: 80e9 },
   { id: "uniswap", symbol: "uni", name: "Uniswap", current_price: 8, price_change_percentage_7d_in_currency: 15.0, price_change_percentage_30d_in_currency: 20.0, market_cap: 5e9 },
   { id: "dogecoin", symbol: "doge", name: "Dogecoin", current_price: 0.1, price_change_percentage_7d_in_currency: -2.0, price_change_percentage_30d_in_currency: -5.0, market_cap: 14e9 },
-  // low market cap — should be filtered out
   { id: "chainlink", symbol: "link", name: "Chainlink", current_price: 15, price_change_percentage_7d_in_currency: 6.0, price_change_percentage_30d_in_currency: 8.0, market_cap: 100e6 },
 ];
 
@@ -1187,11 +1171,9 @@ const defi = slResult.find(function (s) { return s.sector === "defi"; });
 assert(defi !== undefined, "defi sector present");
 assert(defi.leader && defi.leader.id === "uniswap", "UNI leads defi with +15% 7d");
 
-// Chainlink ($100M mcap) should be filtered — sector has 0 qualifying coins
 const infra = slResult.find(function (s) { return s.sector === "infra"; });
 assert(infra === undefined || infra.leader === null, "infra leader null when all coins below 200M mcap");
 
-// Top sector by avg7d should be defi (15% > layer1's ~5.3%)
 assert(slResult[0].sector === "defi", "defi ranked first with highest avg7d");
 
 console.log("\n--- market.js: volume_leaders has distinct cache key ---");
@@ -1203,13 +1185,12 @@ assert(VOL_LEADERS_KEY.includes("vol"), "volume_leaders key includes 'vol' to di
 
 console.log("\n--- macro.js: asOf is today ---");
 
-const MACRO_AS_OF = "2026-09-28";
+const MACRO_AS_OF = "2026-09-30";
 const today = new Date().toISOString().slice(0, 10);
 assert(MACRO_AS_OF === today, "MACRO_DATA.asOf is today (" + today + ")");
 
 console.log("\n--- market.js: SECTOR_MAP/SECTOR_IDS_LIST shared constants ---");
 
-// Verify the shared constants are consistent — every ID in SECTOR_IDS_LIST maps to a sector.
 const SHARED_SECTOR_IDS_LIST = [
   "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
   "arbitrum", "optimism", "zksync", "starknet",
@@ -1238,7 +1219,6 @@ assert(allValidSectors, "all SECTOR_MAP values are valid sector keys");
 
 console.log("\n--- generate.js: thinking block stripping does not shadow request body ---");
 
-// Simulate the stripping logic to confirm renamed responseBody variable works.
 function stripThinkingBlocks(text) {
   let responseBody = text;
   try {
@@ -1270,7 +1250,6 @@ assert(stripThinkingBlocks(badJson) === badJson, "non-JSON passes through unchan
 
 console.log("\n--- alerts.js: ATH proximity email mentions 4-rung ladder ---");
 
-// The ATH proximity email must reference +200% to be consistent with the 4-rung system preamble.
 function athProximityEmailText(gainPct) {
   return "the profit-ladder framework suggests selling 25% increments at +25%, +50%, +100%, and +200% from cost";
 }
@@ -1281,21 +1260,58 @@ assert(athProximityEmailText(50).includes("+100%"), "ATH email references +100% 
 
 console.log("\n--- sync.js: MAX_BYTES validation ---");
 
-// Validate that the 256 KiB payload cap is correct in bytes.
 const MAX_BYTES_CAP = 256 * 1024;
 assert(MAX_BYTES_CAP === 262144, "MAX_BYTES is 256 KiB (262144 bytes)");
-// A payload just over the cap should fail size check.
 const oversizePayload = "x".repeat(MAX_BYTES_CAP + 1);
 assert(oversizePayload.length > MAX_BYTES_CAP, "oversize payload exceeds cap");
-// A payload just under should pass.
 const okPayload = "x".repeat(MAX_BYTES_CAP);
 assert(okPayload.length <= MAX_BYTES_CAP, "at-cap payload is allowed");
+
+console.log("\n--- _lib.js: signUnsub / verifyUnsub ---");
+
+process.env.AUTH_SECRET = process.env.AUTH_SECRET || "test-secret-key-for-unsub-tests";
+const { signUnsub, verifyUnsub } = require("../netlify/functions/_lib");
+{
+  const email = "user@example.com";
+  const token = signUnsub(email);
+  assert(typeof token === "string" && token.length > 0, "signUnsub returns a non-empty string");
+  assert(verifyUnsub(email, token), "verifyUnsub accepts a valid token");
+  assert(!verifyUnsub(email, token + "x"), "verifyUnsub rejects a tampered token");
+  assert(!verifyUnsub("other@example.com", token), "verifyUnsub rejects token for wrong email");
+  assert(!verifyUnsub(email, ""), "verifyUnsub rejects empty token");
+  assert(!verifyUnsub(email, null), "verifyUnsub rejects null token");
+  const token2 = signUnsub("other@example.com");
+  assert(!verifyUnsub(email, token2), "verifyUnsub rejects token signed for different email");
+}
+
+console.log("\n--- portal.js: URL validation ---");
+
+{
+  function isValidPortalUrl(url) {
+    return url && /^https:\/\/billing\.stripe\.com\//.test(url) ? url : null;
+  }
+  assert(isValidPortalUrl("https://billing.stripe.com/session/abc123"), "valid Stripe portal URL accepted");
+  assert(!isValidPortalUrl("https://evil.com/redirect"), "external redirect rejected");
+  assert(!isValidPortalUrl("https://billing.stripe.com.evil.com/"), "subdomain spoof rejected");
+  assert(!isValidPortalUrl(""), "empty URL rejected");
+  assert(!isValidPortalUrl(null), "null URL rejected");
+}
+
+console.log("\n--- track.js: log injection prevention ---");
+
+{
+  function sanitizeTrackField(s, maxLen) {
+    return String(s || "").replace(/[\r\n\t]/g, " ").slice(0, maxLen);
+  }
+  assert(!sanitizeTrackField("page\r\ninjected", 200).includes("\n"), "CR+LF stripped from track field");
+  assert(!sanitizeTrackField("page\rinjected", 200).includes("\r"), "CR stripped from track field");
+  assert(sanitizeTrackField("x".repeat(300), 200).length === 200, "track field truncated to maxLen");
+}
 
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
 }).finally(function () {
-  // --- Summary ---
   console.log("\n==========================================");
   console.log("Results: " + passed + " passed, " + failed + " failed");
   if (failed > 0) process.exit(1);

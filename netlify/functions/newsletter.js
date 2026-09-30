@@ -1,7 +1,7 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
 const MAX_SEND = 1000;
-const { listAllKeys } = require("./_lib");
+const { listAllKeys, signUnsub } = require("./_lib");
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -15,7 +15,8 @@ function briefToHtml(text) {
     .join("");
 }
 function emailHtml(briefHtml, btc, fg, email, dateStr) {
-  const unsub = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email);
+  const token = signUnsub(email);
+  const unsub = "https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + (token ? "&t=" + encodeURIComponent(token) : "");
   return "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;background:#050505;padding:0'>"
     + "<div style='max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system,Segoe UI,Helvetica,sans-serif'>"
     + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:4px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
@@ -54,16 +55,25 @@ exports.handler = async function (event) {
     }
   } catch (e) {}
 
+  const NL_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
   let btc = "n/a", fg = "n/a";
   try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
-    const d = await r.json();
-    if (d.bitcoin) btc = "$" + Math.round(d.bitcoin.usd).toLocaleString() + " (" + (d.bitcoin.usd_24h_change >= 0 ? "+" : "") + d.bitcoin.usd_24h_change.toFixed(1) + "%)";
+    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true", { headers: NL_UA });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.bitcoin && typeof d.bitcoin.usd_24h_change === "number") {
+        btc = "$" + Math.round(d.bitcoin.usd).toLocaleString() + " (" + (d.bitcoin.usd_24h_change >= 0 ? "+" : "") + d.bitcoin.usd_24h_change.toFixed(1) + "%)";
+      } else if (d.bitcoin) {
+        btc = "$" + Math.round(d.bitcoin.usd).toLocaleString();
+      }
+    }
   } catch (e) {}
   try {
-    const r = await fetch("https://api.alternative.me/fng/?limit=1");
-    const d = await r.json();
-    if (d.data && d.data[0]) fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
+    const r = await fetch("https://api.alternative.me/fng/?limit=1", { headers: NL_UA });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.data && d.data[0]) fg = d.data[0].value + " (" + d.data[0].value_classification + ")";
+    }
   } catch (e) {}
 
   // Regime + falsifier watch. Required from macro.js so the email and the app
@@ -97,7 +107,8 @@ exports.handler = async function (event) {
       }),
     });
     const d = await r.json();
-    brief = (d.content && d.content[0] && d.content[0].text) || "";
+    const textBlock = d.content && Array.isArray(d.content) && d.content.find(function (c) { return c && c.type === "text"; });
+    brief = (textBlock && textBlock.text) || "";
   } catch (e) { console.log("[newsletter] brief generation failed:", e.message); }
   if (!brief) {
     brief = "📊 **Market check** — AI brief generation failed today; check your portfolio in the command center.\n💡 **Tip** — Review your watchlist targets and ensure your stop-losses are current.\n⚠️ **Reminder** — This is an educational newsletter, not financial advice.";
@@ -116,6 +127,14 @@ exports.handler = async function (event) {
   const BATCH = 10;
   let sent = 0, failed = 0;
   const batch = subs.slice(0, MAX_SEND);
+
+  // Write the dedup guard BEFORE sending so a Lambda timeout mid-send doesn't
+  // cause the full list to be re-emailed on the next scheduled run.
+  try {
+    const metaStore = getStore("newsletter-meta");
+    await metaStore.setJSON("sent:" + today, { sent: true, at: new Date().toISOString() });
+  } catch (e) {}
+
   for (let i = 0; i < batch.length; i += BATCH) {
     const chunk = batch.slice(i, i + BATCH);
     const results = await Promise.allSettled(chunk.map(function (email) {
@@ -135,12 +154,6 @@ exports.handler = async function (event) {
       if (r.status === "fulfilled" && r.value === "ok") sent++; else failed++;
     });
   }
-
-  // Mark today's send complete to prevent duplicates on retry
-  try {
-    const metaStore = getStore("newsletter-meta");
-    await metaStore.setJSON("sent:" + today, { sent: true, count: sent, at: new Date().toISOString() });
-  } catch (e) {}
 
   console.log("[newsletter] sent " + sent + ", failed " + failed + ", of " + subs.length + " subscribers");
   return { statusCode: 200, body: "sent " + sent + "/" + subs.length };
