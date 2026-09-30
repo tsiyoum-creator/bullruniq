@@ -67,4 +67,22 @@ async function listAllKeys(store) {
   return keys;
 }
 
-module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys };
+// Returns an HMAC-signed unsubscribe token for the given email so unsubscribe
+// links cannot be forged to remove arbitrary users from the subscriber list.
+function signUnsub(email) {
+  const key = secretKey();
+  if (!key) return null;
+  return crypto.createHmac("sha256", key).update("unsub:" + email).digest("base64url");
+}
+
+// Verifies an unsubscribe token produced by signUnsub(). Returns true if valid.
+function verifyUnsub(email, token) {
+  const key = secretKey();
+  if (!key || !token) return false;
+  const expected = crypto.createHmac("sha256", key).update("unsub:" + email).digest("base64url");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
+  } catch (e) { return false; }
+}
+
+module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys, signUnsub, verifyUnsub };

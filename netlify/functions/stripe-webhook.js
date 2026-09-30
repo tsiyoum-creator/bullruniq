@@ -22,8 +22,8 @@ function verifyStripe(rawBody, sigHeader, secret) {
 exports.handler = async function (event) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) {
-    console.log("[stripe-webhook] STRIPE_WEBHOOK_SECRET not set — skipping");
-    return { statusCode: 200, body: "not configured" };
+    console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET not set — rejecting so Stripe retries");
+    return { statusCode: 500, body: "webhook secret not configured" };
   }
   const raw = event.isBase64Encoded ? Buffer.from(event.body || "", "base64").toString("utf8") : (event.body || "");
   const h = event.headers || {};

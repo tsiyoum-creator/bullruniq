@@ -68,6 +68,7 @@ exports.handler = async function (event) {
     }
     return { statusCode: 200, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify({ configured: true, url: data.url }) };
   } catch (err) {
-    return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: err.message }) };
+    console.log("[checkout] network error:", err.message);
+    return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: "Payment service temporarily unavailable. Please try again." }) };
   }
 };
