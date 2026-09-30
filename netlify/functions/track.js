@@ -13,10 +13,10 @@ exports.handler = async function (event) {
     const h = event.headers || {};
     const rec = {
       t: new Date().toISOString(),
-      ev: String(e.ev || "pageview").slice(0, 40),
-      path: String(e.path || h.referer || "").slice(0, 200),
-      ref: String(e.ref || "").slice(0, 200),
-      meta: e.meta ? String(JSON.stringify(e.meta)).slice(0, 300) : undefined,
+      ev: String(e.ev || "pageview").replace(/[\r\n\t]/g, " ").slice(0, 40),
+      path: String(e.path || h.referer || "").replace(/[\r\n]/g, " ").slice(0, 200),
+      ref: String(e.ref || "").replace(/[\r\n]/g, " ").slice(0, 200),
+      meta: (e.meta && typeof e.meta === "object") ? String(JSON.stringify(e.meta)).replace(/[\r\n]/g, " ").slice(0, 300) : undefined,
       ua: String(h["user-agent"] || "").slice(0, 160),
       country: h["x-country"] || h["x-nf-geo"] || undefined,
     };
