@@ -15,7 +15,6 @@ const ALLOWED_MODELS = new Set([
   "claude-sonnet-4-6",
 ]);
 const DEFAULT_MODEL = "claude-sonnet-5";
-const MAX_TOKENS_CAP = 1500;
 const MIN_TOKENS = 100;
 const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
@@ -78,6 +77,7 @@ function validateMessages(messages) {
     if (!ALLOWED_ROLES.has(m.role)) return false;
     if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
     if (typeof m.content === "string" && m.content.length > 20000) return false;
+    if (Array.isArray(m.content) && m.content.length > 20) return false;
   }
   return true;
 }
