@@ -62,14 +62,17 @@ exports.handler = async function (event) {
       const email = ((obj.customer_details && obj.customer_details.email) || obj.customer_email || "").toLowerCase();
       const cid = obj.customer || null;
       if (email) {
-        await customers.setJSON(email, {
+        // Merge with existing record so an upgrade doesn't lose prior subscription data.
+        const existing = (await customers.get(email, { type: "json" })) || { email: email };
+        const updated = Object.assign({}, existing, {
           email: email,
-          tier: (obj.metadata && obj.metadata.tier) || "pro",
-          customer: cid,
-          subscription: obj.subscription || null,
+          tier: (obj.metadata && obj.metadata.tier) || existing.tier || "pro",
+          customer: cid || existing.customer,
+          subscription: obj.subscription || existing.subscription,
           status: "active",
           updatedAt: new Date().toISOString(),
         });
+        await customers.setJSON(email, updated);
         if (cid) await customers.setJSON("cid:" + cid, { email: email });
         try {
           const subs = getStore("subscribers");
@@ -96,7 +99,9 @@ exports.handler = async function (event) {
       await setStatus(obj.customer, "active");
     }
   } catch (e) {
-    console.log("[stripe-webhook] handler error:", e.message);
+    console.error("[stripe-webhook] handler error:", e.message);
+    // Return 500 so Stripe retries the event; don't swallow storage failures silently.
+    return { statusCode: 500, body: "handler error" };
   }
 
   return { statusCode: 200, body: "ok" };

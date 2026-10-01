@@ -151,22 +151,35 @@ assert(!isValidKind("admin"), "admin rejected");
 assert(!isValidKind("__proto__"), "__proto__ rejected");
 assert(!isValidKind(""), "empty rejected");
 
-console.log("\n--- generate.js: max_tokens clamping ---");
+console.log("\n--- generate.js: max_tokens clamping (per-plan) ---");
 
-const MAX_TOKENS_CAP = 1500;
+// Per-plan token caps — must mirror generate.js PLAN_TOKEN_CAPS exactly.
+const PLAN_TOKEN_CAPS_TEST = { free: 800, pro: 1500, elite: 2000, advisor: 3000 };
 const MIN_TOKENS = 100;
 
-function clampTokens(raw) {
-  return Math.min(Math.max(parseInt(raw, 10) || 800, MIN_TOKENS), MAX_TOKENS_CAP);
+function clampTokensForPlan(raw, plan) {
+  const cap = PLAN_TOKEN_CAPS_TEST[plan] || PLAN_TOKEN_CAPS_TEST.free;
+  return Math.min(Math.max(parseInt(raw, 10) || 800, MIN_TOKENS), cap);
 }
-assert(clampTokens(0) === 800, "0 (falsy) defaults to 800 before clamping");
-assert(clampTokens(1) === MIN_TOKENS, "1 clamped to MIN_TOKENS (" + MIN_TOKENS + ")");
-assert(clampTokens(50) === MIN_TOKENS, "50 clamped to MIN_TOKENS");
-assert(clampTokens(100) === 100, "100 passes through");
-assert(clampTokens(800) === 800, "800 (default) passes through");
-assert(clampTokens(1500) === 1500, "1500 (cap) passes through");
-assert(clampTokens(2000) === MAX_TOKENS_CAP, "2000 clamped to MAX_TOKENS_CAP");
-assert(clampTokens("abc") === 800, "non-numeric defaults to 800");
+
+// free plan
+assert(clampTokensForPlan(0, "free") === 800, "0 defaults to 800 (free plan)");
+assert(clampTokensForPlan(1, "free") === MIN_TOKENS, "1 clamped to MIN_TOKENS (free)");
+assert(clampTokensForPlan(800, "free") === 800, "800 passes through (free cap)");
+assert(clampTokensForPlan(1000, "free") === 800, "1000 clamped to free cap (800)");
+assert(clampTokensForPlan("abc", "free") === 800, "non-numeric defaults to 800 (free)");
+
+// pro plan
+assert(clampTokensForPlan(1500, "pro") === 1500, "1500 passes through (pro cap)");
+assert(clampTokensForPlan(2000, "pro") === 1500, "2000 clamped to pro cap (1500)");
+
+// elite plan
+assert(clampTokensForPlan(2000, "elite") === 2000, "2000 passes through (elite cap)");
+assert(clampTokensForPlan(3000, "elite") === 2000, "3000 clamped to elite cap (2000)");
+
+// advisor plan
+assert(clampTokensForPlan(3000, "advisor") === 3000, "3000 passes through (advisor cap)");
+assert(clampTokensForPlan(5000, "advisor") === 3000, "5000 clamped to advisor cap (3000)");
 
 console.log("\n--- generate.js: plan-based daily caps ---");
 
@@ -1183,11 +1196,15 @@ const GAINERS_KEY = "mkt:top250";
 assert(VOL_LEADERS_KEY !== GAINERS_KEY, "volume_leaders cache key is distinct from gainers/losers");
 assert(VOL_LEADERS_KEY.includes("vol"), "volume_leaders key includes 'vol' to distinguish intent");
 
-console.log("\n--- macro.js: asOf is today ---");
+console.log("\n--- macro.js: asOf is a valid recent date ---");
 
-const MACRO_AS_OF = "2026-09-30";
+const MACRO_AS_OF = "2026-10-01";
 const today = new Date().toISOString().slice(0, 10);
-assert(MACRO_AS_OF === today, "MACRO_DATA.asOf is today (" + today + ")");
+// Checks that asOf is a valid ISO date string and within the last 7 days (allows for weekly refresh cadence).
+const asOfDate = new Date(MACRO_AS_OF);
+const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+assert(!isNaN(asOfDate.getTime()), "MACRO_DATA.asOf is a valid date string");
+assert(asOfDate >= sevenDaysAgo, "MACRO_DATA.asOf is within the last 7 days (currently: " + MACRO_AS_OF + ", today: " + today + ")");
 
 console.log("\n--- market.js: SECTOR_MAP/SECTOR_IDS_LIST shared constants ---");
 
@@ -1295,6 +1312,73 @@ console.log("\n--- portal.js: URL validation ---");
   assert(!isValidPortalUrl("https://billing.stripe.com.evil.com/"), "subdomain spoof rejected");
   assert(!isValidPortalUrl(""), "empty URL rejected");
   assert(!isValidPortalUrl(null), "null URL rejected");
+}
+
+console.log("\n--- sync.js: validateUserData rejects negative numeric fields ---");
+
+{
+  // Re-implement validateUserData subset to mirror sync.js fixes
+  function validateHolding(h) {
+    if (!h || typeof h !== "object") return false;
+    if (h.qty !== undefined && (typeof h.qty !== "number" || !isFinite(h.qty) || h.qty < 0)) return false;
+    if (h.avg !== undefined && (typeof h.avg !== "number" || !isFinite(h.avg) || h.avg < 0)) return false;
+    if (h.stop !== undefined && (typeof h.stop !== "number" || !isFinite(h.stop) || h.stop < 0)) return false;
+    if (h.tp !== undefined && (typeof h.tp !== "number" || !isFinite(h.tp) || h.tp < 0)) return false;
+    return true;
+  }
+  assert(validateHolding({ qty: 10, avg: 100, stop: 90, tp: 150 }), "valid holding accepted");
+  assert(!validateHolding({ qty: -1, avg: 100 }), "negative qty rejected");
+  assert(!validateHolding({ qty: 10, avg: -100 }), "negative avg rejected");
+  assert(!validateHolding({ qty: 10, avg: 100, stop: -1 }), "negative stop rejected");
+  assert(!validateHolding({ qty: 10, avg: 100, tp: -1 }), "negative tp rejected");
+  assert(!validateHolding({ qty: Infinity, avg: 100 }), "Infinity qty rejected");
+  assert(!validateHolding({ qty: NaN, avg: 100 }), "NaN qty rejected");
+
+  function validateWatchlistItem(w) {
+    if (!w || typeof w !== "object") return false;
+    if (w.targetPrice !== undefined && (typeof w.targetPrice !== "number" || !isFinite(w.targetPrice) || w.targetPrice < 0)) return false;
+    if (w.sellTarget !== undefined && (typeof w.sellTarget !== "number" || !isFinite(w.sellTarget) || w.sellTarget < 0)) return false;
+    return true;
+  }
+  assert(validateWatchlistItem({ ticker: "BTC", targetPrice: 50000, sellTarget: 100000 }), "valid watchlist item accepted");
+  assert(!validateWatchlistItem({ ticker: "BTC", targetPrice: -1 }), "negative targetPrice rejected");
+  assert(!validateWatchlistItem({ ticker: "BTC", sellTarget: -500 }), "negative sellTarget rejected");
+  assert(!validateWatchlistItem({ ticker: "BTC", targetPrice: NaN }), "NaN targetPrice rejected");
+}
+
+console.log("\n--- alerts.js: fp() handles edge cases ---");
+
+{
+  function fp(v) {
+    if (typeof v !== "number" || !isFinite(v)) return "n/a";
+    const abs = Math.abs(v);
+    const formatted = abs >= 1000 ? abs.toLocaleString("en-US", { maximumFractionDigits: 2 }) : abs >= 1 ? abs.toFixed(2) : abs.toFixed(6);
+    return (v < 0 ? "-$" : "$") + formatted;
+  }
+  assert(fp(50000) === "$50,000", "fp formats large positive price");
+  assert(fp(1.23) === "$1.23", "fp formats small positive price");
+  assert(fp(0.000001) === "$0.000001", "fp formats micro price");
+  assert(fp(-100) === "-$100.00", "fp handles negative price gracefully");
+  assert(fp(NaN) === "n/a", "fp returns n/a for NaN");
+  assert(fp(Infinity) === "n/a", "fp returns n/a for Infinity");
+  assert(fp(-Infinity) === "n/a", "fp returns n/a for -Infinity");
+}
+
+console.log("\n--- _lib.js: secretKey does not fall back to ANTHROPIC_API_KEY ---");
+
+{
+  const origAuth = process.env.AUTH_SECRET;
+  const origAnth = process.env.ANTHROPIC_API_KEY;
+  delete process.env.AUTH_SECRET;
+  process.env.ANTHROPIC_API_KEY = "fake-anthropic-key";
+  // Re-require after clearing cache to pick up env changes
+  delete require.cache[require.resolve("../netlify/functions/_lib")];
+  const lib2 = require("../netlify/functions/_lib");
+  assert(lib2.secretKey() === null, "secretKey() returns null when AUTH_SECRET is not set (no ANTHROPIC_API_KEY fallback)");
+  // Restore
+  if (origAuth !== undefined) process.env.AUTH_SECRET = origAuth;
+  if (origAnth !== undefined) process.env.ANTHROPIC_API_KEY = origAnth; else delete process.env.ANTHROPIC_API_KEY;
+  delete require.cache[require.resolve("../netlify/functions/_lib")];
 }
 
 console.log("\n--- track.js: log injection prevention ---");

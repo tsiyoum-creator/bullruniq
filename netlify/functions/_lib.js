@@ -5,9 +5,6 @@ const crypto = require("crypto");
 
 function secretKey() {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  if (process.env.ANTHROPIC_API_KEY) {
-    return crypto.createHash("sha256").update("briq-auth:" + process.env.ANTHROPIC_API_KEY).digest("hex");
-  }
   return null;
 }
 
@@ -41,7 +38,9 @@ async function planFor(email, getStore) {
   try {
     const rec = await getStore("customers").get(email, { type: "json" });
     if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "pro";
-  } catch (e) {}
+  } catch (e) {
+    console.log("[planFor] storage error for", email, "—", e.message);
+  }
   return "free";
 }
 

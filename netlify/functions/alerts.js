@@ -11,7 +11,7 @@
 // No-ops gracefully until RESEND_API_KEY is set.
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
-const { listAllKeys, signUnsub } = require("./_lib");
+const { listAllKeys, signUnsub, esc } = require("./_lib");
 
 function unsubUrl(email) {
   const token = signUnsub(email);
@@ -85,9 +85,13 @@ async function sendEmail(RESEND, to, subject, html, FROM) {
   return r.ok;
 }
 
-function fp(v) { return v >= 1000 ? "$" + v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(6); }
+function fp(v) {
+  if (typeof v !== "number" || !isFinite(v)) return "n/a";
+  const abs = Math.abs(v);
+  const formatted = abs >= 1000 ? abs.toLocaleString("en-US", { maximumFractionDigits: 2 }) : abs >= 1 ? abs.toFixed(2) : abs.toFixed(6);
+  return (v < 0 ? "-$" : "$") + formatted;
+}
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
-function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
 function buyAlertHtml(w, price, email) {
   const name = esc(w.name || w.ticker);

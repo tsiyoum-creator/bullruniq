@@ -146,7 +146,10 @@ exports.handler = async function (event) {
           to: email,
           subject: subject,
           html: emailHtml(briefHtml, btc, fg, email, dateStr),
-          headers: { "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + ">" },
+          headers: {
+            "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + (signUnsub(email) ? "&t=" + encodeURIComponent(signUnsub(email)) : "") + ">",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         }),
       }).then(function (r) { return r.ok ? "ok" : "err"; });
     }));

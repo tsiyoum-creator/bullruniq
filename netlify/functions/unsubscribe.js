@@ -4,7 +4,7 @@
 // Legacy links without a token are still honoured so existing emails in inboxes
 // continue to work; once all old emails expire the fallback can be removed.
 
-const { esc, verifyUnsub } = require("./_lib");
+const { esc, verifyUnsub, secretKey } = require("./_lib");
 
 function page(msg) {
   return "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Unsubscribed — BullrunIQ</title></head>"
@@ -26,15 +26,16 @@ exports.handler = async function (event) {
   const token = String(q.t || "").trim();
   const email = isValidEmail(raw) ? raw : "";
 
-  // Verify the HMAC token when AUTH_SECRET is configured.
-  // If no token is provided, still allow (legacy links in already-sent emails).
-  // If a token IS provided but invalid, reject to block forged unsubscribe attempts.
-  if (email && token && !verifyUnsub(email, token)) {
-    return {
-      statusCode: 400,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-      body: page("This unsubscribe link is invalid or has expired. Please use the link from a recent email."),
-    };
+  // When AUTH_SECRET is configured, require a valid HMAC token to prevent anyone
+  // who knows a subscriber's email from unsubscribing them without their consent.
+  if (email && secretKey()) {
+    if (!token || !verifyUnsub(email, token)) {
+      return {
+        statusCode: 400,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+        body: page("This unsubscribe link is invalid or has expired. Please use the link from a recent email."),
+      };
+    }
   }
 
   let storageOk = true;
