@@ -7,8 +7,10 @@
 
 const { verifyToken, planFor, json } = require("./_lib");
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
+
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "X-Content-Type-Options": "nosniff",
@@ -64,10 +66,10 @@ function validateUserData(data) {
       if (h.ticker && h.ticker.length > 20) return false;
       if (h.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(h.ticker)) return false;
       if (h.name !== undefined && (typeof h.name !== "string" || h.name.length > 100)) return false;
-      if (h.qty !== undefined && typeof h.qty !== "number") return false;
-      if (h.avg !== undefined && typeof h.avg !== "number") return false;
-      if (h.stop !== undefined && typeof h.stop !== "number") return false;
-      if (h.tp !== undefined && typeof h.tp !== "number") return false;
+      if (h.qty !== undefined && (typeof h.qty !== "number" || !isFinite(h.qty) || h.qty < 0)) return false;
+      if (h.avg !== undefined && (typeof h.avg !== "number" || !isFinite(h.avg) || h.avg < 0)) return false;
+      if (h.stop !== undefined && (typeof h.stop !== "number" || !isFinite(h.stop) || h.stop < 0)) return false;
+      if (h.tp !== undefined && (typeof h.tp !== "number" || !isFinite(h.tp) || h.tp < 0)) return false;
     }
   }
   // Validate watchlist if present
@@ -80,8 +82,8 @@ function validateUserData(data) {
       if (w.ticker && w.ticker.length > 20) return false;
       if (w.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(w.ticker)) return false;
       if (w.name !== undefined && (typeof w.name !== "string" || w.name.length > 100)) return false;
-      if (w.targetPrice !== undefined && typeof w.targetPrice !== "number") return false;
-      if (w.sellTarget !== undefined && typeof w.sellTarget !== "number") return false;
+      if (w.targetPrice !== undefined && (typeof w.targetPrice !== "number" || !isFinite(w.targetPrice) || w.targetPrice < 0)) return false;
+      if (w.sellTarget !== undefined && (typeof w.sellTarget !== "number" || !isFinite(w.sellTarget) || w.sellTarget < 0)) return false;
     }
   }
   return true;

@@ -234,7 +234,14 @@ document.getElementById('confirmPin').addEventListener('click', async () => {
   }
   const data = { username, city: city || 'Somewhere on Earth', lat: pendingLat, lng: pendingLng };
   if (db) {
-    await db.collection('map_pins').add({ ...data, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+    try {
+      await db.collection('map_pins').add({ ...data, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+    } catch (err) {
+      console.error('[map_pins] write failed:', err);
+      locationStatus.textContent = '⚠ Could not save pin — try again.';
+      locationStatus.style.color = 'var(--amber)';
+      return;
+    }
   } else {
     addMapPin(data);
   }
@@ -321,7 +328,15 @@ submitVideoBtn.addEventListener('click', async () => {
   }
   const data = { username, url, videoId };
   if (db) {
-    await db.collection('video_submissions').add({ ...data, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+    try {
+      await db.collection('video_submissions').add({ ...data, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+    } catch (err) {
+      console.error('[video_submissions] write failed:', err);
+      videoError.textContent = '⚠ Submission failed — please try again.';
+      submitVideoBtn.textContent = 'Submit Entry';
+      submitVideoBtn.disabled = false;
+      return;
+    }
   } else {
     addVideoCard(data);
   }
@@ -383,17 +398,24 @@ if (db) {
   ].forEach(m => renderMessage(m, false));
 }
 
+const CHAT_MAX_LENGTH = 500;
+
 async function sendMessage() {
-  const message  = chatInput.value.trim();
-  const username = chatUsername.value.trim() || 'Anonymous';
+  const message  = chatInput.value.trim().slice(0, CHAT_MAX_LENGTH);
+  const username = chatUsername.value.trim().slice(0, 50) || 'Anonymous';
   if (!message) return;
   chatInput.value = '';
   localStorage.setItem('iwill_username', username);
   if (db) {
-    await db.collection('chat_messages').add({
-      username, message,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    try {
+      await db.collection('chat_messages').add({
+        username, message,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (err) {
+      console.error('[chat] write failed:', err);
+      chatInput.value = message; // restore so user can retry
+    }
   } else {
     renderMessage({ username, message, timestamp: { toDate: () => new Date() } }, true);
   }
@@ -423,7 +445,7 @@ function restartTikTokIframe(iframe) {
 }
 
 window.addEventListener('message', e => {
-  if (!String(e.origin).includes('tiktok.com')) return;
+  if (e.origin !== 'https://www.tiktok.com') return;
   try {
     const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
     const str = JSON.stringify(raw).toLowerCase();
