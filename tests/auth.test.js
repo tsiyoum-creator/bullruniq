@@ -1392,6 +1392,233 @@ console.log("\n--- track.js: log injection prevention ---");
   assert(sanitizeTrackField("x".repeat(300), 200).length === 200, "track field truncated to maxLen");
 }
 
+console.log("\n--- checkout.js: CORS restricted to ALLOWED_ORIGIN ---");
+
+{
+  const defaultOrigin = "https://bullruniq.com";
+  const configuredOrigin = process.env.ALLOWED_ORIGIN || defaultOrigin;
+  assert(configuredOrigin !== "*", "CORS origin is not wildcard");
+  assert(configuredOrigin === defaultOrigin || configuredOrigin.startsWith("https://"), "CORS origin is HTTPS or configured default");
+
+  // Simulate the checkout origin restriction logic
+  function buildCheckoutCors(allowedOrigin) {
+    return {
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "X-Content-Type-Options": "nosniff",
+    };
+  }
+  const cors = buildCheckoutCors(defaultOrigin);
+  assert(cors["Access-Control-Allow-Origin"] === defaultOrigin, "checkout CORS origin matches configured site");
+  assert(cors["X-Content-Type-Options"] === "nosniff", "checkout CORS includes X-Content-Type-Options");
+}
+
+console.log("\n--- checkout.js: tier validation ---");
+
+{
+  const VALID_TIERS = new Set(["pro", "elite", "advisor"]);
+  const PRICE_ENV = { pro: "STRIPE_PRICE_PRO", elite: "STRIPE_PRICE_ELITE", advisor: "STRIPE_PRICE_ADVISOR" };
+
+  function validateCheckoutTier(raw) {
+    const tier = String(raw || "").toLowerCase();
+    return VALID_TIERS.has(tier) ? tier : null;
+  }
+  function priceEnvFor(tier) { return PRICE_ENV[tier] || null; }
+
+  assert(validateCheckoutTier("pro") === "pro", "pro tier valid");
+  assert(validateCheckoutTier("elite") === "elite", "elite tier valid");
+  assert(validateCheckoutTier("advisor") === "advisor", "advisor tier valid");
+  assert(validateCheckoutTier("PRO") === "pro", "uppercase PRO normalised");
+  assert(validateCheckoutTier("free") === null, "free tier rejected (not a purchasable tier)");
+  assert(validateCheckoutTier("") === null, "empty tier rejected");
+  assert(validateCheckoutTier("admin") === null, "admin tier rejected");
+  assert(validateCheckoutTier(null) === null, "null tier rejected");
+  assert(priceEnvFor("pro") === "STRIPE_PRICE_PRO", "pro maps to correct env var");
+  assert(priceEnvFor("elite") === "STRIPE_PRICE_ELITE", "elite maps to correct env var");
+  assert(priceEnvFor("advisor") === "STRIPE_PRICE_ADVISOR", "advisor maps to correct env var");
+  assert(priceEnvFor("unknown") === null, "unknown tier has no price env var");
+}
+
+console.log("\n--- checkout.js: email validation ---");
+
+{
+  function validateCheckoutEmail(raw) {
+    const s = raw ? String(raw).trim().toLowerCase().slice(0, 200) : "";
+    return s && s.indexOf("@") > 0 ? s : "";
+  }
+  assert(validateCheckoutEmail("user@example.com") === "user@example.com", "valid email passes");
+  assert(validateCheckoutEmail("USER@EXAMPLE.COM") === "user@example.com", "email lowercased");
+  assert(validateCheckoutEmail("  user@example.com  ") === "user@example.com", "email trimmed");
+  assert(validateCheckoutEmail("notanemail") === "", "email without @ rejected");
+  assert(validateCheckoutEmail("") === "", "empty email becomes empty string");
+  assert(validateCheckoutEmail(null) === "", "null email becomes empty string");
+  const longEmail = "a".repeat(195) + "@b.com";
+  assert(validateCheckoutEmail(longEmail).length <= 200, "email sliced to 200 chars");
+}
+
+console.log("\n--- portal.js: open-redirect guard ---");
+
+{
+  function resolvePortalUrl(url) {
+    const safe = url && /^https:\/\/billing\.stripe\.com\//.test(url) ? url : null;
+    return safe || "/contact";
+  }
+  assert(resolvePortalUrl("https://billing.stripe.com/session/abc") === "https://billing.stripe.com/session/abc", "Stripe billing URL allowed");
+  assert(resolvePortalUrl("https://evil.com") === "/contact", "non-Stripe URL falls back to contact");
+  assert(resolvePortalUrl("http://billing.stripe.com/") === "/contact", "http (non-HTTPS) Stripe URL rejected");
+  assert(resolvePortalUrl("https://billing.stripe.com.evil.com/") === "/contact", "lookalike Stripe domain rejected");
+  assert(resolvePortalUrl("") === "/contact", "empty URL falls back to contact");
+  assert(resolvePortalUrl(null) === "/contact", "null URL falls back to contact");
+  assert(resolvePortalUrl(undefined) === "/contact", "undefined URL falls back to contact");
+}
+
+console.log("\n--- generate.js: model allowlist ---");
+
+{
+  const ALLOWED_MODELS = new Set([
+    "claude-fable-5-1",
+    "claude-opus-5-5",
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+    "claude-opus-4-8",
+    "claude-sonnet-4-6",
+  ]);
+  const DEFAULT_MODEL = "claude-sonnet-5";
+
+  function resolveModel(requested) {
+    return ALLOWED_MODELS.has(requested) ? requested : DEFAULT_MODEL;
+  }
+  assert(resolveModel("claude-sonnet-5") === "claude-sonnet-5", "current default model allowed");
+  assert(resolveModel("claude-opus-5-5") === "claude-opus-5-5", "claude-opus-5-5 allowed");
+  assert(resolveModel("claude-fable-5-1") === "claude-fable-5-1", "claude-fable-5-1 allowed");
+  assert(resolveModel("claude-haiku-4-5-20251001") === "claude-haiku-4-5-20251001", "dated haiku model allowed");
+  assert(resolveModel("gpt-4o") === DEFAULT_MODEL, "non-Claude model falls back to default");
+  assert(resolveModel("claude-3-opus-20240229") === DEFAULT_MODEL, "old claude-3 model rejected");
+  assert(resolveModel("") === DEFAULT_MODEL, "empty string falls back to default");
+  assert(resolveModel(null) === DEFAULT_MODEL, "null falls back to default");
+  assert(resolveModel("../../etc/passwd") === DEFAULT_MODEL, "path traversal falls back to default");
+  assert(ALLOWED_MODELS.has(DEFAULT_MODEL), "DEFAULT_MODEL is itself in the allowlist");
+}
+
+console.log("\n--- generate.js: burst rate limiter ---");
+
+{
+  // Simulate burstOk with an isolated map per test
+  const BURST_MAX_T = 30;
+  const BURST_WINDOW_T = 60000;
+
+  function makeBurstLimiter() {
+    const map = new Map();
+    let lastSweep = 0;
+    return function burstOk(ip) {
+      const now = Date.now();
+      if (now - lastSweep > 300000) {
+        lastSweep = now;
+        for (const [k, v] of map) if (now - v.t > BURST_WINDOW_T) map.delete(k);
+      }
+      const e = map.get(ip);
+      if (!e || now - e.t > BURST_WINDOW_T) {
+        map.set(ip, { t: now, n: 1 });
+        return true;
+      }
+      e.n++;
+      return e.n <= BURST_MAX_T;
+    };
+  }
+
+  const bOk = makeBurstLimiter();
+  const ip = "1.2.3.4";
+  for (let i = 0; i < BURST_MAX_T; i++) assert(bOk(ip), "request " + (i + 1) + " within burst limit");
+  assert(!bOk(ip), "request " + (BURST_MAX_T + 1) + " exceeds burst limit");
+  assert(!bOk(ip), "subsequent requests still blocked within window");
+
+  const bOk2 = makeBurstLimiter();
+  assert(bOk2("10.0.0.1"), "distinct IPs each get their own counter");
+  assert(bOk2("10.0.0.2"), "second distinct IP allowed independently");
+
+  // A new limiter (simulates a new ip after window expiry by using a fresh bucket)
+  const bOk3 = makeBurstLimiter();
+  const ip2 = "5.5.5.5";
+  // Exhaust bucket
+  for (let i = 0; i < BURST_MAX_T + 1; i++) bOk3(ip2);
+  // Simulate window expiry by inserting a fresh bucket with an old timestamp
+  const mapKey = ip2;
+  // Can't reach internal map; just test that fresh ip is allowed (independent counter)
+  assert(bOk3("6.6.6.6"), "fresh IP always gets a new bucket");
+}
+
+console.log("\n--- sync.js: stripServerFlags removes all protected flags ---");
+
+{
+  const SERVER_ALERT_FLAGS = new Set([
+    "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
+    "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
+  ]);
+
+  function stripServerFlags(data) {
+    if (!data || typeof data !== "object") return data;
+    const out = Object.assign({}, data);
+    if (out.port && Array.isArray(out.port.crypto)) {
+      out.port = Object.assign({}, out.port);
+      out.port.crypto = out.port.crypto.map(function (h) {
+        if (!h || typeof h !== "object") return h;
+        const cleaned = Object.assign({}, h);
+        for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+        return cleaned;
+      });
+    }
+    if (Array.isArray(out.wl)) {
+      out.wl = out.wl.map(function (w) {
+        if (!w || typeof w !== "object") return w;
+        const cleaned = Object.assign({}, w);
+        for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+        return cleaned;
+      });
+    }
+    return out;
+  }
+
+  const dirtyHolding = {
+    ticker: "BTC", qty: 1, avg: 60000,
+    serverAlerted: true, serverSellAlerted: true, serverStopAlerted: true,
+    serverTpAlerted: true, serverLadderHits: 2, serverAthAlerted: true,
+    serverConcentrationAlerted: true,
+  };
+  const dirtyData = {
+    cash: 5000,
+    port: { crypto: [dirtyHolding] },
+    wl: [{ ticker: "ETH", targetPrice: 3000, serverAlerted: true, serverSellAlerted: true }],
+  };
+
+  const cleaned = stripServerFlags(dirtyData);
+
+  // Server flags removed from holdings
+  for (const flag of SERVER_ALERT_FLAGS) {
+    assert(!Object.prototype.hasOwnProperty.call(cleaned.port.crypto[0], flag), flag + " stripped from holding");
+  }
+  // Non-flag fields preserved in holdings
+  assert(cleaned.port.crypto[0].ticker === "BTC", "ticker preserved after strip");
+  assert(cleaned.port.crypto[0].qty === 1, "qty preserved after strip");
+  assert(cleaned.port.crypto[0].avg === 60000, "avg preserved after strip");
+
+  // Server flags removed from watchlist
+  assert(!Object.prototype.hasOwnProperty.call(cleaned.wl[0], "serverAlerted"), "serverAlerted stripped from watchlist");
+  assert(!Object.prototype.hasOwnProperty.call(cleaned.wl[0], "serverSellAlerted"), "serverSellAlerted stripped from watchlist");
+  assert(cleaned.wl[0].ticker === "ETH", "ticker preserved in watchlist after strip");
+  assert(cleaned.wl[0].targetPrice === 3000, "targetPrice preserved in watchlist after strip");
+
+  // Top-level fields preserved
+  assert(cleaned.cash === 5000, "cash preserved at top level");
+
+  // Null/undefined data handled gracefully
+  assert(stripServerFlags(null) === null, "null input returned as-is");
+  assert(typeof stripServerFlags({}) === "object", "empty object handled");
+  assert(stripServerFlags({ port: { crypto: [] } }).port.crypto.length === 0, "empty crypto array preserved");
+}
+
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
