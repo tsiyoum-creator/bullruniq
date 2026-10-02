@@ -1,9 +1,12 @@
 // BullrunIQ — Stripe Checkout session creator
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
+
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "X-Content-Type-Options": "nosniff",
 };
 
 const VALID_TIERS = new Set(["pro", "elite", "advisor"]);
