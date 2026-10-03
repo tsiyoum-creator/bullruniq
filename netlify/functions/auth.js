@@ -2,17 +2,15 @@
 //   POST {action:"request", email}        → emails a 6-digit code (Resend), valid 15 min
 //   POST {action:"verify",  email, code}  → returns a signed 30-day token + plan
 // Token: base64url(email|exp) + "." + HMAC-SHA256 signature.
-// Secret: AUTH_SECRET env var, else derived from ANTHROPIC_API_KEY (zero extra config;
-// rotating that key just logs everyone out, which is safe).
+// Secret: AUTH_SECRET env var (preferred). Falls back to a SHA-256 hash of
+// ANTHROPIC_API_KEY when AUTH_SECRET is absent — rotating that key logs everyone
+// out, which is safe. Set AUTH_SECRET explicitly in production.
 
 const crypto = require("crypto");
 const { secretKey, signToken, planFor, json } = require("./_lib");
 
-const OTP_EXPIRY_MINUTES = 15;
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
-
 const CORS = {
-  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "X-Content-Type-Options": "nosniff",
@@ -51,9 +49,9 @@ exports.handler = async function (event) {
     const code = String(crypto.randomInt(100000, 1000000));
     await store.setJSON(email, {
       hash: sha(email + ":" + code),
-      exp: Date.now() + OTP_EXPIRY_MINUTES * 60000,
+      exp: Date.now() + 15 * 60000,
       tries: 0,
-      sent: (prev && Date.now() < prev.exp ? (prev.sent || 1) : 0) + 1,
+      sent: (prev && Date.now() < prev.exp ? (prev.sent || 0) : 0) + 1,
     });
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
