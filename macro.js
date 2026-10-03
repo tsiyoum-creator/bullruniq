@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-01",
+  asOf: "2026-10-03",
 
   current: {
     regime: "longend",
@@ -94,8 +94,8 @@ var MACRO_DATA = {
       cert:"Contracted", dir:"in", asOf:"2026-01", src:"Bain / industry",
       note:"$3.7tn PE alone entering 2026, ~$3.9tn across all private capital. Over $2.5tn still uncalled, ~$1.0tn US. LP commitments are contractual but deployment timing is discretionary." },
     { id:"iija", n:"IIJA remaining authority", committed:496, unalloc:282, tier:1, tierL:"T-0",
-      cert:"Legislated", dir:"out", asOf:"2026-01-31", src:"US DOT / GAO",
-      note:"$496.1bn enacted, $360.3bn obligated (72.6%), only $213.7bn outlaid (43.1%). Authority EXPIRES 2026-09-30. A flow switching off — most trackers only look for inflows." }
+      cert:"Legislated", dir:"out", asOf:"2026-09-30", src:"US DOT / GAO",
+      note:"$496.1bn enacted, $360.3bn obligated (72.6%), only $213.7bn outlaid (43.1%). Authority EXPIRED 2026-09-30. The outflow tap has now closed — a negative flow signal that most trackers miss because they only watch inflows." }
   ],
 
   bottlenecks: [
@@ -111,7 +111,6 @@ var MACRO_DATA = {
   ],
 
   catalysts: [
-    { d:"2026-09-30", n:"IIJA authority expires",        tests:"IIJA cliff" },
     { d:"2026-10-28", n:"FOMC decision",                 tests:"Regime — one hike or a cycle" },
     { d:"2026-11-02", n:"Quarterly refunding statement", tests:"Long-end financing; watch the duration mix" },
     { d:"2026-11-04", n:"Buyback authority lapses",      tests:"Whether the buyers' strike cleared" },
@@ -161,7 +160,7 @@ function setTag(tk,rid){
 function regimeName(id){var r=MACRO_DATA.regimes.find(function(x){return x.id===id;});return r?r.name:'—';}
 function regimeById(id){return MACRO_DATA.regimes.find(function(x){return x.id===id;})||null;}
 
-/* ── Cash helpers ───────────────────────────────────────────────
+/* ── Cash helpers ───────────────────────────────────────────────────────────────
    port.cash is a SCALAR dollar amount (set via setCash() in
    platform.html and used by Autopilot, cashCard and rAlloc). This
    layer reads it, it does not reshape it.
@@ -435,13 +434,19 @@ var MACRO_AI_RULE=' You are given a macro regime read and an exposure map comput
 
 loadMacroTags();
 
-/* ── Node interop ──────────────────────────────────────────────
+/* ── Node interop ──────────────────────────────────────────────────────────────
    Netlify functions require() this same file so the regime data has
    exactly ONE source of truth. Everything above is browser-safe:
    the only top-level call is loadMacroTags(), whose localStorage
    access is inside try/catch, so it no-ops under Node.
    Exposure/render functions are NOT exported — they need browser
    globals (port, pof, f$) that do not exist server-side.          */
+/* Returns the number of days since MACRO_DATA.asOf. Browser + Node safe. */
+function macroDataAge() {
+  var ms = Date.now() - new Date(MACRO_DATA.asOf).getTime();
+  return Math.floor(ms / 86400000);
+}
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { MACRO_DATA: MACRO_DATA, checkFalsifiers: checkFalsifiers, regimeName: regimeName };
+  module.exports = { MACRO_DATA: MACRO_DATA, checkFalsifiers: checkFalsifiers, regimeName: regimeName, macroDataAge: macroDataAge };
 }
