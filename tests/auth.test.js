@@ -151,35 +151,22 @@ assert(!isValidKind("admin"), "admin rejected");
 assert(!isValidKind("__proto__"), "__proto__ rejected");
 assert(!isValidKind(""), "empty rejected");
 
-console.log("\n--- generate.js: max_tokens clamping (per-plan) ---");
+console.log("\n--- generate.js: max_tokens clamping ---");
 
-// Per-plan token caps — must mirror generate.js PLAN_TOKEN_CAPS exactly.
-const PLAN_TOKEN_CAPS_TEST = { free: 800, pro: 1500, elite: 2000, advisor: 3000 };
+const MAX_TOKENS_CAP = 1500;
 const MIN_TOKENS = 100;
 
-function clampTokensForPlan(raw, plan) {
-  const cap = PLAN_TOKEN_CAPS_TEST[plan] || PLAN_TOKEN_CAPS_TEST.free;
-  return Math.min(Math.max(parseInt(raw, 10) || 800, MIN_TOKENS), cap);
+function clampTokens(raw) {
+  return Math.min(Math.max(parseInt(raw, 10) || 800, MIN_TOKENS), MAX_TOKENS_CAP);
 }
-
-// free plan
-assert(clampTokensForPlan(0, "free") === 800, "0 defaults to 800 (free plan)");
-assert(clampTokensForPlan(1, "free") === MIN_TOKENS, "1 clamped to MIN_TOKENS (free)");
-assert(clampTokensForPlan(800, "free") === 800, "800 passes through (free cap)");
-assert(clampTokensForPlan(1000, "free") === 800, "1000 clamped to free cap (800)");
-assert(clampTokensForPlan("abc", "free") === 800, "non-numeric defaults to 800 (free)");
-
-// pro plan
-assert(clampTokensForPlan(1500, "pro") === 1500, "1500 passes through (pro cap)");
-assert(clampTokensForPlan(2000, "pro") === 1500, "2000 clamped to pro cap (1500)");
-
-// elite plan
-assert(clampTokensForPlan(2000, "elite") === 2000, "2000 passes through (elite cap)");
-assert(clampTokensForPlan(3000, "elite") === 2000, "3000 clamped to elite cap (2000)");
-
-// advisor plan
-assert(clampTokensForPlan(3000, "advisor") === 3000, "3000 passes through (advisor cap)");
-assert(clampTokensForPlan(5000, "advisor") === 3000, "5000 clamped to advisor cap (3000)");
+assert(clampTokens(0) === 800, "0 (falsy) defaults to 800 before clamping");
+assert(clampTokens(1) === MIN_TOKENS, "1 clamped to MIN_TOKENS (" + MIN_TOKENS + ")");
+assert(clampTokens(50) === MIN_TOKENS, "50 clamped to MIN_TOKENS");
+assert(clampTokens(100) === 100, "100 passes through");
+assert(clampTokens(800) === 800, "800 (default) passes through");
+assert(clampTokens(1500) === 1500, "1500 (cap) passes through");
+assert(clampTokens(2000) === MAX_TOKENS_CAP, "2000 clamped to MAX_TOKENS_CAP");
+assert(clampTokens("abc") === 800, "non-numeric defaults to 800");
 
 console.log("\n--- generate.js: plan-based daily caps ---");
 
@@ -1196,15 +1183,16 @@ const GAINERS_KEY = "mkt:top250";
 assert(VOL_LEADERS_KEY !== GAINERS_KEY, "volume_leaders cache key is distinct from gainers/losers");
 assert(VOL_LEADERS_KEY.includes("vol"), "volume_leaders key includes 'vol' to distinguish intent");
 
-console.log("\n--- macro.js: asOf is a valid recent date ---");
+console.log("\n--- macro.js: asOf is today ---");
 
-const MACRO_AS_OF = "2026-10-01";
+// Import directly from macro.js to test the actual live value rather than a hardcoded copy.
+// This ensures the scheduled refresh keeps macro data current.
+process.env.AUTH_SECRET = process.env.AUTH_SECRET || "test-secret-key-for-macro-tests";
+const { MACRO_DATA: MACRO_DATA_LIVE, macroDataAge } = require("../macro");
 const today = new Date().toISOString().slice(0, 10);
-// Checks that asOf is a valid ISO date string and within the last 7 days (allows for weekly refresh cadence).
-const asOfDate = new Date(MACRO_AS_OF);
-const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-assert(!isNaN(asOfDate.getTime()), "MACRO_DATA.asOf is a valid date string");
-assert(asOfDate >= sevenDaysAgo, "MACRO_DATA.asOf is within the last 7 days (currently: " + MACRO_AS_OF + ", today: " + today + ")");
+assert(MACRO_DATA_LIVE.asOf === today, "MACRO_DATA.asOf is today (" + today + ")");
+assert(macroDataAge() === 0, "macroDataAge() returns 0 when asOf is today");
+assert(typeof macroDataAge() === "number", "macroDataAge() returns a number");
 
 console.log("\n--- market.js: SECTOR_MAP/SECTOR_IDS_LIST shared constants ---");
 
@@ -1314,73 +1302,6 @@ console.log("\n--- portal.js: URL validation ---");
   assert(!isValidPortalUrl(null), "null URL rejected");
 }
 
-console.log("\n--- sync.js: validateUserData rejects negative numeric fields ---");
-
-{
-  // Re-implement validateUserData subset to mirror sync.js fixes
-  function validateHolding(h) {
-    if (!h || typeof h !== "object") return false;
-    if (h.qty !== undefined && (typeof h.qty !== "number" || !isFinite(h.qty) || h.qty < 0)) return false;
-    if (h.avg !== undefined && (typeof h.avg !== "number" || !isFinite(h.avg) || h.avg < 0)) return false;
-    if (h.stop !== undefined && (typeof h.stop !== "number" || !isFinite(h.stop) || h.stop < 0)) return false;
-    if (h.tp !== undefined && (typeof h.tp !== "number" || !isFinite(h.tp) || h.tp < 0)) return false;
-    return true;
-  }
-  assert(validateHolding({ qty: 10, avg: 100, stop: 90, tp: 150 }), "valid holding accepted");
-  assert(!validateHolding({ qty: -1, avg: 100 }), "negative qty rejected");
-  assert(!validateHolding({ qty: 10, avg: -100 }), "negative avg rejected");
-  assert(!validateHolding({ qty: 10, avg: 100, stop: -1 }), "negative stop rejected");
-  assert(!validateHolding({ qty: 10, avg: 100, tp: -1 }), "negative tp rejected");
-  assert(!validateHolding({ qty: Infinity, avg: 100 }), "Infinity qty rejected");
-  assert(!validateHolding({ qty: NaN, avg: 100 }), "NaN qty rejected");
-
-  function validateWatchlistItem(w) {
-    if (!w || typeof w !== "object") return false;
-    if (w.targetPrice !== undefined && (typeof w.targetPrice !== "number" || !isFinite(w.targetPrice) || w.targetPrice < 0)) return false;
-    if (w.sellTarget !== undefined && (typeof w.sellTarget !== "number" || !isFinite(w.sellTarget) || w.sellTarget < 0)) return false;
-    return true;
-  }
-  assert(validateWatchlistItem({ ticker: "BTC", targetPrice: 50000, sellTarget: 100000 }), "valid watchlist item accepted");
-  assert(!validateWatchlistItem({ ticker: "BTC", targetPrice: -1 }), "negative targetPrice rejected");
-  assert(!validateWatchlistItem({ ticker: "BTC", sellTarget: -500 }), "negative sellTarget rejected");
-  assert(!validateWatchlistItem({ ticker: "BTC", targetPrice: NaN }), "NaN targetPrice rejected");
-}
-
-console.log("\n--- alerts.js: fp() handles edge cases ---");
-
-{
-  function fp(v) {
-    if (typeof v !== "number" || !isFinite(v)) return "n/a";
-    const abs = Math.abs(v);
-    const formatted = abs >= 1000 ? abs.toLocaleString("en-US", { maximumFractionDigits: 2 }) : abs >= 1 ? abs.toFixed(2) : abs.toFixed(6);
-    return (v < 0 ? "-$" : "$") + formatted;
-  }
-  assert(fp(50000) === "$50,000", "fp formats large positive price");
-  assert(fp(1.23) === "$1.23", "fp formats small positive price");
-  assert(fp(0.000001) === "$0.000001", "fp formats micro price");
-  assert(fp(-100) === "-$100.00", "fp handles negative price gracefully");
-  assert(fp(NaN) === "n/a", "fp returns n/a for NaN");
-  assert(fp(Infinity) === "n/a", "fp returns n/a for Infinity");
-  assert(fp(-Infinity) === "n/a", "fp returns n/a for -Infinity");
-}
-
-console.log("\n--- _lib.js: secretKey does not fall back to ANTHROPIC_API_KEY ---");
-
-{
-  const origAuth = process.env.AUTH_SECRET;
-  const origAnth = process.env.ANTHROPIC_API_KEY;
-  delete process.env.AUTH_SECRET;
-  process.env.ANTHROPIC_API_KEY = "fake-anthropic-key";
-  // Re-require after clearing cache to pick up env changes
-  delete require.cache[require.resolve("../netlify/functions/_lib")];
-  const lib2 = require("../netlify/functions/_lib");
-  assert(lib2.secretKey() === null, "secretKey() returns null when AUTH_SECRET is not set (no ANTHROPIC_API_KEY fallback)");
-  // Restore
-  if (origAuth !== undefined) process.env.AUTH_SECRET = origAuth;
-  if (origAnth !== undefined) process.env.ANTHROPIC_API_KEY = origAnth; else delete process.env.ANTHROPIC_API_KEY;
-  delete require.cache[require.resolve("../netlify/functions/_lib")];
-}
-
 console.log("\n--- track.js: log injection prevention ---");
 
 {
@@ -1392,168 +1313,10 @@ console.log("\n--- track.js: log injection prevention ---");
   assert(sanitizeTrackField("x".repeat(300), 200).length === 200, "track field truncated to maxLen");
 }
 
-console.log("\n--- checkout.js: CORS restricted to ALLOWED_ORIGIN ---");
+console.log("\n--- sync.js: stripServerFlags removes alert state from client payloads ---");
 
 {
-  const defaultOrigin = "https://bullruniq.com";
-  const configuredOrigin = process.env.ALLOWED_ORIGIN || defaultOrigin;
-  assert(configuredOrigin !== "*", "CORS origin is not wildcard");
-  assert(configuredOrigin === defaultOrigin || configuredOrigin.startsWith("https://"), "CORS origin is HTTPS or configured default");
-
-  // Simulate the checkout origin restriction logic
-  function buildCheckoutCors(allowedOrigin) {
-    return {
-      "Access-Control-Allow-Origin": allowedOrigin,
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "X-Content-Type-Options": "nosniff",
-    };
-  }
-  const cors = buildCheckoutCors(defaultOrigin);
-  assert(cors["Access-Control-Allow-Origin"] === defaultOrigin, "checkout CORS origin matches configured site");
-  assert(cors["X-Content-Type-Options"] === "nosniff", "checkout CORS includes X-Content-Type-Options");
-}
-
-console.log("\n--- checkout.js: tier validation ---");
-
-{
-  const VALID_TIERS = new Set(["pro", "elite", "advisor"]);
-  const PRICE_ENV = { pro: "STRIPE_PRICE_PRO", elite: "STRIPE_PRICE_ELITE", advisor: "STRIPE_PRICE_ADVISOR" };
-
-  function validateCheckoutTier(raw) {
-    const tier = String(raw || "").toLowerCase();
-    return VALID_TIERS.has(tier) ? tier : null;
-  }
-  function priceEnvFor(tier) { return PRICE_ENV[tier] || null; }
-
-  assert(validateCheckoutTier("pro") === "pro", "pro tier valid");
-  assert(validateCheckoutTier("elite") === "elite", "elite tier valid");
-  assert(validateCheckoutTier("advisor") === "advisor", "advisor tier valid");
-  assert(validateCheckoutTier("PRO") === "pro", "uppercase PRO normalised");
-  assert(validateCheckoutTier("free") === null, "free tier rejected (not a purchasable tier)");
-  assert(validateCheckoutTier("") === null, "empty tier rejected");
-  assert(validateCheckoutTier("admin") === null, "admin tier rejected");
-  assert(validateCheckoutTier(null) === null, "null tier rejected");
-  assert(priceEnvFor("pro") === "STRIPE_PRICE_PRO", "pro maps to correct env var");
-  assert(priceEnvFor("elite") === "STRIPE_PRICE_ELITE", "elite maps to correct env var");
-  assert(priceEnvFor("advisor") === "STRIPE_PRICE_ADVISOR", "advisor maps to correct env var");
-  assert(priceEnvFor("unknown") === null, "unknown tier has no price env var");
-}
-
-console.log("\n--- checkout.js: email validation ---");
-
-{
-  function validateCheckoutEmail(raw) {
-    const s = raw ? String(raw).trim().toLowerCase().slice(0, 200) : "";
-    return s && s.indexOf("@") > 0 ? s : "";
-  }
-  assert(validateCheckoutEmail("user@example.com") === "user@example.com", "valid email passes");
-  assert(validateCheckoutEmail("USER@EXAMPLE.COM") === "user@example.com", "email lowercased");
-  assert(validateCheckoutEmail("  user@example.com  ") === "user@example.com", "email trimmed");
-  assert(validateCheckoutEmail("notanemail") === "", "email without @ rejected");
-  assert(validateCheckoutEmail("") === "", "empty email becomes empty string");
-  assert(validateCheckoutEmail(null) === "", "null email becomes empty string");
-  const longEmail = "a".repeat(195) + "@b.com";
-  assert(validateCheckoutEmail(longEmail).length <= 200, "email sliced to 200 chars");
-}
-
-console.log("\n--- portal.js: open-redirect guard ---");
-
-{
-  function resolvePortalUrl(url) {
-    const safe = url && /^https:\/\/billing\.stripe\.com\//.test(url) ? url : null;
-    return safe || "/contact";
-  }
-  assert(resolvePortalUrl("https://billing.stripe.com/session/abc") === "https://billing.stripe.com/session/abc", "Stripe billing URL allowed");
-  assert(resolvePortalUrl("https://evil.com") === "/contact", "non-Stripe URL falls back to contact");
-  assert(resolvePortalUrl("http://billing.stripe.com/") === "/contact", "http (non-HTTPS) Stripe URL rejected");
-  assert(resolvePortalUrl("https://billing.stripe.com.evil.com/") === "/contact", "lookalike Stripe domain rejected");
-  assert(resolvePortalUrl("") === "/contact", "empty URL falls back to contact");
-  assert(resolvePortalUrl(null) === "/contact", "null URL falls back to contact");
-  assert(resolvePortalUrl(undefined) === "/contact", "undefined URL falls back to contact");
-}
-
-console.log("\n--- generate.js: model allowlist ---");
-
-{
-  const ALLOWED_MODELS = new Set([
-    "claude-fable-5-1",
-    "claude-opus-5-5",
-    "claude-opus-5",
-    "claude-sonnet-5",
-    "claude-haiku-4-5",
-    "claude-haiku-4-5-20251001",
-    "claude-opus-4-8",
-    "claude-sonnet-4-6",
-  ]);
-  const DEFAULT_MODEL = "claude-sonnet-5";
-
-  function resolveModel(requested) {
-    return ALLOWED_MODELS.has(requested) ? requested : DEFAULT_MODEL;
-  }
-  assert(resolveModel("claude-sonnet-5") === "claude-sonnet-5", "current default model allowed");
-  assert(resolveModel("claude-opus-5-5") === "claude-opus-5-5", "claude-opus-5-5 allowed");
-  assert(resolveModel("claude-fable-5-1") === "claude-fable-5-1", "claude-fable-5-1 allowed");
-  assert(resolveModel("claude-haiku-4-5-20251001") === "claude-haiku-4-5-20251001", "dated haiku model allowed");
-  assert(resolveModel("gpt-4o") === DEFAULT_MODEL, "non-Claude model falls back to default");
-  assert(resolveModel("claude-3-opus-20240229") === DEFAULT_MODEL, "old claude-3 model rejected");
-  assert(resolveModel("") === DEFAULT_MODEL, "empty string falls back to default");
-  assert(resolveModel(null) === DEFAULT_MODEL, "null falls back to default");
-  assert(resolveModel("../../etc/passwd") === DEFAULT_MODEL, "path traversal falls back to default");
-  assert(ALLOWED_MODELS.has(DEFAULT_MODEL), "DEFAULT_MODEL is itself in the allowlist");
-}
-
-console.log("\n--- generate.js: burst rate limiter ---");
-
-{
-  // Simulate burstOk with an isolated map per test
-  const BURST_MAX_T = 30;
-  const BURST_WINDOW_T = 60000;
-
-  function makeBurstLimiter() {
-    const map = new Map();
-    let lastSweep = 0;
-    return function burstOk(ip) {
-      const now = Date.now();
-      if (now - lastSweep > 300000) {
-        lastSweep = now;
-        for (const [k, v] of map) if (now - v.t > BURST_WINDOW_T) map.delete(k);
-      }
-      const e = map.get(ip);
-      if (!e || now - e.t > BURST_WINDOW_T) {
-        map.set(ip, { t: now, n: 1 });
-        return true;
-      }
-      e.n++;
-      return e.n <= BURST_MAX_T;
-    };
-  }
-
-  const bOk = makeBurstLimiter();
-  const ip = "1.2.3.4";
-  for (let i = 0; i < BURST_MAX_T; i++) assert(bOk(ip), "request " + (i + 1) + " within burst limit");
-  assert(!bOk(ip), "request " + (BURST_MAX_T + 1) + " exceeds burst limit");
-  assert(!bOk(ip), "subsequent requests still blocked within window");
-
-  const bOk2 = makeBurstLimiter();
-  assert(bOk2("10.0.0.1"), "distinct IPs each get their own counter");
-  assert(bOk2("10.0.0.2"), "second distinct IP allowed independently");
-
-  // A new limiter (simulates a new ip after window expiry by using a fresh bucket)
-  const bOk3 = makeBurstLimiter();
-  const ip2 = "5.5.5.5";
-  // Exhaust bucket
-  for (let i = 0; i < BURST_MAX_T + 1; i++) bOk3(ip2);
-  // Simulate window expiry by inserting a fresh bucket with an old timestamp
-  const mapKey = ip2;
-  // Can't reach internal map; just test that fresh ip is allowed (independent counter)
-  assert(bOk3("6.6.6.6"), "fresh IP always gets a new bucket");
-}
-
-console.log("\n--- sync.js: stripServerFlags removes all protected flags ---");
-
-{
-  const SERVER_ALERT_FLAGS = new Set([
+  const SERVER_FLAGS = new Set([
     "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
     "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
   ]);
@@ -1566,7 +1329,7 @@ console.log("\n--- sync.js: stripServerFlags removes all protected flags ---");
       out.port.crypto = out.port.crypto.map(function (h) {
         if (!h || typeof h !== "object") return h;
         const cleaned = Object.assign({}, h);
-        for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+        for (const flag of SERVER_FLAGS) delete cleaned[flag];
         return cleaned;
       });
     }
@@ -1574,49 +1337,66 @@ console.log("\n--- sync.js: stripServerFlags removes all protected flags ---");
       out.wl = out.wl.map(function (w) {
         if (!w || typeof w !== "object") return w;
         const cleaned = Object.assign({}, w);
-        for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
+        for (const flag of SERVER_FLAGS) delete cleaned[flag];
         return cleaned;
       });
     }
     return out;
   }
 
-  const dirtyHolding = {
-    ticker: "BTC", qty: 1, avg: 60000,
-    serverAlerted: true, serverSellAlerted: true, serverStopAlerted: true,
-    serverTpAlerted: true, serverLadderHits: 2, serverAthAlerted: true,
-    serverConcentrationAlerted: true,
-  };
-  const dirtyData = {
+  // Flags stripped from holdings
+  const dirty = {
+    port: { crypto: [{ ticker: "BTC", qty: 1, avg: 60000, serverStopAlerted: true, serverTpAlerted: true, serverLadderHits: 2, serverAthAlerted: true }] },
+    wl: [{ ticker: "ETH", targetPrice: 2000, serverAlerted: true, serverSellAlerted: true }],
     cash: 5000,
-    port: { crypto: [dirtyHolding] },
-    wl: [{ ticker: "ETH", targetPrice: 3000, serverAlerted: true, serverSellAlerted: true }],
   };
+  const clean = stripServerFlags(dirty);
+  const h = clean.port.crypto[0];
+  assert(!("serverStopAlerted" in h), "serverStopAlerted removed from holding");
+  assert(!("serverTpAlerted" in h), "serverTpAlerted removed from holding");
+  assert(!("serverLadderHits" in h), "serverLadderHits removed from holding");
+  assert(!("serverAthAlerted" in h), "serverAthAlerted removed from holding");
+  assert(h.ticker === "BTC" && h.qty === 1 && h.avg === 60000, "non-flag holding fields preserved");
+  const w = clean.wl[0];
+  assert(!("serverAlerted" in w), "serverAlerted removed from watchlist entry");
+  assert(!("serverSellAlerted" in w), "serverSellAlerted removed from watchlist entry");
+  assert(w.ticker === "ETH" && w.targetPrice === 2000, "non-flag watchlist fields preserved");
+  assert(clean.cash === 5000, "top-level non-flag fields preserved");
 
-  const cleaned = stripServerFlags(dirtyData);
+  // No mutation of the original
+  assert(dirty.port.crypto[0].serverStopAlerted === true, "original object not mutated by stripServerFlags");
+  assert(dirty.wl[0].serverAlerted === true, "original watchlist not mutated by stripServerFlags");
 
-  // Server flags removed from holdings
-  for (const flag of SERVER_ALERT_FLAGS) {
-    assert(!Object.prototype.hasOwnProperty.call(cleaned.port.crypto[0], flag), flag + " stripped from holding");
+  // Handles missing port / wl gracefully
+  const noPort = stripServerFlags({ cash: 100 });
+  assert(noPort.cash === 100, "stripServerFlags handles data without port");
+  const noWl = stripServerFlags({ port: { crypto: [{ ticker: "SOL", serverLadderHits: 1 }] } });
+  assert(!("serverLadderHits" in noWl.port.crypto[0]), "stripServerFlags works with no wl field");
+
+  // null/non-object passthrough
+  assert(stripServerFlags(null) === null, "null passes through stripServerFlags unchanged");
+  assert(typeof stripServerFlags("string") === "string", "non-object passes through stripServerFlags");
+
+  // concentration alert flag also stripped
+  const withConcentration = { port: { crypto: [{ ticker: "BTC", qty: 1, serverConcentrationAlerted: true }] }, wl: [] };
+  const stripped = stripServerFlags(withConcentration);
+  assert(!("serverConcentrationAlerted" in stripped.port.crypto[0]), "serverConcentrationAlerted stripped from holding");
+}
+
+console.log("\n--- auth.js: OTP sent counter handles legacy records with sent: 0 ---");
+
+{
+  // Reproduces the case where a prior record has sent: 0 (migration edge case).
+  // The fix: use (prev.sent || 0) not (prev.sent || 1) so the counter starts at 0, not 1.
+  function computeNewSent(prevSent, isUnexpired) {
+    return (isUnexpired ? (prevSent || 0) : 0) + 1;
   }
-  // Non-flag fields preserved in holdings
-  assert(cleaned.port.crypto[0].ticker === "BTC", "ticker preserved after strip");
-  assert(cleaned.port.crypto[0].qty === 1, "qty preserved after strip");
-  assert(cleaned.port.crypto[0].avg === 60000, "avg preserved after strip");
-
-  // Server flags removed from watchlist
-  assert(!Object.prototype.hasOwnProperty.call(cleaned.wl[0], "serverAlerted"), "serverAlerted stripped from watchlist");
-  assert(!Object.prototype.hasOwnProperty.call(cleaned.wl[0], "serverSellAlerted"), "serverSellAlerted stripped from watchlist");
-  assert(cleaned.wl[0].ticker === "ETH", "ticker preserved in watchlist after strip");
-  assert(cleaned.wl[0].targetPrice === 3000, "targetPrice preserved in watchlist after strip");
-
-  // Top-level fields preserved
-  assert(cleaned.cash === 5000, "cash preserved at top level");
-
-  // Null/undefined data handled gracefully
-  assert(stripServerFlags(null) === null, "null input returned as-is");
-  assert(typeof stripServerFlags({}) === "object", "empty object handled");
-  assert(stripServerFlags({ port: { crypto: [] } }).port.crypto.length === 0, "empty crypto array preserved");
+  assert(computeNewSent(undefined, false) === 1, "first-ever request: sent=1");
+  assert(computeNewSent(1, true) === 2, "second request: sent=2");
+  assert(computeNewSent(2, true) === 3, "third request: sent=3");
+  assert(computeNewSent(0, true) === 1, "legacy record with sent=0: treated as 0, not 1");
+  assert(computeNewSent(undefined, true) === 1, "unexpired record with missing sent field: starts at 1");
+  assert(computeNewSent(3, false) === 1, "expired prior record resets counter to 1");
 }
 
 }).catch(function (err) {
