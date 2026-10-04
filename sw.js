@@ -31,7 +31,7 @@ self.addEventListener("fetch", function (e) {
         caches.open(VERSION).then(function (c) { c.put(e.request, cp); }).catch(function () {});
         return r;
       }).catch(function () {
-        return caches.match(e.request).then(function (m) { return m || caches.match("/platform"); });
+        return caches.match(e.request).then(function (m) { return m || caches.match("/"); });
       })
     );
     return;

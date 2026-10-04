@@ -7,6 +7,8 @@
 
 const { verifyToken, planFor, json } = require("./_lib");
 
+const PLAN_DAILY_CAPS = { free: 50, pro: 500, elite: 1000, advisor: 2000 };
+
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
 
 const CORS = {
@@ -108,7 +110,16 @@ exports.handler = async function (event) {
 
   if (event.httpMethod === "GET") {
     const rec = await store.get(email, { type: "json" });
-    return jsonCors(200, { data: rec ? rec.data : null, updatedAt: rec ? rec.updatedAt : null, plan: await planFor(email, getStore), email: email });
+    const plan = await planFor(email, getStore);
+    const dailyCap = PLAN_DAILY_CAPS[plan] || PLAN_DAILY_CAPS.free;
+    let dailyRemaining = dailyCap;
+    try {
+      const usageStore = getStore("ai-usage");
+      const today = new Date().toISOString().slice(0, 10);
+      const usage = await usageStore.get("user:" + email + ":" + today, { type: "json" });
+      if (usage && typeof usage.count === "number") dailyRemaining = Math.max(0, dailyCap - usage.count);
+    } catch (e) {}
+    return jsonCors(200, { data: rec ? rec.data : null, updatedAt: rec ? rec.updatedAt : null, plan, email, dailyRemaining, dailyCap });
   }
 
   if (event.httpMethod === "POST") {

@@ -138,6 +138,7 @@ exports.handler = async function (event) {
   for (let i = 0; i < batch.length; i += BATCH) {
     const chunk = batch.slice(i, i + BATCH);
     const results = await Promise.allSettled(chunk.map(function (email) {
+      const unsubToken = signUnsub(email);
       return fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
@@ -147,7 +148,7 @@ exports.handler = async function (event) {
           subject: subject,
           html: emailHtml(briefHtml, btc, fg, email, dateStr),
           headers: {
-            "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + (signUnsub(email) ? "&t=" + encodeURIComponent(signUnsub(email)) : "") + ">",
+            "List-Unsubscribe": "<https://bullruniq.com/api/unsubscribe?email=" + encodeURIComponent(email) + (unsubToken ? "&t=" + encodeURIComponent(unsubToken) : "") + ">",
             "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
           },
         }),
