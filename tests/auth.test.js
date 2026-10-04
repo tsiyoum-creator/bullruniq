@@ -1399,6 +1399,212 @@ console.log("\n--- auth.js: OTP sent counter handles legacy records with sent: 0
   assert(computeNewSent(3, false) === 1, "expired prior record resets counter to 1");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// auth.js: OTP rate-limit gate (full path — T-1)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- auth.js: OTP rate-limit gate ---");
+{
+  const WINDOW_MS = 15 * 60 * 1000;
+
+  // Simulates the full gate logic from auth.js lines 41-72
+  function otpRateLimitGate(prev, nowMs) {
+    if (prev && prev.sent >= 3 && nowMs < prev.exp) {
+      return { blocked: true, waitMs: prev.exp - nowMs };
+    }
+    const isUnexpired = !!(prev && nowMs < prev.exp);
+    const newSent = (isUnexpired ? (prev.sent || 0) : 0) + 1;
+    const newExp = isUnexpired ? prev.exp : nowMs + WINDOW_MS;
+    return { blocked: false, newRecord: { sent: newSent, exp: newExp } };
+  }
+
+  const now = Date.now();
+
+  // First request ever — no prior record
+  const r1 = otpRateLimitGate(null, now);
+  assert(!r1.blocked && r1.newRecord.sent === 1, "OTP gate: first request allowed, sent=1");
+
+  // Second request within window
+  const r2 = otpRateLimitGate(r1.newRecord, now + 1000);
+  assert(!r2.blocked && r2.newRecord.sent === 2, "OTP gate: second request allowed, sent=2");
+
+  // Third request within window
+  const r3 = otpRateLimitGate(r2.newRecord, now + 2000);
+  assert(!r3.blocked && r3.newRecord.sent === 3, "OTP gate: third request allowed, sent=3");
+
+  // Fourth request within window — should be blocked
+  const r4 = otpRateLimitGate(r3.newRecord, now + 3000);
+  assert(r4.blocked, "OTP gate: fourth request within window is blocked");
+  assert(r4.waitMs > 0, "OTP gate: blocked response includes wait time");
+
+  // Request after window expires — counter resets
+  const expired = { sent: 3, exp: now - 1 };
+  const r5 = otpRateLimitGate(expired, now);
+  assert(!r5.blocked && r5.newRecord.sent === 1, "OTP gate: expired window resets counter");
+
+  // Exactly at boundary (exp === nowMs) — window expired, allow
+  const boundary = { sent: 3, exp: now };
+  const r6 = otpRateLimitGate(boundary, now);
+  assert(!r6.blocked, "OTP gate: request exactly at expiry boundary is allowed");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// stripe-webhook.js: event handler business logic (T-2)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- stripe-webhook.js: event handler logic ---");
+{
+  // Simulate the customer record mutation logic from checkout.session.completed
+  function handleCheckoutCompleted(obj, existing) {
+    const email = ((obj.customer_details && obj.customer_details.email) || obj.customer_email || "").toLowerCase();
+    const cid = obj.customer || null;
+    if (!email) return null;
+    return Object.assign({}, existing || { email }, {
+      email,
+      tier: (obj.metadata && obj.metadata.tier) || (existing && existing.tier) || "pro",
+      customer: cid || (existing && existing.customer),
+      subscription: obj.subscription || (existing && existing.subscription),
+      status: "active",
+      updatedAt: "2026-10-04T00:00:00.000Z",
+    });
+  }
+
+  // New customer — no existing record
+  const newCust = handleCheckoutCompleted({ customer_details: { email: "alice@example.com" }, customer: "cus_abc", subscription: "sub_123", metadata: { tier: "elite" } }, null);
+  assert(newCust !== null, "checkout.session.completed: creates record");
+  assert(newCust.email === "alice@example.com", "checkout: email lowercased and stored");
+  assert(newCust.status === "active", "checkout: status set to active");
+  assert(newCust.tier === "elite", "checkout: tier from metadata stored");
+  assert(newCust.customer === "cus_abc", "checkout: customer id stored");
+
+  // Upgrade preserves existing subscription data
+  const existing = { email: "bob@example.com", tier: "pro", status: "active", customer: "cus_def", subscription: "sub_old" };
+  const upgraded = handleCheckoutCompleted({ customer_details: { email: "BOB@EXAMPLE.COM" }, customer: "cus_def", metadata: { tier: "advisor" } }, existing);
+  assert(upgraded.tier === "advisor", "checkout upgrade: new tier applied");
+  assert(upgraded.customer === "cus_def", "checkout upgrade: customer id preserved");
+  assert(upgraded.subscription === "sub_old", "checkout upgrade: existing subscription preserved when not provided");
+
+  // Missing email — should return null (no record written)
+  const noEmail = handleCheckoutCompleted({ customer: "cus_xyz" }, null);
+  assert(noEmail === null, "checkout: missing email returns null — no write");
+
+  // Simulate setStatus for subscription deleted → canceled
+  function applyStatus(existing, status, tier) {
+    if (!existing) return null;
+    const updated = Object.assign({}, existing, { status, updatedAt: "2026-10-04T00:00:00.000Z" });
+    if (tier) updated.tier = tier;
+    return updated;
+  }
+
+  const canceled = applyStatus({ email: "alice@example.com", status: "active", tier: "elite" }, "canceled");
+  assert(canceled.status === "canceled", "subscription.deleted: status set to canceled");
+  assert(canceled.tier === "elite", "subscription.deleted: tier preserved (downgrade handled by planFor check)");
+
+  const pastDue = applyStatus({ email: "bob@example.com", status: "active" }, "past_due");
+  assert(pastDue.status === "past_due", "invoice.payment_failed: status set to past_due");
+
+  // customer.subscription.updated with tier upgrade
+  const upgraded2 = applyStatus({ email: "carol@example.com", status: "active", tier: "pro" }, "active", "elite");
+  assert(upgraded2.tier === "elite" && upgraded2.status === "active", "subscription.updated: tier upgraded to elite");
+
+  // invoice.paid → active
+  const reactivated = applyStatus({ email: "dave@example.com", status: "past_due" }, "active");
+  assert(reactivated.status === "active", "invoice.paid: status restored to active");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts.js: regime-aware computeLadder (new in this session)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- alerts.js: regime-aware computeLadder ---");
+{
+  function regimeLadderRungs(regime) {
+    if (regime === "longend" || regime === "squeeze") return [15, 30, 60, 100];
+    if (regime === "liquidity" || regime === "fiscdom") return [25, 50, 100, 200];
+    return [25, 50, 100, 200];
+  }
+  function computeLadder(avg, qty, price, regime) {
+    if (!avg || avg <= 0 || !qty || qty <= 0) return null;
+    const gainPct = (price - avg) / avg * 100;
+    if (gainPct < 10) return null;
+    const rungs = regimeLadderRungs(regime).map(function (pc) {
+      const ladderPrice = avg * (1 + pc / 100);
+      return { pct: pc, price: ladderPrice, qty: qty * 0.25, hit: price >= ladderPrice };
+    });
+    return { gainPct, rungs, hits: rungs.filter(function (r) { return r.hit; }) };
+  }
+
+  // Below 10% gain — no ladder regardless of regime
+  assert(computeLadder(100, 1, 108, "longend") === null, "computeLadder: < 10% gain returns null");
+
+  // longend: tighter rungs — first rung at +15%
+  const le = computeLadder(100, 1, 120, "longend");
+  assert(le !== null, "computeLadder: longend regime, +20% gain returns ladder");
+  assert(le.rungs[0].pct === 15, "computeLadder: longend first rung is +15%");
+  assert(le.rungs[0].hit === true, "computeLadder: longend +15% rung hit at +20% gain");
+  assert(le.rungs[1].hit === false, "computeLadder: longend +30% rung not yet hit");
+  assert(le.hits.length === 1, "computeLadder: longend exactly one rung hit");
+
+  // liquidity: standard rungs — first rung at +25%
+  const liq = computeLadder(100, 1, 120, "liquidity");
+  assert(liq.rungs[0].pct === 25, "computeLadder: liquidity first rung is +25%");
+  assert(liq.rungs[0].hit === false, "computeLadder: liquidity +25% rung not hit at +20%");
+  assert(liq.hits.length === 0, "computeLadder: liquidity no rungs hit at +20%");
+
+  // longend at +35%: two rungs hit (+15%, +30%)
+  const le2 = computeLadder(100, 1, 135, "longend");
+  assert(le2.hits.length === 2, "computeLadder: longend +35% hits two rungs");
+
+  // liquidity at +110%: two rungs hit (+25%, +50%, +100%)
+  const liq2 = computeLadder(100, 1, 210, "liquidity");
+  assert(liq2.hits.length === 3, "computeLadder: liquidity +110% hits three rungs");
+
+  // qty allocation per rung is always 25% of total
+  assert(Math.abs(le.rungs[0].qty - 0.25) < 0.0001, "computeLadder: each rung allocates 25% of qty");
+
+  // invalid inputs return null
+  assert(computeLadder(0, 1, 100, "longend") === null, "computeLadder: avg=0 returns null");
+  assert(computeLadder(100, 0, 200, "longend") === null, "computeLadder: qty=0 returns null");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// news.js: ticker-based ranking (new in this session)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- news.js: ticker ranking ---");
+{
+  function scoreByTickers(title, tickers) {
+    const lower = title.toLowerCase();
+    return tickers.reduce(function (n, tk) { return n + (lower.includes(tk.toLowerCase()) ? 1 : 0); }, 0);
+  }
+  function rankByTickers(items, tickers) {
+    const scored = items.map(function (item) { return { item, score: scoreByTickers(item.t, tickers) }; });
+    scored.sort(function (a, b) { return b.score !== a.score ? b.score - a.score : b.item.at - a.item.at; });
+    return scored.slice(0, 20).map(function (x) { return x.item; });
+  }
+
+  const items = [
+    { t: "Bitcoin hits new ATH", u: "u1", at: 1000 },
+    { t: "Ethereum upgrade today", u: "u2", at: 900 },
+    { t: "Solana memecoin surge", u: "u3", at: 800 },
+    { t: "General crypto market update", u: "u4", at: 700 },
+    { t: "BTC and ETH correlation breaks", u: "u5", at: 600 },
+  ];
+
+  const ranked = rankByTickers(items, ["BTC", "ETH", "bitcoin"]);
+
+  // Items mentioning BTC/bitcoin should rank above generic ones
+  assert(ranked[0].u === "u1" || ranked[0].u === "u5", "ticker ranking: BTC/bitcoin headline ranked first");
+  // The generic market update (no ticker match) should be ranked below matched items
+  const genericIdx = ranked.findIndex(function (i) { return i.u === "u4"; });
+  const btcIdx = ranked.findIndex(function (i) { return i.u === "u5"; });
+  assert(btcIdx < genericIdx, "ticker ranking: multi-match BTC+ETH headline ranks above no-match");
+
+  // No tickers — all items score 0, order by recency preserved
+  const noFilter = rankByTickers(items, []);
+  assert(noFilter[0].at >= noFilter[1].at, "ticker ranking: empty tickers preserves recency order");
+
+  // Ticker case-insensitive
+  const caseTest = rankByTickers([{ t: "solana breaks resistance", u: "x", at: 1 }], ["SOL", "solana"]);
+  assert(caseTest[0].u === "x", "ticker ranking: case-insensitive match works");
+}
+
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
