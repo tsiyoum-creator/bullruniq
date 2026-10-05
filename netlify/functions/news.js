@@ -69,6 +69,7 @@ exports.handler = async function (event) {
     fetchFeed("https://cointelegraph.com/rss", "Cointelegraph"),
     fetchFeed("https://thedefiant.io/feed", "The Defiant"),
     fetchFeed("https://decrypt.co/feed", "Decrypt"),
+    fetchFeed("https://cryptoslate.com/feed/", "CryptoSlate"),
   ]);
   const seen = new Set();
   let items = results.filter(function (r) { return r.status === "fulfilled"; })

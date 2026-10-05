@@ -232,7 +232,10 @@ document.getElementById('confirmPin').addEventListener('click', async () => {
     locationStatus.style.color = 'var(--amber)';
     return;
   }
-  const data = { username, city: city || 'Somewhere on Earth', lat: pendingLat, lng: pendingLng };
+  const cityStr = city || 'Somewhere on Earth';
+  const commaIdx = cityStr.lastIndexOf(',');
+  const country = commaIdx > 0 ? cityStr.slice(commaIdx + 1).trim() : null;
+  const data = { username, city: cityStr, lat: pendingLat, lng: pendingLng, ...(country && { country }) };
   if (db) {
     try {
       await db.collection('map_pins').add({ ...data, timestamp: firebase.firestore.FieldValue.serverTimestamp() });

@@ -2,9 +2,7 @@
 //   POST {action:"request", email}        → emails a 6-digit code (Resend), valid 15 min
 //   POST {action:"verify",  email, code}  → returns a signed 30-day token + plan
 // Token: base64url(email|exp) + "." + HMAC-SHA256 signature.
-// Secret: AUTH_SECRET env var (preferred). Falls back to a SHA-256 hash of
-// ANTHROPIC_API_KEY when AUTH_SECRET is absent — rotating that key logs everyone
-// out, which is safe. Set AUTH_SECRET explicitly in production.
+// Secret: AUTH_SECRET env var — required. Returns 500 when absent (no fallback).
 
 const crypto = require("crypto");
 const { secretKey, signToken, planFor, json } = require("./_lib");

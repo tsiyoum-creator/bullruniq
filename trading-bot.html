@@ -656,6 +656,12 @@ const DEMO_JOURNAL = [
 // ============================================================
 // INIT
 // ============================================================
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
+}
+
 function init() {
   loadState();
   renderStatus();
@@ -886,7 +892,7 @@ async function fetchPolygonScanner() {
         const r = data.results[0];
         const changePct = ((r.c - r.o) / r.o) * 100;
         const volRatio = r.v / (r.vw * 0.5 || 1); // rough approximation
-        const signal = Math.abs(changePct) > 10 ? 'strong-buy' : Math.abs(changePct) > 5 ? 'buy' : changePct > 0 ? 'watch' : 'avoid';
+        const signal = changePct > 10 ? 'strong-buy' : changePct > 5 ? 'buy' : changePct > 0 ? 'watch' : 'avoid';
         results.push({
           sym, name: sym,
           price: r.c,
@@ -1165,13 +1171,13 @@ function renderJournal() {
     const tc = typeColors[t.type] || 'background:var(--card2);color:var(--mu)';
     return `
       <tr>
-        <td style="color:var(--mu);white-space:nowrap;">${t.date}</td>
-        <td style="font-weight:800;font-size:14px;">${t.ticker}</td>
-        <td><span class="type-badge" style="${tc}">${(t.type||'').toUpperCase()}</span></td>
+        <td style="color:var(--mu);white-space:nowrap;">${esc(t.date)}</td>
+        <td style="font-weight:800;font-size:14px;">${esc(t.ticker)}</td>
+        <td><span class="type-badge" style="${tc}">${esc((t.type||'').toUpperCase())}</span></td>
         <td>$${(t.entry||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
         <td>$${(t.exit||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
         <td style="font-weight:700;color:${pl>=0?'var(--gr)':'var(--rd)'};">${pl>=0?'+':''}$${Math.abs(pl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-        <td style="color:var(--mu);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.notes||'—'}</td>
+        <td style="color:var(--mu);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.notes ? esc(t.notes) : '—'}</td>
       </tr>
     `;
   }).join('');
