@@ -1605,6 +1605,146 @@ console.log("\n--- news.js: ticker ranking ---");
   assert(caseTest[0].u === "x", "ticker ranking: case-insensitive match works");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts.js: fp() and pct() formatting helpers
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- alerts.js: fp() price formatting ---");
+{
+  function fp(v) {
+    if (typeof v !== "number" || !isFinite(v)) return "n/a";
+    const abs = Math.abs(v);
+    const formatted = abs >= 1000
+      ? abs.toLocaleString("en-US", { maximumFractionDigits: 2 })
+      : abs >= 1 ? abs.toFixed(2) : abs.toFixed(6);
+    return (v < 0 ? "-$" : "$") + formatted;
+  }
+  assert(fp(0) === "$0.000000", "fp(0): zero formats with 6 decimals");
+  assert(fp(1) === "$1.00", "fp(1): one dollar formats correctly");
+  assert(fp(0.5) === "$0.500000", "fp(0.5): sub-dollar formats to 6 decimals");
+  assert(fp(0.000123) === "$0.000123", "fp(0.000123): tiny price uses 6 decimals");
+  assert(fp(1500) === "$1,500", "fp(1500): large price includes thousands separator");
+  assert(fp(81000) === "$81,000", "fp(81000): BTC-range price formatted correctly");
+  assert(fp(-100) === "-$100.00", "fp(-100): negative price uses minus sign");
+  assert(fp(NaN) === "n/a", "fp(NaN): non-finite returns n/a");
+  assert(fp(Infinity) === "n/a", "fp(Infinity): infinite returns n/a");
+  assert(fp("string") === "n/a", "fp(string): non-number returns n/a");
+  assert(fp(null) === "n/a", "fp(null): null returns n/a");
+}
+
+console.log("\n--- alerts.js: pct() percentage formatting ---");
+{
+  function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
+  assert(pct(0) === "+0.0%", "pct(0): zero formats with plus sign");
+  assert(pct(25.5) === "+25.5%", "pct(25.5): positive with plus sign");
+  assert(pct(-10.3) === "-10.3%", "pct(-10.3): negative formats without plus");
+  assert(pct(100) === "+100.0%", "pct(100): triple-digit gain formats correctly");
+  assert(pct(0.001) === "+0.0%", "pct(0.001): sub-0.1% rounds to +0.0%");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts.js: cgId() safe ticker resolution
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- alerts.js: cgId() safe ticker resolution ---");
+{
+  const CGMAP_TEST = {
+    BTC: "bitcoin", ETH: "ethereum", SOL: "solana",
+    "BTC.B": "bitcoin",
+  };
+  function cgId(ticker) {
+    const upper = String(ticker).toUpperCase();
+    if (CGMAP_TEST[upper]) return CGMAP_TEST[upper];
+    const lower = String(ticker).toLowerCase();
+    return /^[a-z0-9-]+$/.test(lower) ? lower : null;
+  }
+  assert(cgId("BTC") === "bitcoin", "cgId: CGMAP ticker resolves to CoinGecko ID");
+  assert(cgId("eth") === "ethereum", "cgId: lowercase ticker normalised via CGMAP");
+  assert(cgId("solana") === "solana", "cgId: safe lowercase fallback for unmapped CG IDs");
+  assert(cgId("injective-protocol") === "injective-protocol", "cgId: hyphenated CG ID accepted");
+  assert(cgId("BTC.B") === "bitcoin", "cgId: dot-notation ticker resolves via CGMAP");
+  assert(cgId("bitcoin,ethereum") === null, "cgId: comma injection returns null");
+  assert(cgId("../../etc/passwd") === null, "cgId: path traversal returns null");
+  assert(cgId("<script>alert(1)</script>") === null, "cgId: XSS string returns null");
+  assert(cgId("token.with.dots") === null, "cgId: dots not allowed in CG fallback ID");
+  assert(cgId("TOKEN_UNDER") === null, "cgId: underscore not allowed in CG fallback ID");
+  assert(cgId("UNKNOWN") === "unknown", "cgId: unknown uppercase falls through to lowercase safe-check");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro.js: macroDataAge() staleness warning threshold
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- macro.js: macroDataAge() staleness warning ---");
+{
+  function macroDataAgeFromDate(asOf) {
+    const ms = Date.now() - new Date(asOf).getTime();
+    return Math.floor(ms / 86400000);
+  }
+  const STALE_WARN_DAYS = 7;
+  const today = new Date().toISOString().slice(0, 10);
+  assert(macroDataAgeFromDate(today) === 0, "macroDataAge: today is 0 days old");
+  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  assert(macroDataAgeFromDate(yesterday) === 1, "macroDataAge: yesterday is 1 day old");
+  const week = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  assert(macroDataAgeFromDate(week) === 7, "macroDataAge: 7 days ago is 7 days old");
+  const stale8 = new Date(Date.now() - 8 * 864e5).toISOString().slice(0, 10);
+  assert(macroDataAgeFromDate(stale8) > STALE_WARN_DAYS, "macroDataAge: 8-day-old data exceeds staleness warning threshold");
+  assert(macroDataAgeFromDate(week) <= STALE_WARN_DAYS, "macroDataAge: exactly 7 days old is at boundary, no warning");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// trading-bot.html: signal classification fix (no Math.abs)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- trading-bot.html: signal classification ---");
+{
+  function classifySignal(changePct) {
+    return changePct > 10 ? 'strong-buy' : changePct > 5 ? 'buy' : changePct > 0 ? 'watch' : 'avoid';
+  }
+  assert(classifySignal(15) === 'strong-buy', "signal: +15% is strong-buy");
+  assert(classifySignal(10.1) === 'strong-buy', "signal: just above +10% is strong-buy");
+  assert(classifySignal(10) === 'buy', "signal: exactly +10% is buy (threshold is >10)");
+  assert(classifySignal(6) === 'buy', "signal: +6% is buy");
+  assert(classifySignal(1) === 'watch', "signal: +1% is watch");
+  assert(classifySignal(0.1) === 'watch', "signal: small positive is watch");
+  assert(classifySignal(0) === 'avoid', "signal: flat (0%) is avoid");
+  assert(classifySignal(-1) === 'avoid', "signal: -1% is avoid (not buy)");
+  assert(classifySignal(-6) === 'avoid', "signal: -6% is avoid (was incorrectly 'buy' with Math.abs)");
+  assert(classifySignal(-12) === 'avoid', "signal: -12% is avoid (was incorrectly 'strong-buy' with Math.abs)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// news.js: CryptoSlate added as 5th feed source
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- news.js: feed source count ---");
+{
+  const FEED_SOURCES = [
+    { url: "https://www.coindesk.com/arc/outboundfeeds/rss/", name: "CoinDesk" },
+    { url: "https://cointelegraph.com/rss", name: "Cointelegraph" },
+    { url: "https://thedefiant.io/feed", name: "The Defiant" },
+    { url: "https://decrypt.co/feed", name: "Decrypt" },
+    { url: "https://cryptoslate.com/feed/", name: "CryptoSlate" },
+  ];
+  assert(FEED_SOURCES.length === 5, "news.js: 5 feed sources configured");
+  assert(FEED_SOURCES.some(function (f) { return f.name === "CryptoSlate"; }), "news.js: CryptoSlate present as 5th source");
+  const names = FEED_SOURCES.map(function (f) { return f.name; });
+  assert(new Set(names).size === names.length, "news.js: all feed source names are unique");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// app.js: globe pin country extraction from city field
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- app.js: globe pin country extraction ---");
+{
+  function extractCountry(cityStr) {
+    const commaIdx = cityStr.lastIndexOf(',');
+    return commaIdx > 0 ? cityStr.slice(commaIdx + 1).trim() : null;
+  }
+  assert(extractCountry("London, UK") === "UK", "extractCountry: extracts UK from 'London, UK'");
+  assert(extractCountry("São Paulo, Brazil") === "Brazil", "extractCountry: extracts Brazil");
+  assert(extractCountry("New York, USA") === "USA", "extractCountry: extracts USA");
+  assert(extractCountry("Singapore") === null, "extractCountry: no comma returns null");
+  assert(extractCountry("Somewhere on Earth") === null, "extractCountry: default city string returns null");
+  assert(extractCountry("City, State, Country") === "Country", "extractCountry: uses last comma for multi-part city");
+}
+
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
