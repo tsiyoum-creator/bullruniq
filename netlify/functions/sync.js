@@ -119,7 +119,10 @@ exports.handler = async function (event) {
       const usage = await usageStore.get("user:" + email + ":" + today, { type: "json" });
       if (usage && typeof usage.count === "number") dailyRemaining = Math.max(0, dailyCap - usage.count);
     } catch (e) {}
-    return jsonCors(200, { data: rec ? rec.data : null, updatedAt: rec ? rec.updatedAt : null, plan, email, dailyRemaining, dailyCap });
+    // Strip server-managed alert flags before returning to the client so a read-then-POST
+    // round-trip cannot accidentally reset live alert state.
+    const clientData = rec ? stripServerFlags(rec.data) : null;
+    return jsonCors(200, { data: clientData, updatedAt: rec ? rec.updatedAt : null, plan, email, dailyRemaining, dailyCap });
   }
 
   if (event.httpMethod === "POST") {

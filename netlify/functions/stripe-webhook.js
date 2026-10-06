@@ -64,9 +64,15 @@ exports.handler = async function (event) {
       if (email) {
         // Merge with existing record so an upgrade doesn't lose prior subscription data.
         const existing = (await customers.get(email, { type: "json" })) || { email: email };
+        const metaTier = obj.metadata && obj.metadata.tier;
+        if (!metaTier) {
+          // Metadata tier absent — session was not created through the normal checkout flow.
+          // Fall back to existing tier to avoid unintended upgrades from manual Stripe sessions.
+          console.warn("[stripe-webhook] checkout.session.completed missing metadata.tier for " + email + " — using existing tier: " + (existing.tier || "none"));
+        }
         const updated = Object.assign({}, existing, {
           email: email,
-          tier: (obj.metadata && obj.metadata.tier) || existing.tier || "pro",
+          tier: metaTier || existing.tier || "pro",
           customer: cid || existing.customer,
           subscription: obj.subscription || existing.subscription,
           status: "active",

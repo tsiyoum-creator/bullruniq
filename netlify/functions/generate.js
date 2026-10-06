@@ -53,8 +53,10 @@ const CORS = {
 
 function clientIp(event) {
   const h = event.headers || {};
-  // x-nf-client-connection-ip is set by Netlify and cannot be spoofed by clients
-  return h["x-nf-client-connection-ip"] || (h["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  // x-nf-client-connection-ip is set by Netlify's edge and cannot be spoofed by clients.
+  // Do NOT fall back to x-forwarded-for — it is client-controlled and would let anyone
+  // impersonate any IP to bypass the unauthenticated daily and burst caps.
+  return h["x-nf-client-connection-ip"] || "dev-local";
 }
 
 function secondsUntilMidnightUTC() {

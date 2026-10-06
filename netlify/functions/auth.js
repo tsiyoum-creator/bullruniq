@@ -7,11 +7,14 @@
 const crypto = require("crypto");
 const { secretKey, signToken, planFor, json } = require("./_lib");
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
+
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "X-Content-Type-Options": "nosniff",
+  "Vary": "Origin",
 };
 
 function sha(s) { return crypto.createHash("sha256").update(s).digest("hex"); }

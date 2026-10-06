@@ -122,11 +122,15 @@ exports.handler = async function (event) {
       });
       return Object.fromEntries(
         Object.entries(sectors).map(function ([k, v]) {
-          const avg7d = v.coins.length
-            ? v.coins.reduce(function (s, c) { return s + (c.change7d || 0); }, 0) / v.coins.length
+          // Only average coins that have a non-null value so that missing data
+          // doesn't drag the sector average toward zero.
+          const with7d = v.coins.filter(function (c) { return c.change7d != null; });
+          const with30d = v.coins.filter(function (c) { return c.change30d != null; });
+          const avg7d = with7d.length
+            ? with7d.reduce(function (s, c) { return s + c.change7d; }, 0) / with7d.length
             : null;
-          const avg30d = v.coins.length
-            ? v.coins.reduce(function (s, c) { return s + (c.change30d || 0); }, 0) / v.coins.length
+          const avg30d = with30d.length
+            ? with30d.reduce(function (s, c) { return s + c.change30d; }, 0) / with30d.length
             : null;
           return [k, { ...v, avg7d: avg7d, avg30d: avg30d }];
         })
@@ -157,6 +161,9 @@ exports.handler = async function (event) {
             market_cap: c.market_cap,
             change_7d: c.price_change_percentage_7d_in_currency,
             change_30d: c.price_change_percentage_30d_in_currency,
+            // Volume relative to market cap — spikes (>0.5) near ATH strengthen the distribution signal.
+            volume_24h: c.total_volume,
+            volume_mcap_ratio: c.market_cap > 0 ? c.total_volume / c.market_cap : null,
           };
         })
         .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
@@ -232,7 +239,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|ath_nearby|volume_leaders|sector_leaders or ids=comma,separated,ids" }) };
   }
 
   const blobs = require("@netlify/blobs");
