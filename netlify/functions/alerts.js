@@ -13,6 +13,14 @@
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 const MAX_EMAILS_PER_USER = 3; // per scheduled run to avoid flooding one inbox
 const { listAllKeys, signUnsub, esc } = require("./_lib");
+// MACRO_DATA.current.regime is the authoritative regime signal maintained in macro.js.
+// MACRO_REGIME env var overrides it so ops can force a regime without redeploying.
+let _macroData;
+try { _macroData = require("../../macro").MACRO_DATA; } catch (e) { _macroData = null; }
+function liveMacroRegime(envOverride) {
+  if (envOverride) return envOverride;
+  return (_macroData && _macroData.current && _macroData.current.regime) || "longend";
+}
 
 function unsubUrl(email) {
   const token = signUnsub(email);
@@ -188,7 +196,6 @@ function concentrationAlertHtml(ticker, holdingValue, totalValue, pctOfPortfolio
 function ladderAlertHtml(h, price, ladder, email) {
   const name = esc(h.name || h.ticker);
   const ticker = esc(h.ticker);
-  const newRung = ladder.hits[ladder.hits.length - 1];
   const rungRows = ladder.rungs.map(function (r) {
     const icon = r.hit ? "✅" : "⬜";
     return "<tr><td style='padding:6px 12px;color:" + (r.hit ? "#4ade80" : "#5c574e") + "'>" + icon + " +" + r.pct + "%</td>"
@@ -240,9 +247,9 @@ exports.handler = async function (event) {
   const RESEND = process.env.RESEND_API_KEY;
   if (!RESEND) { console.log("[alerts] skipped — RESEND_API_KEY not set"); return { statusCode: 200, body: "not configured" }; }
   const FROM = process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>";
-  // MACRO_REGIME env var lets the ops team encode the current regime without a redeploy.
+  // MACRO_REGIME env var overrides the live regime; falls back to MACRO_DATA.current.regime.
   // Valid values: longend | squeeze | liquidity | fiscdom | deflation
-  const macroRegime = process.env.MACRO_REGIME || "longend";
+  const macroRegime = liveMacroRegime(process.env.MACRO_REGIME);
 
   const blobs = require("@netlify/blobs");
   try { blobs.connectLambda(event); } catch (e) {}
