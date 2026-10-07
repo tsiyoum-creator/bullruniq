@@ -95,6 +95,34 @@ exports.handler = async function (event) {
       await setStatus(obj.customer, obj.status || "active", tier);
     } else if (evt.type === "invoice.payment_failed") {
       await setStatus(obj.customer, "past_due");
+      // Notify the user so they can update their payment method before losing access.
+      try {
+        const RESEND = process.env.RESEND_API_KEY;
+        const FROM = process.env.NEWSLETTER_FROM || "BullrunIQ <brief@bullruniq.com>";
+        const failedEmail = await emailForCustomer(obj.customer);
+        if (RESEND && failedEmail) {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + RESEND, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: FROM,
+              to: failedEmail,
+              subject: "⚠️ BullrunIQ — payment failed, update your card to keep access",
+              html: "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+                + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:28px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+                + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>⚠️ Payment failed</div>"
+                + "<div style='font-family:Georgia,serif;font-size:26px;color:#f0ece4;margin-bottom:16px'>Your subscription payment failed</div>"
+                + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 22px'>Your BullrunIQ subscription could not be renewed. Update your payment method to maintain access to AI analysis, price alerts, and cloud sync.</div>"
+                + "<a href='https://bullruniq.com/api/portal' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Update payment method →</a>"
+                + "<div style='color:#5c574e;font-size:11px;margin-top:28px'>If you have questions, reply to this email or visit bullruniq.com</div>"
+                + "</body></html>",
+            }),
+          });
+          console.log("[stripe-webhook] payment-failed email sent to customer of " + obj.customer);
+        }
+      } catch (emailErr) {
+        console.log("[stripe-webhook] payment-failed email error:", emailErr.message);
+      }
     } else if (evt.type === "invoice.paid") {
       await setStatus(obj.customer, "active");
     }

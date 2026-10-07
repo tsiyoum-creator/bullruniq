@@ -2,8 +2,19 @@
 
 const TTL_MS = 10 * 60000;
 const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
-const CG_BASE = "https://api.coingecko.com/api/v3";
-const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+// CoinGecko Pro API base when COINGECKO_API_KEY is set; falls back to free public endpoint.
+// Pro tier has higher rate limits (500 req/min vs ~10–30 req/min on free).
+const CG_BASE = process.env.COINGECKO_API_KEY
+  ? "https://pro-api.coingecko.com/api/v3"
+  : "https://api.coingecko.com/api/v3";
+
+function cgHeaders() {
+  const h = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+  if (process.env.COINGECKO_API_KEY) h["x-cg-pro-api-key"] = process.env.COINGECKO_API_KEY;
+  return h;
+}
+
+const UA = cgHeaders();
 
 // Shared sector taxonomy — used by both `sectors` and `sector_leaders` endpoints.
 const SECTOR_IDS_LIST = [
