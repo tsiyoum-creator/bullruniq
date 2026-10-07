@@ -12,7 +12,13 @@
 
 const MAX_EMAILS_PER_RUN = 20; // stay well inside Resend free tier
 const MAX_EMAILS_PER_USER = 3; // per scheduled run to avoid flooding one inbox
+const crypto = require("crypto");
 const { listAllKeys, signUnsub, esc } = require("./_lib");
+
+// Returns the first 8 hex chars of the email's SHA-256 for log anonymisation.
+function anonEmail(email) {
+  return crypto.createHash("sha256").update(email).digest("hex").slice(0, 8);
+}
 
 function unsubUrl(email) {
   const token = signUnsub(email);
@@ -282,24 +288,12 @@ exports.handler = async function (event) {
   }
   if (!ids.size) return { statusCode: 200, body: "no targets" };
 
-  // Batch CoinGecko calls at 50 IDs each to stay within URL length limits
+  // Single /coins/markets fetch per batch: returns current_price, ath, and ath_change_percentage.
+  // Previously this was two separate fetches (simple/price + coins/markets) which doubled
+  // CoinGecko API usage unnecessarily.
   const CG_BATCH = 50;
   const idList = [...ids];
   let prices = {};
-  try {
-    for (let i = 0; i < idList.length; i += CG_BATCH) {
-      const chunk = idList.slice(i, i + CG_BATCH);
-      const r = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=" + chunk.join(",") + "&vs_currencies=usd",
-        { headers: CG_UA }
-      );
-      if (!r.ok) { console.log("[alerts] CoinGecko error:", r.status); continue; }
-      Object.assign(prices, await r.json());
-    }
-  } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
-
-  // Fetch ATH data for all tracked IDs via /coins/markets (needed for ATH proximity alerts).
-  // Separate from the simple/price fetch so a failure here doesn't block price alerts.
   const athData = {};
   try {
     for (let i = 0; i < idList.length; i += CG_BATCH) {
@@ -308,17 +302,20 @@ exports.handler = async function (event) {
         "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + chunk.join(",") + "&sparkline=false",
         { headers: CG_UA }
       );
-      if (!r.ok) { console.log("[alerts] CoinGecko ATH fetch error:", r.status); continue; }
+      if (!r.ok) { console.log("[alerts] CoinGecko error:", r.status); continue; }
       const coins = await r.json();
       if (Array.isArray(coins)) {
         coins.forEach(function (c) {
+          if (c.id && typeof c.current_price === "number") {
+            prices[c.id] = { usd: c.current_price };
+          }
           if (c.id && typeof c.ath === "number" && typeof c.ath_change_percentage === "number") {
             athData[c.id] = { ath: c.ath, ath_change_pct: c.ath_change_percentage };
           }
         });
       }
     }
-  } catch (e) { console.log("[alerts] ATH data fetch failed (non-fatal):", e.message); }
+  } catch (e) { console.log("[alerts] price fetch failed:", e.message); return { statusCode: 200, body: "price error" }; }
 
   let sent = 0;
   for (const email of Object.keys(recs)) {
@@ -337,7 +334,7 @@ exports.handler = async function (event) {
       if (h.stop && p <= h.stop && !h.serverStopAlerted && sent < MAX_EMAILS_PER_RUN && sentThisUser < MAX_EMAILS_PER_USER) {
         try {
           const ok = await sendEmail(RESEND, email, "⛔ " + h.ticker + " fell below your stop-loss — now " + fp(p), stopAlertHtml(h, p, email), FROM);
-          if (ok) { sent++; sentThisUser++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + email + " " + h.ticker + " @ " + p); }
+          if (ok) { sent++; sentThisUser++; h.serverStopAlerted = true; changed = true; console.log("[alerts] stop " + anonEmail(email) + " " + h.ticker + " @ " + p); }
         } catch (e) { console.log("[alerts] stop email error:", e.message); }
       } else if (h.stop && p >= h.stop * 1.05 && h.serverStopAlerted) {
         h.serverStopAlerted = false; changed = true; // re-arm once price recovers 5% above the stop
@@ -346,7 +343,7 @@ exports.handler = async function (event) {
       if (h.tp && p >= h.tp && !h.serverTpAlerted && sent < MAX_EMAILS_PER_RUN && sentThisUser < MAX_EMAILS_PER_USER) {
         try {
           const ok = await sendEmail(RESEND, email, "🎯 " + h.ticker + " hit your take-profit — now " + fp(p), tpAlertHtml(h, p, email), FROM);
-          if (ok) { sent++; sentThisUser++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + email + " " + h.ticker + " @ " + p); }
+          if (ok) { sent++; sentThisUser++; h.serverTpAlerted = true; changed = true; console.log("[alerts] tp " + anonEmail(email) + " " + h.ticker + " @ " + p); }
         } catch (e) { console.log("[alerts] tp email error:", e.message); }
       } else if (h.tp && p < h.tp * 0.95 && h.serverTpAlerted) {
         h.serverTpAlerted = false; changed = true; // re-arm once price retraces 5% below the target
@@ -363,7 +360,7 @@ exports.handler = async function (event) {
               sent++; sentThisUser++;
               h.serverLadderHits = ladder.hits.length;
               changed = true;
-              console.log("[alerts] ladder " + email + " " + h.ticker + " " + ladder.hits.length + " rung(s) @ " + p);
+              console.log("[alerts] ladder " + anonEmail(email) + " " + h.ticker + " " + ladder.hits.length + " rung(s) @ " + p);
             }
           } catch (e) { console.log("[alerts] ladder email error:", e.message); }
         } else if (shouldResetLadder(h.avg, p, prevHits)) {
@@ -380,7 +377,7 @@ exports.handler = async function (event) {
           if (!h.serverAthAlerted) {
             try {
               const ok = await sendEmail(RESEND, email, "🏔️ " + h.ticker + " within 10% of its all-time high — profit-taking zone", athProximityAlertHtml(h, p, ath.ath, ath.ath_change_pct, email), FROM);
-              if (ok) { sent++; sentThisUser++; h.serverAthAlerted = true; changed = true; console.log("[alerts] ath-proximity " + email + " " + h.ticker + " @ " + p + " (" + ath.ath_change_pct.toFixed(1) + "% from ATH)"); }
+              if (ok) { sent++; sentThisUser++; h.serverAthAlerted = true; changed = true; console.log("[alerts] ath-proximity " + anonEmail(email) + " " + h.ticker + " @ " + p + " (" + ath.ath_change_pct.toFixed(1) + "% from ATH)"); }
             } catch (e) { console.log("[alerts] ath proximity email error:", e.message); }
           }
         } else if (ath && ath.ath_change_pct < -20 && h.serverAthAlerted) {
@@ -409,7 +406,7 @@ exports.handler = async function (event) {
           if (pctOfPortfolio >= 60 && !h.serverConcentrationAlerted) {
             try {
               const ok = await sendEmail(RESEND, email, "⚠️ " + h.ticker + " is " + pctOfPortfolio.toFixed(0) + "% of your portfolio — concentration risk", concentrationAlertHtml(h.ticker, holdVal, totalValue, pctOfPortfolio, email), FROM);
-              if (ok) { sent++; sentThisUser++; h.serverConcentrationAlerted = true; changed = true; console.log("[alerts] concentration " + email + " " + h.ticker + " @ " + pctOfPortfolio.toFixed(0) + "%"); }
+              if (ok) { sent++; sentThisUser++; h.serverConcentrationAlerted = true; changed = true; console.log("[alerts] concentration " + anonEmail(email) + " " + h.ticker + " @ " + pctOfPortfolio.toFixed(0) + "%"); }
             } catch (e) { console.log("[alerts] concentration email error:", e.message); }
           } else if (pctOfPortfolio < 50 && h.serverConcentrationAlerted) {
             h.serverConcentrationAlerted = false; changed = true;
@@ -418,7 +415,7 @@ exports.handler = async function (event) {
       }
     }
 
-    for (const w of rec.data.wl || []) {
+    for (const w of (rec.data && rec.data.wl) || []) {
       if (!w) continue;
       const id = cgId(w.ticker);
       const p = id && prices[id] && prices[id].usd;
@@ -430,7 +427,7 @@ exports.handler = async function (event) {
         if (dist < 2 && p <= w.targetPrice * 1.02 && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN && sentThisUser < MAX_EMAILS_PER_USER) {
           try {
             const ok = await sendEmail(RESEND, email, "🎯 " + w.ticker + " hit your buy zone — now " + fp(p), buyAlertHtml(w, p, email), FROM);
-            if (ok) { sent++; sentThisUser++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + email + " " + w.ticker + " @ " + p); }
+            if (ok) { sent++; sentThisUser++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + anonEmail(email) + " " + w.ticker + " @ " + p); }
           } catch (e) { console.log("[alerts] buy email error:", e.message); }
         } else if (dist >= 5 && w.serverAlerted) {
           w.serverAlerted = false; changed = true; // re-arm once price moves away
@@ -442,7 +439,7 @@ exports.handler = async function (event) {
         const gainPct = w.targetPrice ? ((w.sellTarget - w.targetPrice) / w.targetPrice * 100) : null;
         try {
           const ok = await sendEmail(RESEND, email, "💰 " + w.ticker + " hit your sell target — now " + fp(p), sellAlertHtml(w, p, gainPct, email), FROM);
-          if (ok) { sent++; sentThisUser++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + email + " " + w.ticker + " @ " + p); }
+          if (ok) { sent++; sentThisUser++; w.serverSellAlerted = true; changed = true; console.log("[alerts] sell " + anonEmail(email) + " " + w.ticker + " @ " + p); }
         } catch (e) { console.log("[alerts] sell email error:", e.message); }
       } else if (w.sellTarget && p < w.sellTarget * 0.95 && w.serverSellAlerted) {
         w.serverSellAlerted = false; changed = true; // re-arm once price retraces 5%
