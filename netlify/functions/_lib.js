@@ -84,4 +84,8 @@ function verifyUnsub(email, token) {
   } catch (e) { return false; }
 }
 
-module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys, signUnsub, verifyUnsub };
+// Shared plan limits — single source of truth for both generate.js and sync.js.
+const PLAN_DAILY_CAPS = { free: 50, pro: 500, elite: 1000, advisor: 2000 };
+const PLAN_TOKEN_CAPS = { free: 800, pro: 1500, elite: 2000, advisor: 3000 };
+
+module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys, signUnsub, verifyUnsub, PLAN_DAILY_CAPS, PLAN_TOKEN_CAPS };

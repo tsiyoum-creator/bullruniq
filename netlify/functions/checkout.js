@@ -33,7 +33,7 @@ exports.handler = async function (event) {
   }
 
   if (!SECRET) {
-    return { statusCode: 200, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify({ configured: false }) };
+    return { statusCode: 503, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify({ configured: false, error: "Payment service not configured." }) };
   }
 
   const priceEnvName = PRICE_ENV[tier];

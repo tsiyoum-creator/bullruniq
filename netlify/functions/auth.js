@@ -5,10 +5,12 @@
 // Secret: AUTH_SECRET env var — required. Returns 500 when absent (no fallback).
 
 const crypto = require("crypto");
-const { secretKey, signToken, planFor, json } = require("./_lib");
+const { secretKey, signToken, verifyToken, planFor, json } = require("./_lib");
+
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "X-Content-Type-Options": "nosniff",
@@ -93,6 +95,17 @@ exports.handler = async function (event) {
       }
     } catch (e) {}
     return jsonCors(200, { token: signToken(email, 30), email: email, plan: plan });
+  }
+
+  // Token refresh: exchange a still-valid 30-day token for a fresh one.
+  // Prevents surprise logouts when sessions approach expiry.
+  if (action === "refresh") {
+    const h = event.headers || {};
+    const tok = (h.authorization || h.Authorization || "").replace(/^Bearer\s+/i, "").trim();
+    const tokenEmail = verifyToken(tok);
+    if (!tokenEmail) return jsonCors(401, { error: "Token invalid or expired — please log in again." });
+    const plan = await planFor(tokenEmail, getStore);
+    return jsonCors(200, { token: signToken(tokenEmail, 30), email: tokenEmail, plan });
   }
 
   return jsonCors(400, { error: "Unknown action" });
