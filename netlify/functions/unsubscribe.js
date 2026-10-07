@@ -38,7 +38,6 @@ exports.handler = async function (event) {
     }
   }
 
-  let storageOk = true;
   try {
     if (email) {
       const blobs = require("@netlify/blobs");
@@ -47,13 +46,11 @@ exports.handler = async function (event) {
       console.log("[subscribers] removed", email);
     }
   } catch (e) {
-    storageOk = false;
     console.log("[unsubscribe] error", e.message);
   }
   return {
     statusCode: 200,
     headers: { "Content-Type": "text/html; charset=utf-8" },
-    body: page(email ? (email + " won't receive any more BullrunIQ emails.") : "You won't receive any more BullrunIQ emails.")
-      + "<!-- blobs:" + (storageOk ? "ok" : "err") + " -->",
+    body: page(email ? (email + " won't receive any more BullrunIQ emails.") : "You won't receive any more BullrunIQ emails."),
   };
 };
