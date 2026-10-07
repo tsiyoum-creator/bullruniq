@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-05",
+  asOf: "2026-10-07",
 
   current: {
     regime: "longend",
@@ -68,7 +68,7 @@ var MACRO_DATA = {
     { k:"ffr",      n:"Fed funds target",    v:3.875,  u:"%",     asOf:"2026-09-17", src:"FOMC",            op:"gt", th:4.5,  trips:"longend"   },
     { k:"netliq",   n:"Net liquidity",       v:5857,   u:"bn",    asOf:"2026-09-09", src:"Fed H.4.1",       op:null, th:null, trips:null        },
     { k:"tga",      n:"Treasury General Acct", v:883,  u:"bn",    asOf:"2026-09-09", src:"Fed H.4.1",       op:null, th:null, trips:null        },
-    { k:"rrp",      n:"Overnight RRP",       v:1,      u:"bn",    asOf:"2026-09-09", src:"Fed H.4.1",       op:null, th:null, trips:null        },
+    { k:"rrp",      name:"Overnight RRP",       v:1,      u:"bn",    asOf:"2026-09-09", src:"Fed H.4.1",       op:null, th:null, trips:null        },
     { k:"gold",     n:"Gold",                v:4384.78,u:"/oz",   asOf:"2026-09-18", src:"Trading Economics", op:null, th:null, trips:null      },
     { k:"stables",  n:"Stablecoin supply",   v:310.95, u:"bn",    asOf:"2026-09-10", src:"DefiLlama",       op:"lt", th:280,  trips:"deflation" },
     { k:"cofer",    n:"COFER USD share",     v:57.13,  u:"%",     asOf:"2026-Q1",    src:"IMF COFER",       op:null, th:null, trips:null        },
@@ -160,7 +160,7 @@ function setTag(tk,rid){
 function regimeName(id){var r=MACRO_DATA.regimes.find(function(x){return x.id===id;});return r?r.name:'—';}
 function regimeById(id){return MACRO_DATA.regimes.find(function(x){return x.id===id;})||null;}
 
-/* ── Cash helpers ────────────────────────────────────────────────────────────────────────────
+/* ── Cash helpers ────────────────────────────────────────────────────────────────────────────────────────
    port.cash is a SCALAR dollar amount (set via setCash() in
    platform.html and used by Autopilot, cashCard and rAlloc). This
    layer reads it, it does not reshape it.
@@ -434,7 +434,7 @@ var MACRO_AI_RULE=' You are given a macro regime read and an exposure map comput
 
 loadMacroTags();
 
-/* ── Node interop ──────────────────────────────────────────────────────────────────────────────
+/* ── Node interop ────────────────────────────────────────────────────────────────────────────────────────────
    Netlify functions require() this same file so the regime data has
    exactly ONE source of truth. Everything above is browser-safe:
    the only top-level call is loadMacroTags(), whose localStorage

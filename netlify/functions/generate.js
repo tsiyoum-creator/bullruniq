@@ -1,7 +1,7 @@
 // BullrunIQ — Secure Anthropic proxy
 
 const crypto = require("crypto");
-const { verifyToken, planFor } = require("./_lib");
+const { verifyToken, planFor, PLAN_DAILY_CAPS, PLAN_TOKEN_CAPS } = require("./_lib");
 const { getStore: getBlobStore } = require("@netlify/blobs");
 
 const ALLOWED_MODELS = new Set([
@@ -22,21 +22,7 @@ const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const MAX_SYSTEM_LEN = 2000;
 
-// Per-plan daily AI request caps (enforced server-side via Blobs)
-const PLAN_DAILY_CAPS = {
-  free:     50,
-  pro:      500,
-  elite:    1000,
-  advisor:  2000,
-};
-
-// Per-plan max_tokens caps: Elite/Advisor get deeper analysis responses
-const PLAN_TOKEN_CAPS = {
-  free:     800,
-  pro:      1500,
-  elite:    2000,
-  advisor:  3000,
-};
+// PLAN_DAILY_CAPS and PLAN_TOKEN_CAPS are imported from _lib.js (shared with sync.js).
 
 // Fixed preamble prepended to every system prompt to establish the AI's role
 // and prevent prompt injection from overriding BullrunIQ's intended behaviour.
@@ -53,8 +39,9 @@ const CORS = {
 
 function clientIp(event) {
   const h = event.headers || {};
-  // x-nf-client-connection-ip is set by Netlify and cannot be spoofed by clients
-  return h["x-nf-client-connection-ip"] || (h["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  // x-nf-client-connection-ip is set by Netlify and cannot be spoofed by clients.
+  // x-forwarded-for is excluded because it can be forged to bypass IP rate limits.
+  return h["x-nf-client-connection-ip"] || "unknown";
 }
 
 function secondsUntilMidnightUTC() {
@@ -178,11 +165,19 @@ exports.handler = async function (event) {
   const body = { model, max_tokens, messages, system: effectiveSystem };
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": API_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify(body),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    let response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (response.status === 401 || response.status === 403) {
       // Don't expose server-side key status to clients
       return { statusCode: 500, headers: { "Content-Type": "application/json", ...CORS }, body: JSON.stringify({ error: { message: "AI service configuration error. Please try again later." } }) };

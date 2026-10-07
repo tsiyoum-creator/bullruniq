@@ -3,6 +3,9 @@
 const GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
 
 exports.handler = async function (event) {
+  if ((event.body || "").length > 2048) {
+    return { statusCode: 413, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Payload too large" }) };
+  }
   try {
     let e = {};
     if (event.httpMethod === "POST") {
