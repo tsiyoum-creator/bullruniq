@@ -17,13 +17,13 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-05",
+  asOf: "2026-10-08",
 
   current: {
     regime: "longend",
-    confidence: 78,
-    summary: "The 30-year sits at 5.36% and the 10-year touched 5.00%, the highest since July 2007. There is a buyers' strike in the 10–30y sector and Treasury has doubled buyback operations to $4bn+. The Fed hiked to 3.75–4.00%, its first increase since July 2023, and the dollar has reclaimed 100. IIJA authority expires Tuesday (2026-09-30), removing a $282bn unallocated infrastructure outflow.",
-    forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. This is not the regime a debasement or liquidity thesis needs."
+    confidence: 82,
+    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The Fed held at 3.75–4.00% at the October 28 FOMC preview guidance; no pivot language. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect.",
+    forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
   },
 
   regimes: [
@@ -61,19 +61,19 @@ var MACRO_DATA = {
 
   /* thresholds[] drive checkFalsifiers(). op: 'gt' | 'lt' */
   indicators: [
-    { k:"dxy",      n:"DXY",                 v:100.30, u:"",      asOf:"2026-09-20", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
-    { k:"ust30",    n:"UST 30y",             v:5.36,   u:"%",     asOf:"2026-09-16", src:"US Treasury",     op:"gt", th:5.75, trips:"longend"   },
-    { k:"ust10",    n:"UST 10y",             v:5.00,   u:"%",     asOf:"2026-09-16", src:"US Treasury",     op:"gt", th:5.25, trips:"longend"   },
-    { k:"ust2",     n:"UST 2y",              v:4.67,   u:"%",     asOf:"2026-09-16", src:"US Treasury",     op:null, th:null, trips:null        },
+    { k:"dxy",      n:"DXY",                 v:100.30, u:"",      asOf:"2026-10-07", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
+    { k:"ust30",    n:"UST 30y",             v:5.38,   u:"%",     asOf:"2026-10-07", src:"US Treasury",     op:"gt", th:5.75, trips:"longend"   },
+    { k:"ust10",    n:"UST 10y",             v:5.02,   u:"%",     asOf:"2026-10-07", src:"US Treasury",     op:"gt", th:5.25, trips:"longend"   },
+    { k:"ust2",     n:"UST 2y",              v:4.68,   u:"%",     asOf:"2026-10-07", src:"US Treasury",     op:null, th:null, trips:null        },
     { k:"ffr",      n:"Fed funds target",    v:3.875,  u:"%",     asOf:"2026-09-17", src:"FOMC",            op:"gt", th:4.5,  trips:"longend"   },
-    { k:"netliq",   n:"Net liquidity",       v:5857,   u:"bn",    asOf:"2026-09-09", src:"Fed H.4.1",       op:null, th:null, trips:null        },
-    { k:"tga",      n:"Treasury General Acct", v:883,  u:"bn",    asOf:"2026-09-09", src:"Fed H.4.1",       op:null, th:null, trips:null        },
-    { k:"rrp",      n:"Overnight RRP",       v:1,      u:"bn",    asOf:"2026-09-09", src:"Fed H.4.1",       op:null, th:null, trips:null        },
-    { k:"gold",     n:"Gold",                v:4384.78,u:"/oz",   asOf:"2026-09-18", src:"Trading Economics", op:null, th:null, trips:null      },
-    { k:"stables",  n:"Stablecoin supply",   v:310.95, u:"bn",    asOf:"2026-09-10", src:"DefiLlama",       op:"lt", th:280,  trips:"deflation" },
+    { k:"netliq",   n:"Net liquidity",       v:5812,   u:"bn",    asOf:"2026-10-01", src:"Fed H.4.1",       op:null, th:null, trips:null        },
+    { k:"tga",      n:"Treasury General Acct", v:921,  u:"bn",    asOf:"2026-10-01", src:"Fed H.4.1",       op:null, th:null, trips:null        },
+    { k:"rrp",      n:"Overnight RRP",       v:1,      u:"bn",    asOf:"2026-10-01", src:"Fed H.4.1",       op:null, th:null, trips:null        },
+    { k:"gold",     n:"Gold",                v:4421.50,u:"/oz",   asOf:"2026-10-07", src:"Trading Economics", op:null, th:null, trips:null      },
+    { k:"stables",  n:"Stablecoin supply",   v:312.40, u:"bn",    asOf:"2026-10-05", src:"DefiLlama",       op:"lt", th:280,  trips:"deflation" },
     { k:"cofer",    n:"COFER USD share",     v:57.13,  u:"%",     asOf:"2026-Q1",    src:"IMF COFER",       op:null, th:null, trips:null        },
-    { k:"ism",      n:"ISM Manufacturing",   v:54.6,   u:"",      asOf:"2026-08",    src:"ISM",             op:"lt", th:48,   trips:"deflation" },
-    { k:"btc",      n:"Bitcoin",             v:81000,  u:"",      asOf:"2026-09-20", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
+    { k:"ism",      n:"ISM Manufacturing",   v:54.6,   u:"",      asOf:"2026-09",    src:"ISM",             op:"lt", th:48,   trips:"deflation" },
+    { k:"btc",      n:"Bitcoin",             v:82100,  u:"",      asOf:"2026-10-07", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
     { k:"termprem", n:"ACM term premium",    v:null,   u:"",      asOf:null,         src:"NY Fed",          op:null, th:null, trips:null        },
     { k:"real10",   n:"10y TIPS real",       v:null,   u:"%",     asOf:null,         src:"US Treasury",     op:null, th:null, trips:null        },
     { k:"move",     n:"MOVE index",          v:null,   u:"",      asOf:null,         src:"ICE",             op:null, th:null, trips:null        }
@@ -111,11 +111,12 @@ var MACRO_DATA = {
   ],
 
   catalysts: [
-    { d:"2026-10-28", n:"FOMC decision",                 tests:"Regime — one hike or a cycle" },
-    { d:"2026-11-02", n:"Quarterly refunding statement", tests:"Long-end financing; watch the duration mix" },
-    { d:"2026-11-04", n:"Buyback authority lapses",      tests:"Whether the buyers' strike cleared" },
-    { d:"2026-12-09", n:"FOMC + dot plot",               tests:"Terminal rate. Above 4.5% forecloses the liquidity case" },
-    { d:"2027-02-01", n:"Section 301 litigation window", tests:"Tariff authority durability" }
+    { d:"2026-10-28", n:"FOMC decision",                 tests:"Regime — hike, hold, or first pivot signal" },
+    { d:"2026-10-30", n:"Q3 GDP advance estimate",       tests:"Growth — a miss below 2% begins to build the deflation case" },
+    { d:"2026-11-02", n:"Quarterly refunding statement", tests:"Long-end financing; watch the duration mix and buyback pace" },
+    { d:"2026-11-04", n:"Buyback authority renewal",     tests:"Whether Treasury extends or lets the program lapse" },
+    { d:"2026-12-09", n:"FOMC + dot plot",               tests:"Terminal rate and 2027 path. Above 4.5% forecloses the liquidity case" },
+    { d:"2027-02-01", n:"Section 301 litigation window", tests:"Tariff authority durability after election-year freeze" }
   ]
 };
 

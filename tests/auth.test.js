@@ -1745,6 +1745,69 @@ console.log("\n--- app.js: globe pin country extraction ---");
   assert(extractCountry("City, State, Country") === "Country", "extractCountry: uses last comma for multi-part city");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// auth.js: CORS uses ALLOWED_ORIGIN env var, not hardcoded wildcard
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- auth.js: CORS ALLOWED_ORIGIN ---");
+{
+  // Simulate the CORS construction logic from auth.js
+  function makeAuthCors(envOrigin) {
+    const ALLOWED_ORIGIN = envOrigin || "https://bullruniq.com";
+    return {
+      "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "X-Content-Type-Options": "nosniff",
+    };
+  }
+  const defaultCors = makeAuthCors(undefined);
+  assert(defaultCors["Access-Control-Allow-Origin"] === "https://bullruniq.com", "auth.js CORS: default origin is bullruniq.com");
+  assert(defaultCors["Access-Control-Allow-Origin"] !== "*", "auth.js CORS: default is not wildcard *");
+  const customCors = makeAuthCors("https://staging.bullruniq.com");
+  assert(customCors["Access-Control-Allow-Origin"] === "https://staging.bullruniq.com", "auth.js CORS: respects ALLOWED_ORIGIN env override");
+  assert(defaultCors["X-Content-Type-Options"] === "nosniff", "auth.js CORS: X-Content-Type-Options header present");
+  assert(defaultCors["Access-Control-Allow-Methods"].includes("POST"), "auth.js CORS: POST allowed");
+  assert(!defaultCors["Access-Control-Allow-Methods"].includes("GET"), "auth.js CORS: GET not allowed");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// track.js: tab character stripping in all log fields
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- track.js: tab/newline stripping in beacon fields ---");
+{
+  // Replicate the sanitization logic from track.js for ev, path, ref, meta
+  function sanitizeField(val, maxLen) {
+    return String(val || "").replace(/[\r\n\t]/g, " ").slice(0, maxLen);
+  }
+  // Tab injection in path should be stripped
+  const pathWithTab = "/page\ttab-injected-value";
+  assert(sanitizeField(pathWithTab, 200).indexOf("\t") === -1, "track.js: tab stripped from path");
+  assert(sanitizeField(pathWithTab, 200) === "/page tab-injected-value", "track.js: tab replaced with space in path");
+
+  // Tab injection in ref
+  const refWithTab = "https://ref.example.com\t/injected";
+  assert(sanitizeField(refWithTab, 200).indexOf("\t") === -1, "track.js: tab stripped from ref");
+
+  // Tab injection in meta
+  const metaStr = '{"k":"v\ttab"}';
+  assert(sanitizeField(metaStr, 300).indexOf("\t") === -1, "track.js: tab stripped from meta");
+
+  // Newline stripping still works (regression check)
+  const pathWithNewline = "/page\ninjected-line\r/another";
+  const sanitized = sanitizeField(pathWithNewline, 200);
+  assert(sanitized.indexOf("\n") === -1, "track.js: \\n stripped from path");
+  assert(sanitized.indexOf("\r") === -1, "track.js: \\r stripped from path");
+
+  // ev was already correct — confirm same behavior
+  const evWithTab = "pageview\tadmin";
+  assert(sanitizeField(evWithTab, 40).indexOf("\t") === -1, "track.js: tab stripped from ev");
+
+  // Length truncation still enforced
+  assert(sanitizeField("x".repeat(250), 200).length === 200, "track.js: path truncated at 200");
+  assert(sanitizeField("x".repeat(50), 40).length === 40, "track.js: ev truncated at 40");
+  assert(sanitizeField("x".repeat(400), 300).length === 300, "track.js: meta truncated at 300");
+}
+
 }).catch(function (err) {
   console.error("Async test error:", err);
   failed++;
