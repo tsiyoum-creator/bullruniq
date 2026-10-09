@@ -63,6 +63,12 @@ const CGMAP = {
   HYPE:"hyperliquid", KAITO:"kaito", IP:"story-2", MOVE:"movement-2",
   LAYER:"solayer", ORCA:"orca", PYUSD:"paypal-usd", USUAL:"usual",
   RESOLV:"resolv", INIT:"initia",
+  // Late-2026 additions
+  PENGU:"pengu", CHILLGUY:"chillguy", AIXBT:"aixbt", ACT:"act-i-the-ai-prophecy",
+  ANIME:"animechain", COOKIE:"cookie-protocol", SWARMS:"swarms-protocol",
+  FLOCK:"flock-io", PROMPT:"prompt-heroes", SNAI:"snai",
+  BANANA:"banana-gun", BERA:"berachain-bera", HONEY:"honey-3",
+  NEIRO2:"neiro-ethereum", EIGEN2:"eigenlayer",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
@@ -94,46 +100,56 @@ function fp(v) {
 }
 function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
 
+// Shared email chrome: logo header + content area + legal footer.
+// Keeps all alert emails visually consistent and reduces repeated markup.
+function emailWrap(badgeColor, badgeText, headline, body, ctaHref, ctaLabel, ctaColor, ctaTextColor, unsubHref, legalLine) {
+  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
+    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:" + badgeColor + ";margin-bottom:10px'>" + badgeText + "</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + headline + "</div>"
+    + body
+    + "<a href='" + ctaHref + "' style='display:inline-block;background:" + ctaColor + ";color:" + ctaTextColor + ";text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>" + ctaLabel + "</a>"
+    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. " + legalLine + "<br><a href='" + unsubHref + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
+    + "</body></html>";
+}
+
 function buyAlertHtml(w, price, email) {
   const name = esc(w.name || w.ticker);
   const ticker = esc(w.ticker);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#4ade80;margin-bottom:10px'>🎯 Buy zone alert</div>"
-    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " is at your buy zone</div>"
-    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 22px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — within 2% of your target of <b style='color:#c9a84c'>" + fp(w.targetPrice) + "</b>.</div>"
-    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Open your command center →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a price target in BullrunIQ.<br><a href='" + unsubUrl(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
-    + "</body></html>";
+  return emailWrap(
+    "#4ade80", "🎯 Buy zone alert",
+    ticker + " is at your buy zone",
+    "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 22px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — within 2% of your target of <b style='color:#c9a84c'>" + fp(w.targetPrice) + "</b>.</div>",
+    "https://bullruniq.com/platform", "Open your command center →", "#c9a84c", "#000",
+    unsubUrl(email), "You get these because you set a price target in BullrunIQ."
+  );
 }
 
 function sellAlertHtml(w, price, gainPct, email) {
   const name = esc(w.name || w.ticker);
   const ticker = esc(w.ticker);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>💰 Profit-taking signal</div>"
-    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " hit your sell target</div>"
-    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — reached your profit target of <b style='color:#c9a84c'>" + fp(w.sellTarget) + "</b>.</div>"
-    + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:22px'>Up <b>" + pct(gainPct) + "</b> from your buy target of " + fp(w.targetPrice) + "</div>" : "<div style='margin-bottom:22px'></div>")
-    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#e05555;color:#fff;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a sell target in BullrunIQ.<br><a href='" + unsubUrl(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
-    + "</body></html>";
+  return emailWrap(
+    "#e05555", "💰 Profit-taking signal",
+    ticker + " hit your sell target",
+    "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — reached your profit target of <b style='color:#c9a84c'>" + fp(w.sellTarget) + "</b>.</div>"
+    + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:22px'>Up <b>" + pct(gainPct) + "</b> from your buy target of " + fp(w.targetPrice) + "</div>" : "<div style='margin-bottom:22px'></div>"),
+    "https://bullruniq.com/platform", "Review your position →", "#e05555", "#fff",
+    unsubUrl(email), "You get these because you set a sell target in BullrunIQ."
+  );
 }
 
 function stopAlertHtml(h, price, email) {
   const name = esc(h.name || h.ticker);
   const ticker = esc(h.ticker);
   const lossPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>⛔ Stop-loss triggered</div>"
-    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " fell below your stop</div>"
-    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#e05555'>" + fp(price) + "</b> — below the stop-loss you set at <b style='color:#c9a84c'>" + fp(h.stop) + "</b>.</div>"
-    + (lossPct !== null ? "<div style='font-size:13px;color:#e05555;margin-bottom:22px'>Position is at <b>" + pct(lossPct) + "</b> vs your avg buy of " + fp(h.avg) + "</div>" : "<div style='margin-bottom:22px'></div>")
-    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#e05555;color:#fff;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review the position now →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a stop-loss in BullrunIQ.<br><a href='" + unsubUrl(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
-    + "</body></html>";
+  return emailWrap(
+    "#e05555", "⛔ Stop-loss triggered",
+    ticker + " fell below your stop",
+    "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#e05555'>" + fp(price) + "</b> — below the stop-loss you set at <b style='color:#c9a84c'>" + fp(h.stop) + "</b>.</div>"
+    + (lossPct !== null ? "<div style='font-size:13px;color:#e05555;margin-bottom:22px'>Position is at <b>" + pct(lossPct) + "</b> vs your avg buy of " + fp(h.avg) + "</div>" : "<div style='margin-bottom:22px'></div>"),
+    "https://bullruniq.com/platform", "Review the position now →", "#e05555", "#fff",
+    unsubUrl(email), "You get these because you set a stop-loss in BullrunIQ."
+  );
 }
 
 function tpAlertHtml(h, price, email) {
@@ -141,15 +157,14 @@ function tpAlertHtml(h, price, email) {
   const ticker = esc(h.ticker);
   const gainPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
   const value = price * (h.qty || 0);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#4ade80;margin-bottom:10px'>🎯 Take-profit reached</div>"
-    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " hit your target</div>"
-    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — at the take-profit you set at <b style='color:#c9a84c'>" + fp(h.tp) + "</b>." + (value > 0 ? " Your position is worth <b style='color:#f0ece4'>" + fp(value) + "</b>." : "") + "</div>"
-    + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:22px'>Up <b>" + pct(gainPct) + "</b> from your avg buy of " + fp(h.avg) + " — consider locking some in</div>" : "<div style='margin-bottom:22px'></div>")
-    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Take some profit →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. You get these because you set a take-profit in BullrunIQ.<br><a href='" + unsubUrl(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
-    + "</body></html>";
+  return emailWrap(
+    "#4ade80", "🎯 Take-profit reached",
+    ticker + " hit your target",
+    "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:400px;margin:0 auto 12px'>" + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> — at the take-profit you set at <b style='color:#c9a84c'>" + fp(h.tp) + "</b>." + (value > 0 ? " Your position is worth <b style='color:#f0ece4'>" + fp(value) + "</b>." : "") + "</div>"
+    + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:22px'>Up <b>" + pct(gainPct) + "</b> from your avg buy of " + fp(h.avg) + " — consider locking some in</div>" : "<div style='margin-bottom:22px'></div>"),
+    "https://bullruniq.com/platform", "Take some profit →", "#c9a84c", "#000",
+    unsubUrl(email), "You get these because you set a take-profit in BullrunIQ."
+  );
 }
 
 function athProximityAlertHtml(h, price, athPrice, athChangePct, email) {
@@ -157,32 +172,30 @@ function athProximityAlertHtml(h, price, athPrice, athChangePct, email) {
   const ticker = esc(h.ticker);
   const gainPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
   const value = price * (h.qty || 0);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;margin-bottom:10px'>🏔️ Near all-time high</div>"
-    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " within 10% of its ATH</div>"
-    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 12px'>"
+  return emailWrap(
+    "#c9a84c", "🏔️ Near all-time high",
+    ticker + " within 10% of its ATH",
+    "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 12px'>"
     + name + " is at <b style='color:#c9a84c'>" + fp(price) + "</b> — just <b style='color:#c9a84c'>" + Math.abs(athChangePct).toFixed(1) + "%</b> below its all-time high of <b style='color:#f0ece4'>" + fp(athPrice) + "</b>.</div>"
     + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:6px'>Your position is up <b>" + pct(gainPct) + "</b> from your avg cost of " + fp(h.avg) + ".</div>" : "")
-    + (value > 0 ? "<div style='font-size:13px;color:#f0ece4;margin-bottom:22px'>Current value: <b>" + fp(value) + "</b></div>" : "<div style='margin-bottom:22px'></div>")
-    + "<div style='color:#8a8278;font-size:13px;line-height:1.7;max-width:420px;margin:0 auto 22px'>ATH proximity is historically one of the strongest distribution signals. Consider taking partial profits here if you haven't started yet — the profit-ladder framework suggests selling 25% increments at +25%, +50%, +100%, and +200% from cost.</div>"
-    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. This fired because your holding entered the top 10% of its all-time high range.<br><a href='" + unsubUrl(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
-    + "</body></html>";
+    + (value > 0 ? "<div style='font-size:13px;color:#f0ece4;margin-bottom:8px'>Current value: <b>" + fp(value) + "</b></div>" : "")
+    + "<div style='color:#8a8278;font-size:13px;line-height:1.7;max-width:420px;margin:0 auto 22px'>ATH proximity is historically one of the strongest distribution signals. Consider taking partial profits here if you haven't started yet — the profit-ladder framework suggests selling 25% increments at +25%, +50%, +100%, and +200% from cost.</div>",
+    "https://bullruniq.com/platform", "Review your position →", "#c9a84c", "#000",
+    unsubUrl(email), "This fired because your holding entered the top 10% of its all-time high range."
+  );
 }
 
 function concentrationAlertHtml(ticker, holdingValue, totalValue, pctOfPortfolio, email) {
   const t = esc(ticker);
-  return "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0;background:#050505;padding:40px 24px;font-family:-apple-system,Segoe UI,sans-serif;text-align:center'>"
-    + "<div style='font-family:Georgia,serif;font-size:20px;letter-spacing:2px;color:#f0ece4;margin-bottom:24px'>Bullrun<span style='color:#c9a84c'>IQ</span></div>"
-    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>⚠️ Concentration risk</div>"
-    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + t + " is " + pctOfPortfolio.toFixed(0) + "% of your portfolio</div>"
-    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 22px'>"
+  return emailWrap(
+    "#e05555", "⚠️ Concentration risk",
+    t + " is " + pctOfPortfolio.toFixed(0) + "% of your portfolio",
+    "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 22px'>"
     + "Your <b style='color:#c9a84c'>" + t + "</b> position (" + fp(holdingValue) + ") now represents over <b style='color:#e05555'>" + pctOfPortfolio.toFixed(0) + "%</b> of your tracked portfolio (" + fp(totalValue) + " total). "
-    + "High concentration in a single asset amplifies both gains and losses — consider whether this aligns with your risk plan.</div>"
-    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your portfolio →</a>"
-    + "<div style='border-top:1px solid #1a1a1a;margin-top:32px;padding-top:16px;font-size:11px;color:#5c574e;line-height:1.6;max-width:420px;margin-left:auto;margin-right:auto'>Educational alert, not financial advice. This fired because a single position exceeded 60% of your tracked portfolio value.<br><a href='" + unsubUrl(email) + "' style='color:#8a8278'>Unsubscribe from all emails</a></div>"
-    + "</body></html>";
+    + "High concentration in a single asset amplifies both gains and losses — consider whether this aligns with your risk plan.</div>",
+    "https://bullruniq.com/platform", "Review your portfolio →", "#c9a84c", "#000",
+    unsubUrl(email), "This fired because a single position exceeded 60% of your tracked portfolio value."
+  );
 }
 
 function ladderAlertHtml(h, price, ladder, email) {

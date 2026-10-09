@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-08",
+  asOf: "2026-10-09",
 
   current: {
     regime: "longend",
@@ -161,7 +161,7 @@ function setTag(tk,rid){
 function regimeName(id){var r=MACRO_DATA.regimes.find(function(x){return x.id===id;});return r?r.name:'—';}
 function regimeById(id){return MACRO_DATA.regimes.find(function(x){return x.id===id;})||null;}
 
-/* ── Cash helpers ────────────────────────────────────────────────────────────────────────────
+/* ── Cash helpers ─────────────────────────────────────────────────────────────────────────────
    port.cash is a SCALAR dollar amount (set via setCash() in
    platform.html and used by Autopilot, cashCard and rAlloc). This
    layer reads it, it does not reshape it.
@@ -435,7 +435,7 @@ var MACRO_AI_RULE=' You are given a macro regime read and an exposure map comput
 
 loadMacroTags();
 
-/* ── Node interop ──────────────────────────────────────────────────────────────────────────────
+/* ── Node interop ────────────────────────────────────────────────────────────────────────────────────────────
    Netlify functions require() this same file so the regime data has
    exactly ONE source of truth. Everything above is browser-safe:
    the only top-level call is loadMacroTags(), whose localStorage
