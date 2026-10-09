@@ -72,6 +72,18 @@ exports.handler = async function (event) {
     return jsonCors(200, { ok: true });
   }
 
+  if (action === "refresh") {
+    // Exchange a still-valid token for a fresh 30-day one without re-authenticating.
+    // Clients should call this when dailyRemaining is fetched and the token has
+    // fewer than 7 days left, so users are never surprised by a mid-session logout.
+    const { verifyToken } = require("./_lib");
+    const existingToken = String(p.token || "").trim();
+    const refreshedEmail = verifyToken(existingToken);
+    if (!refreshedEmail) return jsonCors(401, { error: "Token invalid or already expired — please log in again." });
+    const plan = await planFor(refreshedEmail, getStore);
+    return jsonCors(200, { token: signToken(refreshedEmail, 30), email: refreshedEmail, plan });
+  }
+
   if (action === "verify") {
     const code = String(p.code || "").trim();
     const rec = await store.get(email, { type: "json" });
