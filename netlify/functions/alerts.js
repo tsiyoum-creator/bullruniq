@@ -92,7 +92,10 @@ function fp(v) {
   const formatted = abs >= 1000 ? abs.toLocaleString("en-US", { maximumFractionDigits: 2 }) : abs >= 1 ? abs.toFixed(2) : abs.toFixed(6);
   return (v < 0 ? "-$" : "$") + formatted;
 }
-function pct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
+function pct(v) {
+  if (typeof v !== "number" || !isFinite(v)) return "n/a";
+  return (v >= 0 ? "+" : "") + v.toFixed(1) + "%";
+}
 
 function buyAlertHtml(w, price, email) {
   const name = esc(w.name || w.ticker);
