@@ -1,5 +1,7 @@
 // BullrunIQ — Stripe Checkout session creator
 
+const { verifyToken } = require("./_lib");
+
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
 
 const CORS = {
@@ -22,11 +24,17 @@ exports.handler = async function (event) {
 
   const SECRET = process.env.STRIPE_SECRET_KEY;
 
+  const h = event.headers || {};
+  const authz = (h.authorization || h.Authorization || "").replace(/^Bearer\s+/i, "").trim();
+  const authedEmail = verifyToken(authz);
+
   let payload = {};
   try { payload = JSON.parse(event.body || "{}"); } catch (e) {}
   const tier = String(payload.tier || "").toLowerCase();
-  const rawEmail = payload.email ? String(payload.email).trim().toLowerCase().slice(0, 200) : "";
-  const email = rawEmail && rawEmail.indexOf("@") > 0 ? rawEmail : "";
+  // Use only the server-verified email from the auth token.
+  // Ignoring the client-supplied email prevents attackers from pre-filling
+  // Stripe checkout sessions with arbitrary victim addresses.
+  const email = authedEmail || "";
 
   if (!VALID_TIERS.has(tier)) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Invalid tier. Must be one of: pro, elite, advisor." }) };
