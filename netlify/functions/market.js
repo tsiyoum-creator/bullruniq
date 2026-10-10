@@ -264,7 +264,10 @@ exports.handler = async function (event) {
         const c = await cache.get(key, { type: "json" });
         if (c) {
           const payload = transform ? transform(c.data) : c.data;
-          return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
+          const ageMs = Date.now() - (c.at || 0);
+          const staleHeaders = { ...CORS, "X-Cache-Status": "STALE", "X-Cache-Age": String(Math.floor(ageMs / 1000)) };
+          const body = typeof payload === "object" ? { ...payload, _stale: true } : payload;
+          return { statusCode: 200, headers: staleHeaders, body: JSON.stringify(body) };
         }
       } catch (e) {}
     }
