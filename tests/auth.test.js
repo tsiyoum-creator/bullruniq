@@ -1018,11 +1018,13 @@ const ladAllHit = ladderFor(100, 10, 400);
 assert(ladAllHit !== null && ladAllHit.hits.length === 4, "all 4 rungs hit at +300%");
 assert(ladAllHit.rungs.filter(function(r){return !r.hit;}).length === 0, "no unhit rungs when all are hit");
 
-console.log("\n--- market.js: ALLOWED_MODELS coverage ---");
+console.log("\n--- generate.js: ALLOWED_MODELS coverage ---");
 
 const ALLOWED_MODELS = new Set([
   "claude-fable-5-1",
   "claude-opus-5-5",
+  "claude-sonnet-5-5",
+  "claude-haiku-5-5",
   "claude-opus-5",
   "claude-sonnet-5",
   "claude-haiku-4-5",
@@ -1039,6 +1041,8 @@ function resolveModel(requested) {
 assert(resolveModel("claude-sonnet-5") === "claude-sonnet-5", "allowed model passes through");
 assert(resolveModel("claude-opus-5") === "claude-opus-5", "claude-opus-5 allowed");
 assert(resolveModel("claude-fable-5-1") === "claude-fable-5-1", "claude-fable-5-1 allowed");
+assert(resolveModel("claude-sonnet-5-5") === "claude-sonnet-5-5", "claude-sonnet-5-5 allowed");
+assert(resolveModel("claude-haiku-5-5") === "claude-haiku-5-5", "claude-haiku-5-5 allowed");
 assert(resolveModel("gpt-4o") === DEFAULT_MODEL, "disallowed model falls back to default");
 assert(resolveModel(null) === DEFAULT_MODEL, "null model falls back to default");
 assert(resolveModel("") === DEFAULT_MODEL, "empty string falls back to default");
