@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-11",
+  asOf: "2026-10-12",
 
   current: {
     regime: "longend",

@@ -5,9 +5,7 @@
 // it comes from the "customers" store maintained by the Stripe webhook, so a
 // canceled subscription drops to "free" on the next sync — auto-revoke.
 
-const { verifyToken, planFor, json } = require("./_lib");
-
-const PLAN_DAILY_CAPS = { free: 50, pro: 500, elite: 1000, advisor: 2000 };
+const { verifyToken, planFor, json, PLAN_DAILY_CAPS } = require("./_lib");
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bullruniq.com";
 

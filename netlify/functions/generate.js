@@ -1,7 +1,7 @@
 // BullrunIQ — Secure Anthropic proxy
 
 const crypto = require("crypto");
-const { verifyToken, planFor } = require("./_lib");
+const { verifyToken, planFor, PLAN_DAILY_CAPS } = require("./_lib");
 const { getStore: getBlobStore } = require("@netlify/blobs");
 
 const ALLOWED_MODELS = new Set([
@@ -23,14 +23,6 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const MAX_SYSTEM_LEN = 2000;
-
-// Per-plan daily AI request caps (enforced server-side via Blobs)
-const PLAN_DAILY_CAPS = {
-  free:     50,
-  pro:      500,
-  elite:    1000,
-  advisor:  2000,
-};
 
 // Per-plan max_tokens caps: Elite/Advisor get deeper analysis responses
 const PLAN_TOKEN_CAPS = {

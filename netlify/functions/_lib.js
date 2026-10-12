@@ -44,6 +44,13 @@ async function planFor(email, getStore) {
   return "free";
 }
 
+const PLAN_DAILY_CAPS = {
+  free:     50,
+  pro:      500,
+  elite:    1000,
+  advisor:  2000,
+};
+
 function json(code, obj, extraHeaders) {
   return { statusCode: code, headers: { "Content-Type": "application/json", ...(extraHeaders || {}) }, body: JSON.stringify(obj) };
 }
@@ -84,4 +91,4 @@ function verifyUnsub(email, token) {
   } catch (e) { return false; }
 }
 
-module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys, signUnsub, verifyUnsub };
+module.exports = { secretKey, signToken, verifyToken, planFor, PLAN_DAILY_CAPS, json, esc, listAllKeys, signUnsub, verifyUnsub };
