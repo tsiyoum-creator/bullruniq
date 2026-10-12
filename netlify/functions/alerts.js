@@ -213,15 +213,15 @@ function ladderAlertHtml(h, price, ladder, email) {
 // In "long-end disorder" (rising real yields, dollar strong) risk assets historically
 // distribute earlier, so the ladder fires at tighter rungs to lock in gains sooner.
 function regimeLadderRungs(regime) {
-  if (regime === "longend" || regime === "squeeze") return [15, 30, 60, 100];
+  if (regime === "longend" || regime === "squeeze" || regime === "deflation") return [15, 30, 60, 100];
   if (regime === "liquidity" || regime === "fiscdom") return [25, 50, 100, 200];
-  return [25, 50, 100, 200]; // default for unknown / deflation
+  return [25, 50, 100, 200];
 }
 
 function computeLadder(avg, qty, price, regime) {
   if (!avg || avg <= 0 || !qty || qty <= 0) return null;
   const gainPct = (price - avg) / avg * 100;
-  if (gainPct < 10) return null;
+  if (gainPct < 20) return null;
   const rungs = regimeLadderRungs(regime).map(function (pc) {
     const ladderPrice = avg * (1 + pc / 100);
     return { pct: pc, price: ladderPrice, qty: qty * 0.25, hit: price >= ladderPrice };
@@ -451,7 +451,7 @@ exports.handler = async function (event) {
         w.serverSellAlerted = false; changed = true; // re-arm once price retraces 5%
       }
     }
-    if (changed) { try { await store.setJSON(email, rec); } catch (e) {} }
+    if (changed) { try { await store.setJSON(email, rec); } catch (e) { console.log("[alerts] failed to persist state for", email, "—", e.message, "— duplicate alerts may fire on next run"); } }
   }
   console.log("[alerts] done — " + sent + " email(s) sent across " + Object.keys(recs).length + " user(s)");
   return { statusCode: 200, body: "sent " + sent };
