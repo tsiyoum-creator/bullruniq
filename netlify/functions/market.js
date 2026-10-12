@@ -10,9 +10,9 @@ const SECTOR_IDS_LIST = [
   "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
   "arbitrum", "optimism", "zksync", "starknet",
   "uniswap", "aave", "curve-dao-token", "maker", "pendle",
-  "bittensor", "render-token",
+  "bittensor", "render-token", "fetch-ai", "singularitynet", "ocean-protocol", "virtual-protocol",
   "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
-  "chainlink", "the-graph", "pyth-network",
+  "chainlink", "the-graph", "pyth-network", "filecoin", "livepeer",
 ];
 
 const SECTOR_MAP = {
@@ -20,9 +20,9 @@ const SECTOR_MAP = {
   "near": "layer1", "aptos": "layer1", "sui": "layer1",
   "arbitrum": "layer2", "optimism": "layer2", "zksync": "layer2", "starknet": "layer2",
   "uniswap": "defi", "aave": "defi", "curve-dao-token": "defi", "maker": "defi", "pendle": "defi",
-  "bittensor": "ai", "render-token": "ai",
+  "bittensor": "ai", "render-token": "ai", "fetch-ai": "ai", "singularitynet": "ai", "ocean-protocol": "ai", "virtual-protocol": "ai",
   "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
-  "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
+  "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra", "filecoin": "infra", "livepeer": "infra",
 };
 
 const SECTOR_LABELS = {
