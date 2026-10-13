@@ -37,7 +37,7 @@ function verifyToken(tok) {
 async function planFor(email, getStore) {
   try {
     const rec = await getStore("customers").get(email, { type: "json" });
-    if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "pro";
+    if (rec && (rec.status === "active" || rec.status === "trialing")) return rec.tier || "free";
   } catch (e) {
     console.log("[planFor] storage error for", email, "—", e.message);
   }

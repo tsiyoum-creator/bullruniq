@@ -16,7 +16,13 @@ const CORS = {
   "X-Content-Type-Options": "nosniff",
 };
 
-function sha(s) { return crypto.createHash("sha256").update(s).digest("hex"); }
+// HMAC binds the hash to the server secret, making the code space
+// infeasible to brute-force even if the blob store were exposed.
+function sha(s) {
+  const k = secretKey();
+  if (!k) return crypto.createHash("sha256").update(s).digest("hex");
+  return crypto.createHmac("sha256", k).update(s).digest("hex");
+}
 function jsonCors(code, obj) { return json(code, obj, CORS); }
 
 exports.handler = async function (event) {

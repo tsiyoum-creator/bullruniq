@@ -266,7 +266,11 @@ exports.handler = async function (event) {
           const payload = transform ? transform(c.data) : c.data;
           const ageMs = Date.now() - (c.at || 0);
           const staleHeaders = { ...CORS, "X-Cache-Status": "STALE", "X-Cache-Age": String(Math.floor(ageMs / 1000)) };
-          const body = typeof payload === "object" ? { ...payload, _stale: true } : payload;
+          // Only add _stale to object payloads — spreading an array into {} would
+          // produce a broken numeric-keyed object instead of the expected array.
+          const body = Array.isArray(payload)
+            ? payload
+            : (payload && typeof payload === "object" ? { ...payload, _stale: true } : payload);
           return { statusCode: 200, headers: staleHeaders, body: JSON.stringify(body) };
         }
       } catch (e) {}

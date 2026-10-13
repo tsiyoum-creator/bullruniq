@@ -1,11 +1,7 @@
 // BullrunIQ — Daily Brief newsletter (scheduled).
 
 const MAX_SEND = 1000;
-const { listAllKeys, signUnsub } = require("./_lib");
-
-function esc(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+const { listAllKeys, signUnsub, esc } = require("./_lib");
 function briefToHtml(text) {
   return esc(text)
     .replace(/\*\*(.*?)\*\*/g, "<strong style='color:#f0ece4'>$1</strong>")
