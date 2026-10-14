@@ -223,6 +223,41 @@ exports.handler = async function (event) {
         return { sector: sk, label: SECTOR_LABELS[sk] || sk, leader: leader, avg7d: avg7d, coins: coins.length };
       }).sort(function (a, b) { return (b.avg7d || -Infinity) - (a.avg7d || -Infinity); });
     };
+  } else if (q.kind === "momentum") {
+    // Momentum filter: coins from the top 250 that are positive over both 7d and 30d.
+    // This surfaces assets showing sustained buying pressure across two timeframes,
+    // which historically precedes further gains more reliably than 24h-only signals.
+    // Ranked by a composite score: (change7d * 0.4) + (change30d * 0.6).
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:top250_momentum";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) {
+          return typeof c.price_change_percentage_7d_in_currency === "number" &&
+            typeof c.price_change_percentage_30d_in_currency === "number" &&
+            c.price_change_percentage_7d_in_currency > 0 &&
+            c.price_change_percentage_30d_in_currency > 0 &&
+            c.market_cap > 50e6; // filter micro-caps
+        })
+        .map(function (c) {
+          const change7d = c.price_change_percentage_7d_in_currency;
+          const change30d = c.price_change_percentage_30d_in_currency;
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            market_cap: c.market_cap,
+            change_7d: change7d,
+            change_30d: change30d,
+            momentum_score: (change7d * 0.4) + (change30d * 0.6),
+          };
+        })
+        .sort(function (a, b) { return b.momentum_score - a.momentum_score; })
+        .slice(0, 25);
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -232,7 +267,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum or ids=..." }) };
   }
 
   const blobs = require("@netlify/blobs");

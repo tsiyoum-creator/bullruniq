@@ -66,7 +66,7 @@ exports.handler = async function (event) {
         const existing = (await customers.get(email, { type: "json" })) || { email: email };
         const updated = Object.assign({}, existing, {
           email: email,
-          tier: (obj.metadata && obj.metadata.tier) || existing.tier || "pro",
+          tier: (["pro", "elite", "advisor"].includes(obj.metadata && obj.metadata.tier) ? obj.metadata.tier : null) || existing.tier || "pro",
           customer: cid || existing.customer,
           subscription: obj.subscription || existing.subscription,
           status: "active",

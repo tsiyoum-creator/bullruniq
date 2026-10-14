@@ -309,14 +309,15 @@ console.log("\n--- profit-lock ladder ---");
 function ladderFor(avg, qty, price) {
   if (!avg || avg <= 0 || !qty || qty <= 0) return null;
   const g = (price - avg) / avg * 100;
-  if (g < 20) return null;
+  if (g < 10) return null; // matches alerts.js computeLadder threshold
   const rungs = [25, 50, 100, 200].map(pc => {
     const lp = avg * (1 + pc / 100);
     return { pct: pc, price: lp, qty: qty * 0.25, hit: price >= lp };
   });
   return { gainPct: g, rungs, hits: rungs.filter(r => r.hit) };
 }
-assert(ladderFor(100, 10, 110) === null, "no ladder under +20% gain");
+assert(ladderFor(100, 10, 109) === null, "gain below 10% returns null");
+assert(ladderFor(100, 10, 110) !== null, "gain at exactly 10% returns ladder");
 assert(ladderFor(0, 10, 500) === null, "no ladder without cost basis");
 assert(ladderFor(100, 0, 500) === null, "no ladder without qty");
 const lad = ladderFor(100, 10, 160);
@@ -345,8 +346,9 @@ function shouldResetLadder(avg, price, prevHits) {
 }
 
 const ladderHolding = { ticker: "SOL", avg: 100, qty: 10 };
-assert(!shouldSendLadderAlert({ ...ladderHolding }, 110), "no ladder alert under +20%");
-assert(!shouldSendLadderAlert({ ...ladderHolding }, 120), "no alert at +20% (below first rung)");
+assert(!shouldSendLadderAlert({ ...ladderHolding }, 109), "no ladder alert below +10% gain");
+assert(!shouldSendLadderAlert({ ...ladderHolding }, 110), "no alert at +10% (ladder active but no rungs hit yet)");
+assert(!shouldSendLadderAlert({ ...ladderHolding }, 120), "no alert at +20% (below first rung at +25%)");
 assert(shouldSendLadderAlert({ ...ladderHolding }, 126), "alert when first rung (+25%) crossed");
 assert(!shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 130), "no re-alert same rung");
 assert(shouldSendLadderAlert({ ...ladderHolding, serverLadderHits: 1 }, 151), "alert when second rung (+50%) crossed");

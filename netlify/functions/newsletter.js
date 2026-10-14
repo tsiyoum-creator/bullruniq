@@ -123,6 +123,7 @@ exports.handler = async function (event) {
   const BATCH = 10;
   let sent = 0, failed = 0;
   const batch = subs.slice(0, MAX_SEND);
+  if (subs.length > MAX_SEND) console.warn("[newsletter] truncated to " + MAX_SEND + " — " + (subs.length - MAX_SEND) + " subscribers skipped; raise MAX_SEND or paginate");
 
   // Write the dedup guard BEFORE sending so a Lambda timeout mid-send doesn't
   // cause the full list to be re-emailed on the next scheduled run.
