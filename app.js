@@ -2,13 +2,17 @@
    #IWill — app.js
    ================================================================ */
 
+// NOTE: This file appears to belong to a separate project (IWill challenge).
+// The Firebase credentials below have been redacted. If this file is needed,
+// inject the real values at build time via environment variables — never commit
+// live API keys or app IDs directly into source code.
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAn0deVxcR66YOEiIYD05hyDnzrrroUUvM",
-  authDomain:        "iwill-challenge.firebaseapp.com",
-  projectId:         "iwill-challenge",
-  storageBucket:     "iwill-challenge.firebasestorage.app",
-  messagingSenderId: "684886358059",
-  appId:             "1:684886358059:web:4e15e02f501b113880126e"
+  apiKey:            typeof FIREBASE_API_KEY !== "undefined" ? FIREBASE_API_KEY : "CONFIGURE_VIA_ENV",
+  authDomain:        typeof FIREBASE_AUTH_DOMAIN !== "undefined" ? FIREBASE_AUTH_DOMAIN : "",
+  projectId:         typeof FIREBASE_PROJECT_ID !== "undefined" ? FIREBASE_PROJECT_ID : "",
+  storageBucket:     typeof FIREBASE_STORAGE_BUCKET !== "undefined" ? FIREBASE_STORAGE_BUCKET : "",
+  messagingSenderId: typeof FIREBASE_MESSAGING_SENDER_ID !== "undefined" ? FIREBASE_MESSAGING_SENDER_ID : "",
+  appId:             typeof FIREBASE_APP_ID !== "undefined" ? FIREBASE_APP_ID : "",
 };
 
 const FIREBASE_READY = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";

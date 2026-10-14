@@ -58,7 +58,7 @@ exports.handler = async function (event) {
     try {
       const c = await cache.get("news", { type: "json" });
       if (c && Date.now() - c.fetchedAt < TTL_MS) {
-        const items = tickers.length ? rankByTickers(c.items, tickers) : c.items;
+        const items = tickers.length ? rankByTickers(c.items, tickers) : c.items.slice(0, 20);
         return { statusCode: 200, headers: CORS, body: JSON.stringify({ items, cached: true }) };
       }
     } catch (e) {}

@@ -20,7 +20,7 @@ const CORS = {
 // infeasible to brute-force even if the blob store were exposed.
 function sha(s) {
   const k = secretKey();
-  if (!k) return crypto.createHash("sha256").update(s).digest("hex");
+  if (!k) throw new Error("AUTH_SECRET not configured");
   return crypto.createHmac("sha256", k).update(s).digest("hex");
 }
 function jsonCors(code, obj) { return json(code, obj, CORS); }
