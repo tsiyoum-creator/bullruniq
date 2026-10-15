@@ -5,6 +5,16 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
+// Stablecoins and wrapped tokens whose volume/market-cap ratio is structurally
+// high and carries no directional signal. Excluded from volume_leaders.
+const STABLE_AND_WRAPPED_IDS = new Set([
+  "tether", "usd-coin", "dai", "binance-usd", "trueusd", "pax-dollar",
+  "ethena-usde", "agora-dollar", "paypal-usd", "usual", "resolv",
+  "frax", "liquity-usd", "crvusd", "gemini-dollar",
+  "wrapped-bitcoin", "coinbase-wrapped-btc", "wrapped-eeth", "wrapped-staked-ether",
+  "staked-ether", "rocket-pool-eth", "mantle-staked-ether",
+]);
+
 // Shared sector taxonomy — used by both `sectors` and `sector_leaders` endpoints.
 const SECTOR_IDS_LIST = [
   "bitcoin", "ethereum", "solana", "avalanche-2", "near", "aptos", "sui",
@@ -73,9 +83,10 @@ exports.handler = async function (event) {
       });
     };
   } else if (q.kind === "fear_greed") {
-    // Fear & Greed index + BTC dominance snapshot for dashboard widgets
-    upstream = "https://api.alternative.me/fng/?limit=7";
-    key = "mkt:fear_greed";
+    // Fear & Greed index. Optional ?limit=N (1–30) controls history depth; default 7.
+    const fgLimit = Math.min(30, Math.max(1, parseInt(q.limit, 10) || 7));
+    upstream = "https://api.alternative.me/fng/?limit=" + fgLimit;
+    key = "mkt:fear_greed:" + fgLimit;
     ttl = 60 * 60000; // hourly — index updates once per day
     transform = function (data) {
       if (!data || !Array.isArray(data.data)) return data;
@@ -170,7 +181,9 @@ exports.handler = async function (event) {
     transform = function (data) {
       if (!Array.isArray(data)) return data;
       return data
-        .filter(function (c) { return c.market_cap > 0 && c.total_volume > 0; })
+        .filter(function (c) {
+          return c.market_cap > 0 && c.total_volume > 0 && !STABLE_AND_WRAPPED_IDS.has(c.id);
+        })
         .map(function (c) {
           return {
             id: c.id,
@@ -267,7 +280,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum or ids=..." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");

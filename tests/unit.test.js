@@ -1,7 +1,13 @@
 // Unit tests for BullrunIQ pure utility functions.
 // Run with: node tests/unit.test.js
+//
+// Functions are imported directly from source files so tests verify the
+// actual production implementations — not stale copies.
 
 const crypto = require("crypto");
+const path = require("path");
+
+const fnDir = path.join(__dirname, "../netlify/functions");
 
 let passed = 0, failed = 0;
 function assert(condition, label) {
@@ -14,22 +20,7 @@ function approx(a, b, eps) { return Math.abs(a - b) <= (eps || 0.001); }
 // stripe-webhook: verifyStripe
 // ─────────────────────────────────────────────────────────────────────────────
 
-function verifyStripe(rawBody, sigHeader, secret) {
-  if (!sigHeader || !secret) return false;
-  const parts = {};
-  String(sigHeader).split(",").forEach(function (kv) {
-    const i = kv.indexOf("=");
-    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
-  });
-  if (!parts.t || !parts.v1) return false;
-  const signed = parts.t + "." + rawBody;
-  const expected = crypto.createHmac("sha256", secret).update(signed, "utf8").digest("hex");
-  try {
-    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) return false;
-  } catch (e) { return false; }
-  const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
-  return age <= 300;
-}
+const { verifyStripe } = require(path.join(fnDir, "stripe-webhook"));
 
 console.log("\n--- stripe-webhook: verifyStripe ---");
 {
@@ -56,14 +47,10 @@ console.log("\n--- stripe-webhook: verifyStripe ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// alerts: regimeLadderRungs
+// alerts: regimeLadderRungs, computeLadder, shouldResetLadder, cgId
 // ─────────────────────────────────────────────────────────────────────────────
 
-function regimeLadderRungs(regime) {
-  if (regime === "longend" || regime === "squeeze") return [15, 30, 60, 100];
-  if (regime === "liquidity" || regime === "fiscdom") return [25, 50, 100, 200];
-  return [25, 50, 100, 200];
-}
+const { regimeLadderRungs, computeLadder, shouldResetLadder, cgId } = require(path.join(fnDir, "alerts"));
 
 console.log("\n--- alerts: regimeLadderRungs ---");
 {
@@ -76,28 +63,13 @@ console.log("\n--- alerts: regimeLadderRungs ---");
   assert(JSON.stringify(regimeLadderRungs(undefined)) === JSON.stringify([25, 50, 100, 200]), "undefined regime: default rungs");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// alerts: computeLadder
-// ─────────────────────────────────────────────────────────────────────────────
-
-function computeLadder(avg, qty, price, regime) {
-  if (!avg || avg <= 0 || !qty || qty <= 0) return null;
-  const gainPct = (price - avg) / avg * 100;
-  if (gainPct < 10) return null;
-  const rungs = regimeLadderRungs(regime).map(function (pc) {
-    const ladderPrice = avg * (1 + pc / 100);
-    return { pct: pc, price: ladderPrice, qty: qty * 0.25, hit: price >= ladderPrice };
-  });
-  return { gainPct: gainPct, rungs: rungs, hits: rungs.filter(function (r) { return r.hit; }) };
-}
-
 console.log("\n--- alerts: computeLadder ---");
 {
   // Below 10% gain → null
   assert(computeLadder(100, 10, 105, "liquidity") === null, "gain < 10% returns null");
   assert(computeLadder(100, 10, 109.9, "liquidity") === null, "gain exactly 9.9% returns null");
 
-  // Exactly at 10% gain → ladder computed (10 >= 10 is a boundary — verify)
+  // Exactly at 10% gain → ladder computed
   const at10 = computeLadder(100, 10, 110, "liquidity");
   assert(at10 !== null, "gain = 10% returns ladder");
   assert(approx(at10.gainPct, 10), "gainPct correct at 10%");
@@ -124,17 +96,6 @@ console.log("\n--- alerts: computeLadder ---");
   assert(computeLadder(null, 10, 100, "liquidity") === null, "null avg returns null");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// alerts: shouldResetLadder
-// ─────────────────────────────────────────────────────────────────────────────
-
-function shouldResetLadder(avg, price, prevHits) {
-  if (!prevHits) return false;
-  if (!avg || avg <= 0) return false;
-  const gainPct = (price - avg) / avg * 100;
-  return gainPct < 10;
-}
-
 console.log("\n--- alerts: shouldResetLadder ---");
 {
   assert(shouldResetLadder(100, 105, 2) === true, "price at +5% with hits → reset");
@@ -147,48 +108,24 @@ console.log("\n--- alerts: shouldResetLadder ---");
   assert(shouldResetLadder(null, 105, 2) === false, "null avg → no reset");
 }
 
+console.log("\n--- alerts: cgId ---");
+{
+  assert(cgId("BTC") === "bitcoin", "BTC resolves to bitcoin");
+  assert(cgId("ETH") === "ethereum", "ETH resolves to ethereum");
+  assert(cgId("SOL") === "solana", "SOL resolves to solana");
+  assert(cgId("btc") === "bitcoin", "lowercase btc resolves to bitcoin");
+  // Unknown ticker falls back to lowercase if safe
+  assert(cgId("NEWTOKEN") === "newtoken", "unknown safe ticker returns lowercase");
+  // Unsafe ticker (special chars) returns null
+  assert(cgId("TICK!ER") === null, "ticker with special chars returns null");
+  assert(cgId("ABC SPACE") === null, "ticker with space returns null");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// sync: validateUserData
+// sync: validateUserData, stripServerFlags
 // ─────────────────────────────────────────────────────────────────────────────
 
-function validateUserData(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
-  if (data.cash !== undefined) {
-    if (typeof data.cash !== "number" || !isFinite(data.cash) || data.cash < 0 || data.cash > 1e9) return false;
-  }
-  if (data.cashApy !== undefined) {
-    if (typeof data.cashApy !== "number" || !isFinite(data.cashApy) || data.cashApy < 0 || data.cashApy > 100) return false;
-  }
-  if (data.port && data.port.crypto !== undefined) {
-    if (!Array.isArray(data.port.crypto)) return false;
-    if (data.port.crypto.length > 200) return false;
-    for (const h of data.port.crypto) {
-      if (!h || typeof h !== "object") return false;
-      if (h.ticker && typeof h.ticker !== "string") return false;
-      if (h.ticker && h.ticker.length > 20) return false;
-      if (h.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(h.ticker)) return false;
-      if (h.name !== undefined && (typeof h.name !== "string" || h.name.length > 100)) return false;
-      if (h.qty !== undefined && (typeof h.qty !== "number" || !isFinite(h.qty) || h.qty < 0)) return false;
-      if (h.avg !== undefined && (typeof h.avg !== "number" || !isFinite(h.avg) || h.avg < 0)) return false;
-      if (h.stop !== undefined && (typeof h.stop !== "number" || !isFinite(h.stop) || h.stop < 0)) return false;
-      if (h.tp !== undefined && (typeof h.tp !== "number" || !isFinite(h.tp) || h.tp < 0)) return false;
-    }
-  }
-  if (data.wl !== undefined) {
-    if (!Array.isArray(data.wl)) return false;
-    if (data.wl.length > 100) return false;
-    for (const w of data.wl) {
-      if (!w || typeof w !== "object") return false;
-      if (w.ticker && typeof w.ticker !== "string") return false;
-      if (w.ticker && w.ticker.length > 20) return false;
-      if (w.ticker && !/^[A-Za-z0-9._-]{1,20}$/.test(w.ticker)) return false;
-      if (w.name !== undefined && (typeof w.name !== "string" || w.name.length > 100)) return false;
-      if (w.targetPrice !== undefined && (typeof w.targetPrice !== "number" || !isFinite(w.targetPrice) || w.targetPrice < 0)) return false;
-      if (w.sellTarget !== undefined && (typeof w.sellTarget !== "number" || !isFinite(w.sellTarget) || w.sellTarget < 0)) return false;
-    }
-  }
-  return true;
-}
+const { validateUserData, stripServerFlags } = require(path.join(fnDir, "sync"));
 
 console.log("\n--- sync: validateUserData ---");
 {
@@ -233,38 +170,6 @@ console.log("\n--- sync: validateUserData ---");
   assert(validateUserData({ wl: new Array(101).fill({ ticker: "ETH" }) }) === false, "watchlist > 100 rejected");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// sync: stripServerFlags
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SERVER_ALERT_FLAGS = new Set([
-  "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
-  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
-]);
-
-function stripServerFlags(data) {
-  if (!data || typeof data !== "object") return data;
-  const out = Object.assign({}, data);
-  if (out.port && Array.isArray(out.port.crypto)) {
-    out.port = Object.assign({}, out.port);
-    out.port.crypto = out.port.crypto.map(function (h) {
-      if (!h || typeof h !== "object") return h;
-      const cleaned = Object.assign({}, h);
-      for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
-      return cleaned;
-    });
-  }
-  if (Array.isArray(out.wl)) {
-    out.wl = out.wl.map(function (w) {
-      if (!w || typeof w !== "object") return w;
-      const cleaned = Object.assign({}, w);
-      for (const flag of SERVER_ALERT_FLAGS) delete cleaned[flag];
-      return cleaned;
-    });
-  }
-  return out;
-}
-
 console.log("\n--- sync: stripServerFlags ---");
 {
   const dirty = {
@@ -307,44 +212,7 @@ console.log("\n--- sync: stripServerFlags ---");
 // news: scoreByTickers + rankByTickers + parseRss
 // ─────────────────────────────────────────────────────────────────────────────
 
-function scoreByTickers(title, tickers) {
-  const lower = title.toLowerCase();
-  return tickers.reduce(function (n, tk) { return n + (lower.includes(tk.toLowerCase()) ? 1 : 0); }, 0);
-}
-
-function decodeEntities(s) {
-  return String(s)
-    .replace(/<!\[CDATA\[|\]\]>/g, "")
-    .replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(+n); })
-    .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#039;|&apos;/g, "'")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim();
-}
-function parseRss(xml, source) {
-  const items = [];
-  const chunks = String(xml).split(/<item[\s>]/).slice(1, 12);
-  for (const c of chunks) {
-    const t = (c.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
-    const l = (c.match(/<link>([\s\S]*?)<\/link>/) || [])[1];
-    const d = (c.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1];
-    if (t && l) {
-      const at = d ? new Date(d).getTime() : Date.now();
-      const url = decodeEntities(l);
-      if (!/^https?:\/\//i.test(url)) continue;
-      items.push({ t: decodeEntities(t).slice(0, 160), u: url, s: source, at: isNaN(at) ? Date.now() : at });
-    }
-  }
-  return items;
-}
-function rankByTickers(items, tickers) {
-  const scored = items.map(function (item) {
-    return { item, score: scoreByTickers(item.t, tickers) };
-  });
-  scored.sort(function (a, b) {
-    if (b.score !== a.score) return b.score - a.score;
-    return b.item.at - a.item.at;
-  });
-  return scored.slice(0, 20).map(function (x) { return x.item; });
-}
+const { scoreByTickers, rankByTickers, parseRss } = require(path.join(fnDir, "news"));
 
 console.log("\n--- news: scoreByTickers ---");
 {
@@ -403,6 +271,10 @@ console.log("\n--- news: parseRss ---");
   const longRss = `<rss><channel><item><title>${longTitle}</title><link>https://example.com</link></item></channel></rss>`;
   const longItems = parseRss(longRss, "X");
   assert(longItems.length === 1 && longItems[0].t.length === 160, "title truncated to 160 chars");
+
+  // javascript: URLs rejected
+  const jsRss = `<rss><channel><item><title>Test</title><link>javascript:alert(1)</link></item></channel></rss>`;
+  assert(parseRss(jsRss, "X").length === 0, "javascript: URL rejected");
 }
 
 console.log("\n--- news: rankByTickers ---");
@@ -428,6 +300,74 @@ console.log("\n--- news: rankByTickers ---");
   // No matching tickers — falls back to recency order
   const noMatch = rankByTickers(items, ["XRP"]);
   assert(noMatch[0].at >= noMatch[noMatch.length - 1].at, "no-match items sorted by recency");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate: validateMessages
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { validateMessages } = require(path.join(fnDir, "generate"));
+
+console.log("\n--- generate: validateMessages ---");
+{
+  // Valid cases
+  assert(validateMessages([{ role: "user", content: "hello" }]) === true, "single user message valid");
+  assert(validateMessages([
+    { role: "user", content: "hi" },
+    { role: "assistant", content: "hello" },
+  ]) === true, "multi-turn conversation valid");
+
+  // Array content with text blocks
+  assert(validateMessages([{
+    role: "user",
+    content: [{ type: "text", text: "hello" }],
+  }]) === true, "array content with text block valid");
+
+  // Invalid structures
+  assert(validateMessages(null) === false, "null rejected");
+  assert(validateMessages([]) === false, "empty array rejected");
+  assert(validateMessages("string") === false, "string rejected");
+  assert(validateMessages(new Array(41).fill({ role: "user", content: "x" })) === false, "41 messages rejected");
+  assert(validateMessages([{ role: "system", content: "x" }]) === false, "system role rejected");
+  assert(validateMessages([{ role: "user", content: 42 }]) === false, "numeric content rejected");
+  assert(validateMessages([{ role: "user", content: null }]) === false, "null content rejected");
+
+  // Content length limit
+  assert(validateMessages([{ role: "user", content: "x".repeat(20001) }]) === false, "content > 20000 chars rejected");
+  assert(validateMessages([{ role: "user", content: "x".repeat(20000) }]) === true, "content at 20000 chars accepted");
+
+  // Message count boundary
+  assert(validateMessages(new Array(40).fill({ role: "user", content: "x" })) === true, "exactly 40 messages accepted");
+
+  // Array content block validation
+  assert(validateMessages([{
+    role: "user",
+    content: [{ type: "image", source: {} }],
+  }]) === true, "image block type accepted");
+  assert(validateMessages([{
+    role: "user",
+    content: [{ type: "evil_type", text: "x" }],
+  }]) === false, "unknown block type rejected");
+  assert(validateMessages([{
+    role: "user",
+    content: [{ type: "text", text: 42 }],
+  }]) === false, "text block with non-string text rejected");
+  assert(validateMessages([{
+    role: "user",
+    content: ["not an object"],
+  }]) === false, "non-object content block rejected");
+  assert(validateMessages([{
+    role: "user",
+    content: new Array(21).fill({ type: "text", text: "x" }),
+  }]) === false, "content array > 20 blocks rejected");
+  assert(validateMessages([{
+    role: "user",
+    content: new Array(20).fill({ type: "text", text: "x" }),
+  }]) === true, "content array at 20 blocks accepted");
+  assert(validateMessages([{
+    role: "user",
+    content: [{ type: "text", text: "x".repeat(20001) }],
+  }]) === false, "text block > 20000 chars rejected");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

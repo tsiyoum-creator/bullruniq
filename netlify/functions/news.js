@@ -96,6 +96,11 @@ exports.handler = async function (event) {
   return { statusCode: 200, headers: CORS, body: JSON.stringify({ items: finalItems }) };
 };
 
+exports.decodeEntities = decodeEntities;
+exports.parseRss = parseRss;
+exports.scoreByTickers = scoreByTickers;
+exports.rankByTickers = rankByTickers;
+
 // Re-sort items so ticker-matched headlines bubble to the top, preserving recency within each tier.
 function rankByTickers(items, tickers) {
   const scored = items.map(function (item) {

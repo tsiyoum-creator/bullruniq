@@ -93,6 +93,9 @@ function validateUserData(data) {
 
 function jsonCors(code, obj) { return json(code, obj, CORS); }
 
+exports.validateUserData = validateUserData;
+exports.stripServerFlags = stripServerFlags;
+
 exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
   const h = event.headers || {};
