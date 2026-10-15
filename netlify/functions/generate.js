@@ -2,7 +2,6 @@
 
 const crypto = require("crypto");
 const { verifyToken, planFor } = require("./_lib");
-const { getStore: getBlobStore } = require("@netlify/blobs");
 
 const ALLOWED_MODELS = new Set([
   "claude-fable-5-1",
@@ -66,6 +65,7 @@ function secondsUntilMidnightUTC() {
 }
 
 const ALLOWED_ROLES = new Set(["user", "assistant"]);
+const ALLOWED_BLOCK_TYPES = new Set(["text", "image", "tool_use", "tool_result"]);
 
 function validateMessages(messages) {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
@@ -74,7 +74,17 @@ function validateMessages(messages) {
     if (!ALLOWED_ROLES.has(m.role)) return false;
     if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
     if (typeof m.content === "string" && m.content.length > 20000) return false;
-    if (Array.isArray(m.content) && m.content.length > 20) return false;
+    if (Array.isArray(m.content)) {
+      if (m.content.length > 20) return false;
+      for (const block of m.content) {
+        if (!block || typeof block !== "object") return false;
+        if (typeof block.type !== "string" || !ALLOWED_BLOCK_TYPES.has(block.type)) return false;
+        if (block.type === "text") {
+          if (typeof block.text !== "string") return false;
+          if (block.text.length > 20000) return false;
+        }
+      }
+    }
   }
   return true;
 }
@@ -115,6 +125,8 @@ async function dailyOk(key, cap) {
   }
 }
 
+exports.validateMessages = validateMessages;
+
 exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
   if (event.httpMethod !== "POST") return { statusCode: 405, headers: CORS, body: "Method Not Allowed" };
@@ -124,6 +136,7 @@ exports.handler = async function (event) {
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: { message: "Server AI is not configured." } }) };
   }
 
+  const { getStore: getBlobStore } = require("@netlify/blobs");
   try { require("@netlify/blobs").connectLambda(event); } catch (e) {}
   const ip = clientIp(event);
   const h = event.headers || {};

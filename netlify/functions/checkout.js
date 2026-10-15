@@ -36,6 +36,10 @@ exports.handler = async function (event) {
   // Stripe checkout sessions with arbitrary victim addresses.
   const email = authedEmail || "";
 
+  if (!authedEmail) {
+    return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: "Login required to upgrade your plan." }) };
+  }
+
   if (!VALID_TIERS.has(tier)) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Invalid tier. Must be one of: pro, elite, advisor." }) };
   }

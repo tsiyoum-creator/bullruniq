@@ -2,6 +2,8 @@
 
 const crypto = require("crypto");
 
+
+
 function verifyStripe(rawBody, sigHeader, secret) {
   if (!sigHeader || !secret) return false;
   const parts = {};
@@ -18,6 +20,8 @@ function verifyStripe(rawBody, sigHeader, secret) {
   const age = Math.abs(Math.floor(Date.now() / 1000) - parseInt(parts.t, 10));
   return age <= 300;
 }
+
+exports.verifyStripe = verifyStripe;
 
 exports.handler = async function (event) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -91,6 +95,7 @@ exports.handler = async function (event) {
         if (priceId === process.env.STRIPE_PRICE_ADVISOR) tier = "advisor";
         else if (priceId === process.env.STRIPE_PRICE_ELITE) tier = "elite";
         else if (priceId === process.env.STRIPE_PRICE_PRO) tier = "pro";
+        else console.warn("[stripe-webhook] price ID '" + priceId + "' did not match any STRIPE_PRICE_* env var — tier not updated. Set STRIPE_PRICE_PRO, STRIPE_PRICE_ELITE, STRIPE_PRICE_ADVISOR.");
       }
       await setStatus(obj.customer, obj.status || "active", tier);
     } else if (evt.type === "invoice.payment_failed") {

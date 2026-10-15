@@ -159,16 +159,17 @@ function tpAlertHtml(h, price, email) {
     + emailFooter(unsubUrl(email));
 }
 
-function athProximityAlertHtml(h, price, athPrice, athChangePct, email) {
+function athProximityAlertHtml(h, price, athPrice, athChangePct, email, athDate) {
   const name = esc(h.name || h.ticker);
   const ticker = esc(h.ticker);
   const gainPct = h.avg > 0 ? ((price - h.avg) / h.avg * 100) : null;
   const value = price * (h.qty || 0);
+  const athDateStr = athDate ? " (set " + new Date(athDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) + ")" : "";
   return emailHeader()
     + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;margin-bottom:10px'>🏔️ Near all-time high</div>"
     + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " within 10% of its ATH</div>"
     + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 12px'>"
-    + name + " is at <b style='color:#c9a84c'>" + fp(price) + "</b> — just <b style='color:#c9a84c'>" + Math.abs(athChangePct).toFixed(1) + "%</b> below its all-time high of <b style='color:#f0ece4'>" + fp(athPrice) + "</b>.</div>"
+    + name + " is at <b style='color:#c9a84c'>" + fp(price) + "</b> — just <b style='color:#c9a84c'>" + Math.abs(athChangePct).toFixed(1) + "%</b> below its all-time high of <b style='color:#f0ece4'>" + fp(athPrice) + "</b><span style='color:#5c574e;font-size:12px'>" + athDateStr + "</span>.</div>"
     + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:6px'>Your position is up <b>" + pct(gainPct) + "</b> from your avg cost of " + fp(h.avg) + ".</div>" : "")
     + (value > 0 ? "<div style='font-size:13px;color:#f0ece4;margin-bottom:22px'>Current value: <b>" + fp(value) + "</b></div>" : "<div style='margin-bottom:22px'></div>")
     + "<div style='color:#8a8278;font-size:13px;line-height:1.7;max-width:420px;margin:0 auto 22px'>ATH proximity is historically one of the strongest distribution signals. Consider taking partial profits here if you haven't started yet — the profit-ladder framework suggests selling 25% increments at +25%, +50%, +100%, and +200% from cost.</div>"
@@ -236,6 +237,11 @@ function shouldResetLadder(avg, price, prevHits) {
   const gainPct = (price - avg) / avg * 100;
   return gainPct < 10;
 }
+
+exports.regimeLadderRungs = regimeLadderRungs;
+exports.computeLadder = computeLadder;
+exports.shouldResetLadder = shouldResetLadder;
+exports.cgId = cgId;
 
 exports.handler = async function (event) {
   const RESEND = process.env.RESEND_API_KEY;
@@ -314,7 +320,7 @@ exports.handler = async function (event) {
       if (Array.isArray(coins)) {
         coins.forEach(function (c) {
           if (c.id && typeof c.ath === "number" && typeof c.ath_change_percentage === "number") {
-            athData[c.id] = { ath: c.ath, ath_change_pct: c.ath_change_percentage };
+            athData[c.id] = { ath: c.ath, ath_change_pct: c.ath_change_percentage, ath_date: c.ath_date || null };
           }
         });
       }
@@ -380,7 +386,7 @@ exports.handler = async function (event) {
         if (ath && ath.ath_change_pct >= -10 && ath.ath_change_pct <= 0) {
           if (!h.serverAthAlerted) {
             try {
-              const ok = await sendEmail(RESEND, email, "🏔️ " + h.ticker + " within 10% of its all-time high — profit-taking zone", athProximityAlertHtml(h, p, ath.ath, ath.ath_change_pct, email), FROM);
+              const ok = await sendEmail(RESEND, email, "🏔️ " + h.ticker + " within 10% of its all-time high — profit-taking zone", athProximityAlertHtml(h, p, ath.ath, ath.ath_change_pct, email, ath.ath_date), FROM);
               if (ok) { sent++; sentThisUser++; h.serverAthAlerted = true; changed = true; console.log("[alerts] ath-proximity " + email + " " + h.ticker + " @ " + p + " (" + ath.ath_change_pct.toFixed(1) + "% from ATH)"); }
             } catch (e) { console.log("[alerts] ath proximity email error:", e.message); }
           }

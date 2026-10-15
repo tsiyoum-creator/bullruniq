@@ -26,9 +26,17 @@ exports.handler = async function (event) {
   const token = String(q.t || "").trim();
   const email = isValidEmail(raw) ? raw : "";
 
-  // When AUTH_SECRET is configured, require a valid HMAC token to prevent anyone
-  // who knows a subscriber's email from unsubscribing them without their consent.
-  if (email && secretKey()) {
+  // Always require a valid HMAC token. If AUTH_SECRET is not configured the server
+  // cannot verify any token, so reject rather than silently allowing unauthenticated
+  // unsubscribes (which would let anyone remove arbitrary subscribers by guessing emails).
+  if (email) {
+    if (!secretKey()) {
+      return {
+        statusCode: 500,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+        body: page("Unsubscribe service is temporarily unavailable. Please try again later."),
+      };
+    }
     if (!token || !verifyUnsub(email, token)) {
       return {
         statusCode: 400,

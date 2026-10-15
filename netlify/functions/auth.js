@@ -34,7 +34,8 @@ exports.handler = async function (event) {
   try { p = JSON.parse(event.body || "{}"); } catch (e) {}
   const action = p.action;
   const email = String(p.email || "").trim().toLowerCase();
-  if (!email || email.indexOf("@") < 1 || email.length > 200) return jsonCors(400, { error: "Enter a valid email." });
+  // Require at least one char before @, at least one char after @, and a dot in the domain.
+  if (!email || email.length > 200 || !/^[^\s@]{1,100}@[^\s@]{1,100}\.[^\s@]{1,50}$/.test(email)) return jsonCors(400, { error: "Enter a valid email." });
 
   const blobs = require("@netlify/blobs");
   try { blobs.connectLambda(event); } catch (e) {}

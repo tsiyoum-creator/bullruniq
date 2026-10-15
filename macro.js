@@ -10,6 +10,13 @@
    Plus buildMacroContext() for the AI and checkFalsifiers() for the brief.
    ================================================================ */
 
+// HTML-escape user-supplied strings before inserting into innerHTML templates.
+function escH(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
 /* ================================================================
    ░░ REFRESHABLE DATA BLOCK — everything verifiable lives here ░░
    To refresh: ask Claude to re-verify MACRO_DATA and republish.
@@ -364,12 +371,12 @@ function rExpo(){
     var flow=r.f?(MACRO_DATA.flows.find(function(f){return f.id===r.f;})||{}).n:null;
     var bn=r.b?(MACRO_DATA.bottlenecks.find(function(b){return b.id===r.b;})||{}).n:null;
     h+='<tr style="border-top:1px solid var(--b1)">';
-    h+='<td style="padding:7px 6px"><b style="font-size:12px">'+r.ticker+'</b><div style="font-size:10px;color:var(--t3)">'+(r.name||'')+'</div></td>';
+    h+='<td style="padding:7px 6px"><b style="font-size:12px">'+escH(r.ticker)+'</b><div style="font-size:10px;color:var(--t3)">'+escH(r.name||'')+'</div></td>';
     h+='<td style="padding:7px 6px;text-align:right" class="mono">'+f$(r.val)+'</td>';
     h+='<td style="padding:7px 6px">';
     if(r.kind==='cash'){h+='<span style="font-size:11px;color:var(--gold)">'+regimeName(r.r)+'</span>';}
     else{
-      h+='<select onchange="setTag(\''+r.ticker+'\',this.value)" style="background:var(--s2);border:1px solid var(--b2);color:var(--t);font-size:10px;padding:3px 5px;border-radius:3px;font-family:inherit">';
+      h+='<select onchange="setTag(\''+escH(r.ticker)+'\',this.value)" style="background:var(--s2);border:1px solid var(--b2);color:var(--t);font-size:10px;padding:3px 5px;border-radius:3px;font-family:inherit">';
       h+='<option value=""'+(r.r?'':' selected')+'>— untagged</option>';
       opts.forEach(function(o){h+='<option value="'+o.id+'"'+(r.r===o.id?' selected':'')+'>'+o.name+'</option>';});
       h+='</select>';
