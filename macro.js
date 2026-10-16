@@ -10,13 +10,6 @@
    Plus buildMacroContext() for the AI and checkFalsifiers() for the brief.
    ================================================================ */
 
-// HTML-escape user-supplied strings before inserting into innerHTML templates.
-function escH(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
-}
-
 /* ================================================================
    ░░ REFRESHABLE DATA BLOCK — everything verifiable lives here ░░
    To refresh: ask Claude to re-verify MACRO_DATA and republish.
@@ -24,7 +17,7 @@ function escH(s) {
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-13",
+  asOf: "2026-10-16",
 
   current: {
     regime: "longend",
@@ -168,7 +161,7 @@ function setTag(tk,rid){
 function regimeName(id){var r=MACRO_DATA.regimes.find(function(x){return x.id===id;});return r?r.name:'—';}
 function regimeById(id){return MACRO_DATA.regimes.find(function(x){return x.id===id;})||null;}
 
-/* ── Cash helpers ────────────────────────────────────────────────────────────────────────────
+/* ── Cash helpers ─────────────────────────────────────────────────────────────────────────────
    port.cash is a SCALAR dollar amount (set via setCash() in
    platform.html and used by Autopilot, cashCard and rAlloc). This
    layer reads it, it does not reshape it.
@@ -371,12 +364,12 @@ function rExpo(){
     var flow=r.f?(MACRO_DATA.flows.find(function(f){return f.id===r.f;})||{}).n:null;
     var bn=r.b?(MACRO_DATA.bottlenecks.find(function(b){return b.id===r.b;})||{}).n:null;
     h+='<tr style="border-top:1px solid var(--b1)">';
-    h+='<td style="padding:7px 6px"><b style="font-size:12px">'+escH(r.ticker)+'</b><div style="font-size:10px;color:var(--t3)">'+escH(r.name||'')+'</div></td>';
+    h+='<td style="padding:7px 6px"><b style="font-size:12px">'+r.ticker+'</b><div style="font-size:10px;color:var(--t3)">'+(r.name||'')+'</div></td>';
     h+='<td style="padding:7px 6px;text-align:right" class="mono">'+f$(r.val)+'</td>';
     h+='<td style="padding:7px 6px">';
     if(r.kind==='cash'){h+='<span style="font-size:11px;color:var(--gold)">'+regimeName(r.r)+'</span>';}
     else{
-      h+='<select onchange="setTag(\''+escH(r.ticker)+'\',this.value)" style="background:var(--s2);border:1px solid var(--b2);color:var(--t);font-size:10px;padding:3px 5px;border-radius:3px;font-family:inherit">';
+      h+='<select onchange="setTag('+JSON.stringify(r.ticker)+',this.value)" style="background:var(--s2);border:1px solid var(--b2);color:var(--t);font-size:10px;padding:3px 5px;border-radius:3px;font-family:inherit">';
       h+='<option value=""'+(r.r?'':' selected')+'>— untagged</option>';
       opts.forEach(function(o){h+='<option value="'+o.id+'"'+(r.r===o.id?' selected':'')+'>'+o.name+'</option>';});
       h+='</select>';
@@ -438,12 +431,11 @@ function buildMacroContext(){
     catalystsWithin21d:fw.soon.map(function(s){return s.n+' ('+s.d+')';})  
   };
 }
-var MACRO_AI_RULE=' You are given a macro regime read and an exposure map computed from the user\'s real holdings. Use these figures directly. If a value you need appears in noDataFor or is absent, say "insufficient data" for that point — never estimate or invent a number. Do not issue buy or sell instructions.';
+var MACRO_AI_RULE='You are given a macro regime read and an exposure map computed from the user\'s real holdings. Use these figures directly. If a value you need appears in noDataFor or is absent, say "insufficient data" for that point — never estimate or invent a number. Do not issue buy or sell instructions.';
 
 loadMacroTags();
 
-/* ── Node interop ──────────────────────────────────────────────────────────────────────────────
-   Netlify functions require() this same file so the regime data has
+/* ── Node interop ────────────────────────────────────────────────────────────────────────────────────────────\n   Netlify functions require() this same file so the regime data has
    exactly ONE source of truth. Everything above is browser-safe:
    the only top-level call is loadMacroTags(), whose localStorage
    access is inside try/catch, so it no-ops under Node.
