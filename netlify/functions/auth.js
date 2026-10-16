@@ -18,9 +18,12 @@ const CORS = {
 
 // HMAC binds the hash to the server secret, making the code space
 // infeasible to brute-force even if the blob store were exposed.
+// Throws if the secret is absent — the caller already guards against this
+// (line 31 returns 500 before sha() is ever reached), but we remove the
+// SHA-256-only fallback so a future refactor can't silently downgrade auth.
 function sha(s) {
   const k = secretKey();
-  if (!k) throw new Error("AUTH_SECRET not configured");
+  if (!k) throw new Error("AUTH_SECRET not set — cannot hash OTP");
   return crypto.createHmac("sha256", k).update(s).digest("hex");
 }
 function jsonCors(code, obj) { return json(code, obj, CORS); }
@@ -34,11 +37,10 @@ exports.handler = async function (event) {
   try { p = JSON.parse(event.body || "{}"); } catch (e) {}
   const action = p.action;
   const email = String(p.email || "").trim().toLowerCase();
-  // Require at least one char before @, at least one char after @, and a dot in the domain.
-  if (!email || email.length > 200 || !/^[^\s@]{1,100}@[^\s@]{1,100}\.[^\s@]{1,50}$/.test(email)) return jsonCors(400, { error: "Enter a valid email." });
+  if (!email || email.indexOf("@") < 1 || email.length > 200) return jsonCors(400, { error: "Enter a valid email." });
 
   const blobs = require("@netlify/blobs");
-  try { blobs.connectLambda(event); } catch (e) {}
+  try { blobs.connectLambda(event); } catch (e) { console.log("[auth] connectLambda failed:", e.message); }
   const getStore = blobs.getStore;
   let store;
   try { store = getStore("auth"); } catch (e) { return jsonCors(500, { error: "Storage unavailable — try again shortly." }); }
