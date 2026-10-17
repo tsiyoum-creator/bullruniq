@@ -439,7 +439,7 @@ exports.handler = async function (event) {
             const ok = await sendEmail(RESEND, email, "🎯 " + w.ticker + " hit your buy zone — now " + fp(p), buyAlertHtml(w, p, email), FROM);
             if (ok) { sent++; sentThisUser++; w.serverAlerted = true; changed = true; console.log("[alerts] buy " + email + " " + w.ticker + " @ " + p); }
           } catch (e) { console.log("[alerts] buy email error:", e.message); }
-        } else if (dist >= 5 && w.serverAlerted) {
+        } else if (dist >= 2 && w.serverAlerted) {
           w.serverAlerted = false; changed = true; // re-arm once price moves away
         }
       }

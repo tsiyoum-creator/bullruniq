@@ -97,7 +97,7 @@ exports.handler = async function (event) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTH, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: "claude-sonnet-5",
+        model: "claude-sonnet-5-5",
         max_tokens: 500,
         messages: [{ role: "user", content: "Write the BullrunIQ daily market brief as 4-5 short bullet points. Each bullet: an emoji + a **bold label** + one concrete sentence. Cover: the crypto market backdrop, the BTC trend, one altcoin/sector theme, the biggest risk to watch, and end with the macro regime read. Under 160 words. Educational, not financial advice — do NOT give buy or sell instructions. Use only the figures provided; if something is not given, omit it rather than estimating. Live data: BTC " + btc + ", Fear & Greed " + fg + "." + macroLine + " Date " + new Date().toUTCString() }],
       }),
