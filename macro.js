@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-16",
+  asOf: "2026-10-17",
 
   current: {
     regime: "longend",
@@ -435,7 +435,8 @@ var MACRO_AI_RULE='You are given a macro regime read and an exposure map compute
 
 loadMacroTags();
 
-/* ── Node interop ────────────────────────────────────────────────────────────────────────────────────────────\n   Netlify functions require() this same file so the regime data has
+/* ── Node interop ────────────────────────────────────────────────────────────────────────────────────────────
+   Netlify functions require() this same file so the regime data has
    exactly ONE source of truth. Everything above is browser-safe:
    the only top-level call is loadMacroTags(), whose localStorage
    access is inside try/catch, so it no-ops under Node.

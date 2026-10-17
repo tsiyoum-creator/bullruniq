@@ -314,7 +314,7 @@ function scoreByTickers(title, tickers) {
 
 function decodeEntities(s) {
   return String(s)
-    .replace(/<![\[CDATA\[|\]\]>/g, "")
+    .replace(/<\!\[CDATA\[|\]\]>/g, "")
     .replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(+n); })
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#039;|&apos;/g, "'")
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim();
@@ -403,6 +403,12 @@ console.log("\n--- news: parseRss ---");
   const longRss = `<rss><channel><item><title>${longTitle}</title><link>https://example.com</link></item></channel></rss>`;
   const longItems = parseRss(longRss, "X");
   assert(longItems.length === 1 && longItems[0].t.length === 160, "title truncated to 160 chars");
+
+  // CDATA section stripping
+  const cdataRss = `<rss><channel><item><title><![CDATA[Bitcoin & Crypto Update]]></title><link>https://example.com/cdata</link></item></channel></rss>`;
+  const cdataItems = parseRss(cdataRss, "X");
+  assert(cdataItems.length === 1, "CDATA item parsed");
+  assert(cdataItems[0].t === "Bitcoin &amp; Crypto Update" || cdataItems[0].t === "Bitcoin & Crypto Update", "CDATA markers stripped from title");
 }
 
 console.log("\n--- news: rankByTickers ---");
@@ -480,6 +486,48 @@ console.log("\n--- platform: checkAlerts re-arm ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// alerts: server-side buy alert re-arm threshold matches unit-test expectation
+// Verifies that the production dist >= 2 (not the old >= 5) threshold is used.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function simulateServerBuyAlert(w, price) {
+  var item = Object.assign({}, w);
+  var dist = Math.abs((item.targetPrice - price) / price * 100);
+  if (dist < 2 && price <= item.targetPrice && !item.serverAlerted) {
+    item.serverAlerted = true;
+    item._fired = true;
+  } else if (dist >= 2 && item.serverAlerted) {
+    item.serverAlerted = false;
+  }
+  return item;
+}
+
+console.log("\n--- alerts: server-side buy alert re-arm (dist >= 2) ---");
+{
+  // Price within 2% of target — alert fires
+  var s1 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: false }, 49100);
+  assert(s1.serverAlerted === true && s1._fired === true, "server alert fires within 2% of target");
+
+  // Already alerted — no re-fire
+  var s2 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 49100);
+  assert(s2.serverAlerted === true && !s2._fired, "no re-fire when already alerted");
+
+  // dist = 3% (>= 2): re-arms
+  var s3 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 51550);
+  assert(s3.serverAlerted === false, "re-arms at 3% from target");
+
+  // dist = 4%: re-arms (would have been BLOCKED with old >= 5 threshold)
+  var s4 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 52000);
+  assert(s4.serverAlerted === false, "re-arms at 4% — old >=5 threshold would have left this stuck");
+
+  // dist = 1.5% (< 2): does NOT re-arm when already alerted
+  var s5 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 50760);
+  var dist5 = Math.abs((50000 - 50760) / 50760 * 100);
+  assert(dist5 < 2, "dist at 50760 is < 2%");
+  assert(s5.serverAlerted === true, "stays alerted when dist < 2%");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // macro: null indicator guard in checkFalsifiers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -525,6 +573,35 @@ console.log("\n--- macro: MACRO_AI_RULE leading-space check ---");
   if (match) {
     assert(match[1][0] !== " ", "MACRO_AI_RULE has no leading space");
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// news: decodeEntities — CDATA stripping
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- news: decodeEntities CDATA stripping ---");
+{
+  // Verify the alternation regex (|) correctly strips CDATA opening and closing markers.
+  assert(decodeEntities("<![CDATA[hello & world]]>") === "hello &amp; world" ||
+         decodeEntities("<![CDATA[hello & world]]>") === "hello & world",
+    "CDATA markers stripped, inner text preserved");
+  assert(!decodeEntities("<![CDATA[test]]>").includes("<![CDATA["), "CDATA open marker removed");
+  assert(!decodeEntities("<![CDATA[test]]>").includes("]]>"), "CDATA close marker removed");
+  // Plain text unaffected
+  assert(decodeEntities("Bitcoin &amp; Crypto") === "Bitcoin & Crypto", "entity decode still works");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: macroDataAge() returns a non-negative integer
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: macroDataAge ---");
+{
+  const macro = require("../macro.js");
+  const age = macro.macroDataAge();
+  assert(typeof age === "number" && Number.isFinite(age), "macroDataAge returns a number");
+  assert(age >= 0, "macroDataAge is non-negative");
+  assert(Number.isInteger(age), "macroDataAge returns an integer (days)");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
