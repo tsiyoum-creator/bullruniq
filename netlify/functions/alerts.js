@@ -390,9 +390,32 @@ exports.handler = async function (event) {
               if (ok) { sent++; sentThisUser++; h.serverAthAlerted = true; changed = true; console.log("[alerts] ath-proximity " + email + " " + h.ticker + " @ " + p + " (" + ath.ath_change_pct.toFixed(1) + "% from ATH)"); }
             } catch (e) { console.log("[alerts] ath proximity email error:", e.message); }
           }
+        } else if (ath && ath.ath_change_pct > 0) {
+          // New ATH breakout — send a separate alert if not already alerted for this breakout
+          if (!h.serverNewAthAlerted && sent < MAX_EMAILS_PER_RUN && sentThisUser < MAX_EMAILS_PER_USER) {
+            const gainPct = h.avg > 0 ? ((p - h.avg) / h.avg * 100) : null;
+            const value = p * (h.qty || 0);
+            const html = emailHeader()
+              + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;margin-bottom:10px'>🚀 New all-time high</div>"
+              + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + esc(h.ticker) + " broke its previous ATH</div>"
+              + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 12px'>"
+              + esc(h.name || h.ticker) + " is now <b style='color:#c9a84c'>$" + p.toLocaleString("en-US", { maximumFractionDigits: 6 }) + "</b>, above its previous ATH of <b style='color:#f0ece4'>$" + (ath.ath || 0).toLocaleString("en-US", { maximumFractionDigits: 6 }) + "</b>.</div>"
+              + (gainPct !== null ? "<div style='font-size:13px;color:#4ade80;margin-bottom:6px'>Your position is up <b>+" + gainPct.toFixed(1) + "%</b> from avg cost.</div>" : "")
+              + (value > 0 ? "<div style='font-size:13px;color:#f0ece4;margin-bottom:22px'>Current value: <b>$" + value.toLocaleString("en-US", { maximumFractionDigits: 2 }) + "</b></div>" : "<div style='margin-bottom:22px'></div>")
+              + "<div style='color:#8a8278;font-size:13px;line-height:1.7;max-width:420px;margin:0 auto 22px'>New ATH territory often sees continued momentum short-term, but distribution risk is highest here. Consider using the profit-ladder: sell 25% increments at each new milestone rather than holding all or exiting all.</div>"
+              + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
+              + emailFooter(unsubUrl(email));
+            try {
+              const ok = await sendEmail(RESEND, email, "🚀 " + h.ticker + " broke its all-time high — new ATH territory", html, FROM);
+              if (ok) { sent++; sentThisUser++; h.serverNewAthAlerted = true; changed = true; console.log("[alerts] new-ath " + email + " " + h.ticker + " @ " + p); }
+            } catch (e) { console.log("[alerts] new-ath email error:", e.message); }
+          }
         } else if (ath && ath.ath_change_pct < -20 && h.serverAthAlerted) {
           // Re-arm once price falls more than 20% below ATH (moved out of distribution zone)
           h.serverAthAlerted = false; changed = true;
+        }
+        if (ath && ath.ath_change_pct < -20 && h.serverNewAthAlerted) {
+          h.serverNewAthAlerted = false; changed = true;
         }
       }
     }

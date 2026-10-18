@@ -236,6 +236,36 @@ exports.handler = async function (event) {
         return { sector: sk, label: SECTOR_LABELS[sk] || sk, leader: leader, avg7d: avg7d, coins: coins.length };
       }).sort(function (a, b) { return (b.avg7d || -Infinity) - (a.avg7d || -Infinity); });
     };
+  } else if (q.kind === "new_ath") {
+    // Coins from the top 250 that have recently set a new all-time high (ath_change_pct >= 0).
+    // A new ATH signals the strongest possible breakout momentum — no overhead resistance.
+    // Combine with the profit-ladder framework: these coins warrant a tight trailing stop
+    // and incremental sales rather than a full exit at once.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:top250_new_ath";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) {
+          return typeof c.ath_change_percentage === "number" && c.ath_change_percentage >= 0 &&
+            c.market_cap > 100e6;
+        })
+        .map(function (c) {
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            ath: c.ath,
+            ath_date: c.ath_date,
+            market_cap: c.market_cap,
+            change_7d: c.price_change_percentage_7d_in_currency,
+            change_30d: c.price_change_percentage_30d_in_currency,
+          };
+        })
+        .sort(function (a, b) { return (b.change_7d || 0) - (a.change_7d || 0); });
+    };
   } else if (q.kind === "momentum") {
     // Momentum filter: coins from the top 250 that are positive over both 7d and 30d.
     // This surfaces assets showing sustained buying pressure across two timeframes,
@@ -280,7 +310,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|new_ath or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");
