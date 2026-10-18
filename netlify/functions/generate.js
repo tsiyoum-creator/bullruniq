@@ -109,9 +109,9 @@ function burstOk(ip) {
   return e.n <= BURST_MAX;
 }
 
-async function dailyOk(key, cap) {
+async function dailyOk(key, cap, getBlobStoreFn) {
   try {
-    const store = getBlobStore("ai-usage");
+    const store = getBlobStoreFn("ai-usage");
     const today = new Date().toISOString().slice(0, 10);
     const storeKey = key + ":" + today;
     const cur = (await store.get(storeKey, { type: "json" })) || { count: 0 };
@@ -121,7 +121,7 @@ async function dailyOk(key, cap) {
     return true;
   } catch (e) {
     console.log("[generate] dailyOk store error:", e.message);
-    return false;
+    return true; // fail open to avoid blocking all requests when storage is unavailable
   }
 }
 
@@ -150,7 +150,7 @@ exports.handler = async function (event) {
       userPlan = await planFor(authedEmail, getBlobStore);
     } catch (e) {}
     const dailyCap = PLAN_DAILY_CAPS[userPlan] || PLAN_DAILY_CAPS.free;
-    if (!(await dailyOk("user:" + authedEmail, dailyCap))) {
+    if (!(await dailyOk("user:" + authedEmail, dailyCap, getBlobStore))) {
       const resetMsg = userPlan === "free"
         ? "Daily AI limit reached on the Free plan. Upgrade to Pro for 10× more AI calls."
         : "Daily AI limit reached. Resets at midnight UTC.";
@@ -161,7 +161,7 @@ exports.handler = async function (event) {
     if (!burstOk(ip)) {
       return { statusCode: 429, headers: { ...CORS, "Retry-After": "60", "X-RateLimit-Limit": String(BURST_MAX), "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 60) }, body: JSON.stringify({ error: { message: "Too many requests — slow down a moment and try again." } }) };
     }
-    if (!(await dailyOk("ip:" + ip, DAILY_IP_CAP))) {
+    if (!(await dailyOk("ip:" + ip, DAILY_IP_CAP, getBlobStore))) {
       const retryAfter = secondsUntilMidnightUTC();
       return { statusCode: 429, headers: { ...CORS, "Retry-After": retryAfter, "X-RateLimit-Limit": String(DAILY_IP_CAP), "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + parseInt(retryAfter, 10)) }, body: JSON.stringify({ error: { message: "Daily AI limit reached for this network. Log in or add your own API key in Settings for more." } }) };
     }

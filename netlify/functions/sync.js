@@ -23,7 +23,7 @@ const MAX_BYTES = 256 * 1024;
 // If a client POSTs these, we strip them before saving so alerts cannot be silenced.
 const SERVER_ALERT_FLAGS = new Set([
   "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
-  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
+  "serverLadderHits", "serverAthAlerted", "serverNewAthAlerted", "serverConcentrationAlerted",
 ]);
 
 function stripServerFlags(data) {
