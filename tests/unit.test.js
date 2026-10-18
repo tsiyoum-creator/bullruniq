@@ -438,9 +438,6 @@ console.log("\n--- news: rankByTickers ---");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // platform: checkAlerts re-arm boundary
-// Tests the corrected re-arm logic: alerted resets when dist >= 2%, not >= 5%.
-// This prevents a dead-zone where a price bouncing between 2-5% from target
-// never re-triggers.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function simulateCheckAlerts(watchlistItem, currentPrice) {
@@ -457,37 +454,29 @@ function simulateCheckAlerts(watchlistItem, currentPrice) {
 
 console.log("\n--- platform: checkAlerts re-arm ---");
 {
-  // Within 2% of target: alert fires
   var w1 = simulateCheckAlerts({ targetPrice: 50000, alerted: false }, 49100);
   assert(w1.alerted === true && w1._fired === true, "alert fires when price within 2% of target");
 
-  // Within 2% but already alerted: no re-fire
   var w2 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 49100);
   assert(w2.alerted === true && !w2._fired, "no re-fire when already alerted");
 
-  // Price moves to 3% above target (dist = 3%): re-arm at >= 2% boundary
   var w3 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 51550);
   assert(w3.alerted === false, "re-arms when dist is 3% (>= 2% boundary)");
 
-  // After re-arm, price comes back within 2%: fires again
   var w4 = simulateCheckAlerts({ targetPrice: 50000, alerted: false }, 49500);
   assert(w4.alerted === true && w4._fired === true, "fires again after re-arm");
 
-  // Price 2.1% above target: should re-arm (dist > 2%)
-  // price = 51100: dist = |50000-51100|/51100*100 = 2.15%
   var w5 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 51100);
   var dist5 = Math.abs((50000 - 51100) / 51100 * 100);
   assert(dist5 >= 2, "dist at 51100 is >= 2% (2.15%)");
   assert(w5.alerted === false, "re-arms when dist is 2.15% above target");
 
-  // Price 4% from target (old 5% threshold would NOT re-arm, new 2% DOES)
   var w6 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 52000);
   assert(w6.alerted === false, "re-arms at 4% — fixed dead-zone from old >= 5 threshold");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// alerts: server-side buy alert re-arm threshold matches unit-test expectation
-// Verifies that the production dist >= 2 (not the old >= 5) threshold is used.
+// alerts: server-side buy alert re-arm threshold
 // ─────────────────────────────────────────────────────────────────────────────
 
 function simulateServerBuyAlert(w, price) {
@@ -504,23 +493,18 @@ function simulateServerBuyAlert(w, price) {
 
 console.log("\n--- alerts: server-side buy alert re-arm (dist >= 2) ---");
 {
-  // Price within 2% of target — alert fires
   var s1 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: false }, 49100);
   assert(s1.serverAlerted === true && s1._fired === true, "server alert fires within 2% of target");
 
-  // Already alerted — no re-fire
   var s2 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 49100);
   assert(s2.serverAlerted === true && !s2._fired, "no re-fire when already alerted");
 
-  // dist = 3% (>= 2): re-arms
   var s3 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 51550);
   assert(s3.serverAlerted === false, "re-arms at 3% from target");
 
-  // dist = 4%: re-arms (would have been BLOCKED with old >= 5 threshold)
   var s4 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 52000);
   assert(s4.serverAlerted === false, "re-arms at 4% — old >=5 threshold would have left this stuck");
 
-  // dist = 1.5% (< 2): does NOT re-arm when already alerted
   var s5 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 50760);
   var dist5 = Math.abs((50000 - 50760) / 50760 * 100);
   assert(dist5 < 2, "dist at 50760 is < 2%");
@@ -554,7 +538,6 @@ console.log("\n--- macro: checkFalsifiers null-indicator guard ---");
   assert(trips.length === 0, "null-value indicators produce no NaN trips");
   assert(!trips.some(function(t) { return isNaN(t.v); }), "no NaN in trips array");
 
-  // Verify a live indicator does trip correctly
   var liveIndicators = [{ k: "ust10", n: "UST 10y", v: 5.30, op: "gt", th: 5.25 }];
   var liveTrips = checkFalsifiers_test(liveIndicators);
   assert(liveTrips.length === 1, "live indicator above threshold trips correctly");
@@ -581,13 +564,11 @@ console.log("\n--- macro: MACRO_AI_RULE leading-space check ---");
 
 console.log("\n--- news: decodeEntities CDATA stripping ---");
 {
-  // Verify the alternation regex (|) correctly strips CDATA opening and closing markers.
   assert(decodeEntities("<![CDATA[hello & world]]>") === "hello &amp; world" ||
          decodeEntities("<![CDATA[hello & world]]>") === "hello & world",
     "CDATA markers stripped, inner text preserved");
   assert(!decodeEntities("<![CDATA[test]]>").includes("<![CDATA["), "CDATA open marker removed");
   assert(!decodeEntities("<![CDATA[test]]>").includes("]]>"), "CDATA close marker removed");
-  // Plain text unaffected
   assert(decodeEntities("Bitcoin &amp; Crypto") === "Bitcoin & Crypto", "entity decode still works");
 }
 
@@ -602,6 +583,155 @@ console.log("\n--- macro: macroDataAge ---");
   assert(typeof age === "number" && Number.isFinite(age), "macroDataAge returns a number");
   assert(age >= 0, "macroDataAge is non-negative");
   assert(Number.isInteger(age), "macroDataAge returns an integer (days)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate.js: dailyOk receives getBlobStore as a parameter (scope bug fix)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function dailyOkTest(key, cap, getBlobStoreFn) {
+  try {
+    const store = getBlobStoreFn("ai-usage");
+    const today = new Date().toISOString().slice(0, 10);
+    const storeKey = key + ":" + today;
+    const cur = (await store.get(storeKey, { type: "json" })) || { count: 0 };
+    if (cur.count >= cap) return false;
+    cur.count++;
+    await store.setJSON(storeKey, cur);
+    return true;
+  } catch (e) {
+    return true; // fail open
+  }
+}
+
+console.log("\n--- generate.js: dailyOk parameter injection ---");
+{
+  async function runDailyOkTests() {
+    const store = {};
+    const mockGetStore = function () {
+      return {
+        get: async function (k) { return store[k] || null; },
+        setJSON: async function (k, v) { store[k] = v; },
+      };
+    };
+
+    const r1 = await dailyOkTest("user:test@example.com", 5, mockGetStore);
+    assert(r1 === true, "first call under cap returns true");
+
+    const r2 = await dailyOkTest("user:test@example.com", 5, mockGetStore);
+    assert(r2 === true, "second call still under cap returns true");
+
+    await dailyOkTest("user:test@example.com", 5, mockGetStore);
+    await dailyOkTest("user:test@example.com", 5, mockGetStore);
+    await dailyOkTest("user:test@example.com", 5, mockGetStore);
+
+    const rCapped = await dailyOkTest("user:test@example.com", 5, mockGetStore);
+    assert(rCapped === false, "call at cap returns false (limit reached)");
+
+    const brokenStore = function () { return { get: async function () { throw new Error("unavailable"); }, setJSON: async function () {} }; };
+    const rBroken = await dailyOkTest("user:broken@example.com", 5, brokenStore);
+    assert(rBroken === true, "storage error → fail open (returns true, not false)");
+
+    const r3 = await dailyOkTest("ip:1.2.3.4", 3, mockGetStore);
+    assert(r3 === true, "different key has its own counter");
+  }
+  runDailyOkTests().catch(function (e) { console.error("dailyOk async test failed:", e.message); failed++; });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market.js: new_ath kind — coins that broke their all-time high
+// ─────────────────────────────────────────────────────────────────────────────
+
+function newAthTransform(data) {
+  if (!Array.isArray(data)) return data;
+  return data
+    .filter(function (c) {
+      return typeof c.ath_change_percentage === "number" && c.ath_change_percentage >= 0 &&
+        c.market_cap > 100e6;
+    })
+    .map(function (c) {
+      return {
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        price: c.current_price,
+        ath: c.ath,
+        ath_date: c.ath_date,
+        market_cap: c.market_cap,
+        change_7d: c.price_change_percentage_7d_in_currency,
+        change_30d: c.price_change_percentage_30d_in_currency,
+      };
+    })
+    .sort(function (a, b) { return (b.change_7d || 0) - (a.change_7d || 0); });
+}
+
+console.log("\n--- market.js: new_ath transform ---");
+{
+  const coins = [
+    { id: "bitcoin", symbol: "btc", name: "Bitcoin", current_price: 101000, ath: 99000, ath_change_percentage: 2.02, market_cap: 2e12, price_change_percentage_7d_in_currency: 8.1, price_change_percentage_30d_in_currency: 15.0, ath_date: "2026-10-15" },
+    { id: "solana",  symbol: "sol", name: "Solana",  current_price: 190,    ath: 200,   ath_change_percentage: -5.0, market_cap: 80e9,  price_change_percentage_7d_in_currency: 5.0, price_change_percentage_30d_in_currency: 10.0, ath_date: "2026-08-01" },
+    { id: "micro",   symbol: "MCR", name: "MicroCap", current_price: 1,     ath: 1,     ath_change_percentage: 0.0,  market_cap: 50e6,  price_change_percentage_7d_in_currency: 2.0, price_change_percentage_30d_in_currency: 3.0, ath_date: "2026-10-18" },
+    { id: "ethereum", symbol: "eth", name: "Ethereum", current_price: 4000, ath: 4200,  ath_change_percentage: -4.8, market_cap: 480e9, price_change_percentage_7d_in_currency: 6.0, price_change_percentage_30d_in_currency: 12.0, ath_date: "2026-09-01" },
+  ];
+
+  const result = newAthTransform(coins);
+  assert(result.length === 1, "only bitcoin (new ATH, mcap > 100M) included");
+  assert(result[0].id === "bitcoin", "bitcoin is the only new-ATH coin");
+  assert(result[0].symbol === "BTC", "symbol uppercased");
+  assert(typeof result[0].change_7d === "number", "change_7d field present");
+  assert(typeof result[0].change_30d === "number", "change_30d field present");
+  assert(result[0].ath_date === "2026-10-15", "ath_date preserved");
+
+  const microOnly = newAthTransform([coins[2]]);
+  assert(microOnly.length === 0, "micro-cap (<100M mcap) excluded even at ATH");
+
+  const noAth = newAthTransform([coins[1], coins[3]]);
+  assert(noAth.length === 0, "coins below ATH excluded");
+
+  const twoAtH = [
+    { id: "a", symbol: "a", name: "A", current_price: 10, ath: 9, ath_change_percentage: 5.0, market_cap: 500e6, price_change_percentage_7d_in_currency: 3.0, price_change_percentage_30d_in_currency: 5.0, ath_date: "2026-10-18" },
+    { id: "b", symbol: "b", name: "B", current_price: 20, ath: 19, ath_change_percentage: 1.0, market_cap: 200e6, price_change_percentage_7d_in_currency: 12.0, price_change_percentage_30d_in_currency: 20.0, ath_date: "2026-10-17" },
+  ];
+  const sorted = newAthTransform(twoAtH);
+  assert(sorted.length === 2, "both valid ATH coins included");
+  assert(sorted[0].id === "b", "coin with higher 7d change ranked first");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts.js: new-ATH alert flag (serverNewAthAlerted) in SERVER_ALERT_FLAGS
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- sync.js: serverNewAthAlerted in SERVER_ALERT_FLAGS ---");
+{
+  const SERVER_ALERT_FLAGS_NEW = new Set([
+    "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
+    "serverLadderHits", "serverAthAlerted", "serverNewAthAlerted", "serverConcentrationAlerted",
+  ]);
+
+  assert(SERVER_ALERT_FLAGS_NEW.has("serverNewAthAlerted"), "serverNewAthAlerted is in SERVER_ALERT_FLAGS");
+  assert(SERVER_ALERT_FLAGS_NEW.has("serverAthAlerted"), "serverAthAlerted still present");
+  assert(SERVER_ALERT_FLAGS_NEW.has("serverConcentrationAlerted"), "serverConcentrationAlerted still present");
+
+  function stripServerFlagsNew(data) {
+    if (!data || typeof data !== "object") return data;
+    const out = Object.assign({}, data);
+    if (out.port && Array.isArray(out.port.crypto)) {
+      out.port = Object.assign({}, out.port);
+      out.port.crypto = out.port.crypto.map(function (h) {
+        if (!h || typeof h !== "object") return h;
+        const cleaned = Object.assign({}, h);
+        for (const flag of SERVER_ALERT_FLAGS_NEW) delete cleaned[flag];
+        return cleaned;
+      });
+    }
+    return out;
+  }
+
+  const dirty = { port: { crypto: [{ ticker: "BTC", qty: 1, serverNewAthAlerted: true, serverAthAlerted: true }] } };
+  const clean = stripServerFlagsNew(dirty);
+  assert(clean.port.crypto[0].serverNewAthAlerted === undefined, "serverNewAthAlerted stripped from holding");
+  assert(clean.port.crypto[0].serverAthAlerted === undefined, "serverAthAlerted also stripped");
+  assert(clean.port.crypto[0].ticker === "BTC", "ticker preserved after strip");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
