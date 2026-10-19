@@ -22,6 +22,7 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const MAX_SYSTEM_LEN = 2000;
+const MAX_BODY_BYTES = 1024 * 1024;
 
 // Per-plan daily AI request caps (enforced server-side via Blobs)
 const PLAN_DAILY_CAPS = {
@@ -167,6 +168,9 @@ exports.handler = async function (event) {
     }
   }
 
+  if ((event.body || "").length > MAX_BODY_BYTES) {
+    return { statusCode: 413, headers: CORS, body: JSON.stringify({ error: { message: "Request body too large." } }) };
+  }
   let payload;
   try { payload = JSON.parse(event.body || "{}"); } catch (e) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Invalid JSON body" } }) };
