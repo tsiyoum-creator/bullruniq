@@ -768,6 +768,29 @@ assert(CGMAP_2026["MOVE"] === "movement-2", "MOVE maps to movement-2");
 assert(CGMAP_2026["LAYER"] === "solayer", "LAYER maps to solayer");
 assert(!CGMAP_2026["UNKNOWN"], "unknown ticker still returns undefined");
 
+console.log("\n--- alerts.js: late-2026 CGMAP additions ---");
+
+const CGMAP_LATE_2026 = {
+  BERA:"berachain-bgt", IO:"io-net", GRASS:"grass",
+  BANANA:"banana-gun", POL:"matic-network",
+};
+assert(CGMAP_LATE_2026["BERA"] === "berachain-bgt", "BERA maps to berachain-bgt");
+assert(CGMAP_LATE_2026["IO"] === "io-net", "IO maps to io-net (IO.net compute)");
+assert(CGMAP_LATE_2026["GRASS"] === "grass", "GRASS maps to grass (AI inference data)");
+assert(CGMAP_LATE_2026["BANANA"] === "banana-gun", "BANANA maps to banana-gun");
+assert(CGMAP_LATE_2026["POL"] === "matic-network", "POL maps to matic-network (MATIC → POL migration)");
+assert(!CGMAP_LATE_2026["UNKNOWN"], "unknown ticker returns undefined");
+
+console.log("\n--- alerts.js: late-2026 entries present in production CGMAP ---");
+
+{
+  const alertsJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("BERA:\"berachain-bgt\"") || alertsJs.includes("BERA: \"berachain-bgt\""), "BERA present in production CGMAP");
+  assert(alertsJs.includes("IO:\"io-net\"") || alertsJs.includes("IO: \"io-net\""), "IO present in production CGMAP");
+  assert(alertsJs.includes("GRASS:\"grass\"") || alertsJs.includes("GRASS: \"grass\""), "GRASS present in production CGMAP");
+  assert(alertsJs.includes("POL:\"matic-network\"") || alertsJs.includes("POL: \"matic-network\""), "POL present in production CGMAP");
+}
+
 console.log("\n--- news.js: deduplication applied before slice ---");
 
 function buildFeed(rawItems) {
@@ -1034,7 +1057,7 @@ const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
   "claude-sonnet-4-6",
 ]);
-const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_MODEL = "claude-sonnet-5-5";
 
 function resolveModel(requested) {
   return ALLOWED_MODELS.has(requested) ? requested : DEFAULT_MODEL;
@@ -1045,7 +1068,7 @@ assert(resolveModel("claude-opus-5") === "claude-opus-5", "claude-opus-5 allowed
 assert(resolveModel("claude-fable-5-1") === "claude-fable-5-1", "claude-fable-5-1 allowed");
 assert(resolveModel("claude-sonnet-5-5") === "claude-sonnet-5-5", "claude-sonnet-5-5 allowed");
 assert(resolveModel("claude-haiku-5-5") === "claude-haiku-5-5", "claude-haiku-5-5 allowed");
-assert(resolveModel("gpt-4o") === DEFAULT_MODEL, "disallowed model falls back to default");
+assert(resolveModel("gpt-4o") === DEFAULT_MODEL, "disallowed model falls back to default (claude-sonnet-5-5)");
 assert(resolveModel(null) === DEFAULT_MODEL, "null model falls back to default");
 assert(resolveModel("") === DEFAULT_MODEL, "empty string falls back to default");
 assert(resolveModel("claude-opus-4-8") === "claude-opus-4-8", "legacy model still allowed for cached clients");
@@ -1062,6 +1085,17 @@ assert(ALLOWED_MODELS.has(PLATFORM_MODEL_SMART), "MODEL_SMART is in ALLOWED_MODE
 assert(ALLOWED_MODELS.has(PLATFORM_MODEL_FAST),  "MODEL_FAST is in ALLOWED_MODELS");
 assert(!PLATFORM_MODEL_HEAVY.includes("4-8"), "MODEL_HEAVY no longer uses old opus-4-8");
 assert(!PLATFORM_MODEL_SMART.includes("4-6"), "MODEL_SMART no longer uses old sonnet-4-6");
+
+console.log("\n--- generate.js: DEFAULT_MODEL matches test constant ---");
+
+{
+  const generateJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  const defaultModelMatch = generateJs.match(/^const DEFAULT_MODEL\s*=\s*"([^"]+)"/m);
+  assert(defaultModelMatch !== null, "DEFAULT_MODEL declaration found in generate.js");
+  if (defaultModelMatch) {
+    assert(defaultModelMatch[1] === DEFAULT_MODEL, "generate.js DEFAULT_MODEL (" + defaultModelMatch[1] + ") matches test constant (" + DEFAULT_MODEL + ")");
+  }
+}
 
 console.log("\n--- generate.js: SYSTEM_PREAMBLE profit-ladder rungs ---");
 
