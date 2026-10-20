@@ -259,6 +259,64 @@ button { font: inherit; cursor: pointer; }
 .hero .chart-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.4s var(--ease) .5s forwards; }
 .hero .bar-fill { animation: grow .9s var(--ease) .7s both; }
 
+/* ── INTERACTION + MOTION ─────────────────────────────── */
+.hero::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(520px circle at var(--hx, 70%) var(--hy, 40%), rgba(201,168,76,.12), transparent 60%);
+}
+.hero-grid { position: relative; z-index: 1; }
+.spot { position: relative; isolation: isolate; }
+.spot::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 0%), rgba(201,168,76,.13), transparent 60%);
+  opacity: 0; transition: opacity .3s;
+}
+.spot:hover::before { opacity: 1; }
+
+.chart-head { display: flex; justify-content: space-between; font-family: var(--f-mono); font-size: 11px; color: var(--text-3); margin-bottom: 8px; }
+#chartRead { color: var(--text); }
+#chart { cursor: crosshair; touch-action: pan-y; }
+.scrub { transition: opacity .2s; }
+.scrub line { stroke: var(--line-2); }
+
+.signal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.signal-head .signal-label { margin-bottom: 0; }
+.rerun {
+  font-family: var(--f-mono); font-size: 12px; color: var(--gold);
+  background: none; border: 1px solid var(--gold-line); border-radius: 6px; padding: 6px 10px;
+  cursor: pointer; transition: background .2s;
+}
+.rerun:hover { background: var(--gold-dim); }
+.signal-row { transition: background .2s; }
+.signal-row:hover { background: rgba(255,255,255,.02); }
+.signal.scan .signal-row { animation: rise .5s var(--ease) both; }
+.signal.scan .signal-row:nth-of-type(3) { animation-delay: .1s; }
+.signal.scan .signal-row:nth-of-type(4) { animation-delay: .2s; }
+.signal.scan .verdict { animation: pop .4s var(--ease) .3s both; }
+@keyframes pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+
+.btn:active, .wl-btn:active { transform: scale(.98); }
+
+/* Roadmap rail fills as you scroll */
+.rail { --p: 0; }
+.rail::after {
+  content: ""; position: absolute; top: 11px; left: 0; right: 0; height: 1px;
+  background: var(--gold); box-shadow: 0 0 12px rgba(201,168,76,.5);
+  transform-origin: left; transform: scaleX(var(--p)); transition: transform .15s linear;
+}
+.rail-node { transition: border-color .3s, background .3s, box-shadow .3s; }
+.rail-item.lit .rail-node { border-color: var(--gold); background: var(--gold-dim); box-shadow: 0 0 18px rgba(201,168,76,.35); }
+.rail-item h3 { transition: color .3s; }
+.rail-item.lit h3 { color: var(--gold-hi); }
+@media (max-width: 960px) {
+  .rail::after { top: 0; bottom: 0; left: 11px; right: auto; width: 1px; height: auto; transform-origin: top; transform: scaleY(var(--p)); }
+  .signal-head { margin-bottom: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero::before, .spot::before { display: none; }
+  .rail::after { transition: none; }
+}
+
 /* ── STATS ────────────────────────────────────────────── */
 .stats { border-block: 1px solid var(--line); }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
@@ -435,17 +493,18 @@ button { font: inherit; cursor: pointer; }
       <p class="hero-note kick-in">Opens instantly with a sample portfolio · Every AI call logged and graded, wins and losses · Educational tool, not financial advice</p>
     </div>
 
-    <aside class="panel" aria-label="Sample portfolio dashboard">
+    <aside class="panel spot" aria-label="Sample portfolio dashboard">
       <div class="panel-top">
         <span class="panel-title">Command center</span>
         <span class="panel-live"><span class="live-dot"></span>Live</span>
       </div>
       <div class="metrics">
-        <div class="metric"><div class="metric-val">$84.2k</div><div class="metric-lbl">Portfolio</div></div>
-        <div class="metric"><div class="metric-val pos">+12.4%</div><div class="metric-lbl">All time</div></div>
-        <div class="metric"><div class="metric-val">8,240</div><div class="metric-lbl">Steps</div></div>
+        <div class="metric"><div class="metric-val"><span class="count" data-to="84.2" data-pre="$" data-suf="k" data-dec="1">$84.2k</span></div><div class="metric-lbl">Portfolio</div></div>
+        <div class="metric"><div class="metric-val pos"><span class="count" data-to="12.4" data-pre="+" data-suf="%" data-dec="1">+12.4%</span></div><div class="metric-lbl">All time</div></div>
+        <div class="metric"><div class="metric-val"><span class="count" data-to="8240" data-dec="0">8,240</span></div><div class="metric-lbl">Steps</div></div>
       </div>
-      <svg class="chart" viewBox="0 0 400 150" role="img" aria-label="Sample portfolio value trending upward over 12 months">
+      <div class="chart-head"><span>Portfolio value · sample</span><span id="chartRead">DEC · $84.2k</span></div>
+      <svg class="chart" id="chart" viewBox="0 0 400 150" role="img" aria-label="Sample portfolio value trending upward over 12 months. Hover or drag to read each month.">
         <defs>
           <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="#c9a84c" stop-opacity=".22"/>
@@ -455,8 +514,9 @@ button { font: inherit; cursor: pointer; }
         <line x1="0" y1="40" x2="400" y2="40" stroke="#1c1c1c"/>
         <line x1="0" y1="90" x2="400" y2="90" stroke="#1c1c1c"/>
         <line x1="0" y1="140" x2="400" y2="140" stroke="#1c1c1c"/>
-        <path class="chart-area" d="M0 120 C 40 112, 60 100, 96 104 S 150 84, 190 88 S 250 56, 290 62 S 350 26, 400 18 L400 150 L0 150 Z"/>
-        <path class="chart-line" pathLength="1" d="M0 120 C 40 112, 60 100, 96 104 S 150 84, 190 88 S 250 56, 290 62 S 350 26, 400 18"/>
+        <path class="chart-area" id="chartArea" d="M0 120 C 40 112, 60 100, 96 104 S 150 84, 190 88 S 250 56, 290 62 S 350 26, 400 18 L400 150 L0 150 Z"/>
+        <path class="chart-line" id="chartLine" pathLength="1" d="M0 120 C 40 112, 60 100, 96 104 S 150 84, 190 88 S 250 56, 290 62 S 350 26, 400 18"/>
+        <g id="scrub" class="scrub" opacity="0"><line id="scrubLine" x1="0" y1="8" x2="0" y2="150" stroke-width="1"/><circle id="scrubDot" cx="0" cy="0" r="4" fill="#c9a84c" stroke="#050505" stroke-width="2"/></g>
         <text class="chart-axis" x="0" y="148">JAN</text>
         <text class="chart-axis" x="370" y="148">DEC</text>
       </svg>
@@ -568,8 +628,8 @@ button { font: inherit; cursor: pointer; }
       </ol>
     </div>
 
-    <div class="signal reveal" aria-label="Sample signal output">
-      <div class="signal-label">Sample output · Markets</div>
+    <div class="signal reveal spot" aria-label="Sample signal output">
+      <div class="signal-head"><div class="signal-label">Sample output · Markets</div><button class="rerun" id="rerunBtn" type="button">Re-run ↻</button></div>
       <div class="signal-row">
         <div>
           <div class="signal-asset">BTC</div>
@@ -693,6 +753,140 @@ function track(ev, meta) {
   } catch (e) {}
 }
 track('pageview');
+
+// ── INTERACTIVE LAYER (pointer glow, chart scrub, count-up, rail progress, signal re-run) ──
+(function() {
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Pointer-tracked glow: hero background and spotlight on cards
+  var hero = document.querySelector('.hero');
+  if (hero && !reduceMotion) {
+    hero.addEventListener('pointermove', function(e) {
+      var r = hero.getBoundingClientRect();
+      hero.style.setProperty('--hx', (e.clientX - r.left) + 'px');
+      hero.style.setProperty('--hy', (e.clientY - r.top) + 'px');
+    });
+  }
+  document.querySelectorAll('.spot').forEach(function(el) {
+    el.addEventListener('pointermove', function(e) {
+      var r = el.getBoundingClientRect();
+      el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+      el.style.setProperty('--my', (e.clientY - r.top) + 'px');
+    });
+  });
+
+  // Hero chart: scrub to read each month. Sample data, labelled as such.
+  var chart = document.getElementById('chart');
+  if (chart) {
+    var MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    var VALUES = [61.0,63.2,62.1,66.8,64.9,69.3,72.0,70.4,75.6,78.1,80.9,84.2];
+    var W = 400, yTop = 14, yBottom = 130, lo = 60, hi = 86;
+    var pts = VALUES.map(function(v, i) {
+      return { x: i * W / (VALUES.length - 1), y: yBottom - (v - lo) / (hi - lo) * (yBottom - yTop), v: v, m: MONTHS[i] };
+    });
+    // Catmull-Rom to cubic Bezier, so the curve passes through every data point
+    var d = 'M' + pts[0].x + ' ' + pts[0].y;
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[Math.max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(i + 2, pts.length - 1)];
+      var c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+      var c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+      d += ' C' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ' ' + c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ' ' + p2.x.toFixed(1) + ' ' + p2.y.toFixed(1);
+    }
+    document.getElementById('chartLine').setAttribute('d', d);
+    document.getElementById('chartArea').setAttribute('d', d + ' L' + W + ' 150 L0 150 Z');
+
+    var scrub = document.getElementById('scrub');
+    var scrubLine = document.getElementById('scrubLine');
+    var scrubDot = document.getElementById('scrubDot');
+    var readout = document.getElementById('chartRead');
+    function showAt(idx) {
+      var p = pts[idx];
+      scrubLine.setAttribute('x1', p.x); scrubLine.setAttribute('x2', p.x);
+      scrubDot.setAttribute('cx', p.x); scrubDot.setAttribute('cy', p.y);
+      readout.textContent = p.m + ' · $' + p.v.toFixed(1) + 'k';
+    }
+    function indexFromEvent(e) {
+      var r = chart.getBoundingClientRect();
+      var x = (e.clientX - r.left) / r.width * W;
+      return Math.max(0, Math.min(pts.length - 1, Math.round(x / W * (pts.length - 1))));
+    }
+    chart.addEventListener('pointermove', function(e) {
+      scrub.setAttribute('opacity', '1');
+      showAt(indexFromEvent(e));
+    });
+    chart.addEventListener('pointerleave', function() {
+      scrub.setAttribute('opacity', '0');
+      readout.textContent = 'DEC · $84.2k';
+    });
+  }
+
+  // Count-up for panel metrics, starting when they come into view
+  function formatCount(n, el) {
+    var dec = +(el.dataset.dec || 0);
+    var s = n.toFixed(dec);
+    if (!dec) s = Number(s).toLocaleString('en-US');
+    return (el.dataset.pre || '') + s + (el.dataset.suf || '');
+  }
+  function countUp(el) {
+    var to = +el.dataset.to, start = performance.now(), dur = 1200;
+    (function step(now) {
+      var p = Math.min(1, (now - start) / dur);
+      el.textContent = formatCount(to * (1 - Math.pow(1 - p, 3)), el);
+      if (p < 1) requestAnimationFrame(step);
+    })(start);
+  }
+  if (!reduceMotion && 'IntersectionObserver' in window) {
+    var countIO = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        countIO.unobserve(entry.target);
+        countUp(entry.target);
+      });
+    }, { threshold: 0.6 });
+    document.querySelectorAll('.count').forEach(function(el) { countIO.observe(el); });
+  }
+
+  // Roadmap rail: line fills and nodes light up as you scroll past
+  var rail = document.querySelector('.rail');
+  if (rail) {
+    var railItems = rail.querySelectorAll('.rail-item');
+    var ticking = false;
+    function updateRail() {
+      ticking = false;
+      var vh = window.innerHeight;
+      var r = rail.getBoundingClientRect();
+      var p = reduceMotion ? 1 : Math.max(0, Math.min(1, (vh * 0.75 - r.top) / r.height));
+      rail.style.setProperty('--p', p.toFixed(3));
+      railItems.forEach(function(item, idx) {
+        item.classList.toggle('lit', reduceMotion || p * railItems.length > idx);
+      });
+    }
+    function requestRail() {
+      if (!ticking) { ticking = true; requestAnimationFrame(updateRail); }
+    }
+    window.addEventListener('scroll', requestRail, { passive: true });
+    window.addEventListener('resize', requestRail);
+    updateRail();
+  }
+
+  // Signal card: replay the scan on demand, and once when first seen
+  var signal = document.querySelector('.signal');
+  if (signal) {
+    var rerunBtn = document.getElementById('rerunBtn');
+    function scanSignal() {
+      signal.classList.remove('scan');
+      void signal.offsetWidth;
+      signal.classList.add('scan');
+    }
+    if (rerunBtn) rerunBtn.addEventListener('click', scanSignal);
+    if (!reduceMotion && 'IntersectionObserver' in window) {
+      var scanIO = new IntersectionObserver(function(entries) {
+        if (entries[0].isIntersecting) { scanSignal(); scanIO.disconnect(); }
+      }, { threshold: 0.5 });
+      scanIO.observe(signal);
+    }
+  }
+})();
 if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('/sw.js'); } catch (e) {} }
 
 // ── WAITLIST FORM (real capture via Netlify Forms) ──
