@@ -605,6 +605,37 @@ console.log("\n--- macro: macroDataAge ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// macro: MACRO_DATA freshness check
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: MACRO_DATA freshness ---");
+{
+  const macro = require("../macro.js");
+  const age = macro.macroDataAge();
+  const MAX_STALE_DAYS = 3;
+  assert(age <= MAX_STALE_DAYS, "MACRO_DATA.asOf is at most " + MAX_STALE_DAYS + " days old (actual: " + age + ")");
+  assert(macro.MACRO_DATA && typeof macro.MACRO_DATA.asOf === "string", "MACRO_DATA.asOf is a string");
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(macro.MACRO_DATA.asOf), "MACRO_DATA.asOf is YYYY-MM-DD format");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: late-2026 CGMAP additions present in production file
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: late-2026 CGMAP entries ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const alertsJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("BERA"), "BERA ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("berachain-bgt"), "berachain-bgt ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("IO:"), "IO ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("io-net"), "io-net ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("GRASS"), "GRASS ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("POL"), "POL ticker present in alerts.js CGMAP");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");

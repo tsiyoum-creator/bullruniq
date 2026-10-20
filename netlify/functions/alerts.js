@@ -75,6 +75,9 @@ const CGMAP = {
   HYPE:"hyperliquid", KAITO:"kaito", IP:"story-2", MOVE:"movement-2",
   LAYER:"solayer", ORCA:"orca", PYUSD:"paypal-usd", USUAL:"usual",
   RESOLV:"resolv", INIT:"initia",
+  // Late-2026 additions
+  BERA:"berachain-bgt", IO:"io-net", GRASS:"grass",
+  BANANA:"banana-gun", POL:"matic-network",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
