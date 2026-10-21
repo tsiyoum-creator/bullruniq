@@ -102,7 +102,9 @@ a{text-decoration:none;color:inherit}
 .sh.gold{color:var(--gold)}.sh.blue{color:var(--blue)}.sh.red{color:var(--red)}.sh.grn{color:var(--grn)}.sh.pur{color:var(--pur)}
 
 /* Cards */
-.card{background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:14px 16px;margin-bottom:10px}
+.card{background:radial-gradient(320px circle at var(--mx,50%) var(--my,0%),rgba(201,168,76,calc(var(--gl,0) * .07)),transparent 60%),var(--s1);border:1px solid var(--b1);border-radius:8px;padding:14px 16px;margin-bottom:10px;transition:border-color .25s}
+.card:hover{border-color:rgba(201,168,76,.25)}
+@media(prefers-reduced-motion:reduce){.card{transition:none}}
 .card.gl{border-left:2px solid var(--gold)}
 .card.bl{border-left:2px solid var(--blue)}
 .card.rl{border-left:2px solid var(--red)}
@@ -4155,6 +4157,24 @@ setTimeout(function(){gradeCalls();},5000); // grade any matured calls shortly a
 setInterval(function(){
   if(!busy)refreshAll();
 },20000);
+
+// Cursor glow on cards. One delegated listener, so it keeps working
+// after render() rebuilds the cards.
+(function(){
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  document.addEventListener('pointermove',function(e){
+    var card=e.target.closest&&e.target.closest('.card');
+    if(!card)return;
+    var r=card.getBoundingClientRect();
+    card.style.setProperty('--mx',(e.clientX-r.left)+'px');
+    card.style.setProperty('--my',(e.clientY-r.top)+'px');
+    card.style.setProperty('--gl','1');
+  },{passive:true});
+  document.addEventListener('pointerout',function(e){
+    var card=e.target.closest&&e.target.closest('.card');
+    if(card&&!card.contains(e.relatedTarget))card.style.setProperty('--gl','0');
+  },{passive:true});
+})();
 </script>
 </body>
 </html>
