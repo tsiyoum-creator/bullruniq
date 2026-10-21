@@ -636,6 +636,40 @@ console.log("\n--- alerts: late-2026 CGMAP entries ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// generate: getBlobStore must be imported at module level, not inside handler
+// A module-level import ensures dailyOk() can use it without a ReferenceError
+// that would silently rate-limit every authenticated user.
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- generate: getBlobStore module-level import ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  const lines = src.split("\n");
+  const importLine = lines.findIndex(l => l.includes("getStore") && l.includes("@netlify/blobs"));
+  assert(importLine >= 0, "getStore imported from @netlify/blobs");
+  const handlerLine = lines.findIndex(l => l.includes("exports.handler"));
+  assert(importLine < handlerLine, "getStore import appears before exports.handler (module-level)");
+  // No second occurrence of the import inside the handler body
+  const importCount = lines.filter(l => l.includes("getStore") && l.includes("@netlify/blobs")).length;
+  assert(importCount === 1, "only one getStore import — not duplicated inside handler");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: buildMacroContext includes dataAgeInDays
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: buildMacroContext includes dataAgeInDays ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../macro.js"), "utf8");
+  assert(src.includes("dataAgeInDays"), "macro.js buildMacroContext exports dataAgeInDays field");
+  assert(src.includes("macroDataAge()"), "dataAgeInDays is computed from macroDataAge()");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
