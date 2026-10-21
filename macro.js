@@ -17,12 +17,12 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-20",
+  asOf: "2026-10-21",
 
   current: {
     regime: "longend",
     confidence: 82,
-    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is eight days away with markets pricing a hold at 3.75–4.00%; no pivot language in pre-meeting guidance. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin remains range-bound near $82k ahead of the FOMC.",
+    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is seven days away with markets pricing a hold at 3.75–4.00%; no pivot language in pre-meeting guidance. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin remains range-bound near $82k ahead of the FOMC.",
     forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. The Oct 28 FOMC is the next potential inflection: any hint of pivot language would challenge the longend thesis, but current guidance offers none. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
   },
 
@@ -308,7 +308,7 @@ function rFlows(){
     var urgent=days>=0&&days<=14;
     h+='<div style="display:flex;gap:12px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--b1)">';
     h+='<span class="mono" style="font-size:11px;color:'+(urgent?'var(--red)':'var(--gold)')+';min-width:82px">'+c.d+'</span>';
-    h+='<span style="font-size:12px;flex:1">'+c.n+(urgent?' <span style="color:var(--red);font-size:10px">· '+days+'d</span>':'')+'<div style="font-size:10px;color:var(--t3);margin-top:2px">'+c.tests+'</div></span></div>';
+    h+='<span style="font-size:12px;flex:1">'+c.n+(urgent?' <span style="color:var(--red);font-size:10px">· '+days+'d</span>':'')+' <div style="font-size:10px;color:var(--t3);margin-top:2px">'+c.tests+'</div></span></div>';
   });
   return h+'</div>';
 }
@@ -428,7 +428,8 @@ function buildMacroContext(){
     cashApy: hasCashApy() ? +cashYield().toFixed(2) : null,
     untaggedPct:e.tv?+((e.untaggedVal/e.tv)*100).toFixed(1):0,
     thresholdsCrossed:fw.trips.map(function(t){return t.n;}),
-    catalystsWithin21d:fw.soon.map(function(s){return s.n+' ('+s.d+')';})  
+    catalystsWithin21d:fw.soon.map(function(s){return s.n+' ('+s.d+')';}),
+    dataAgeInDays:macroDataAge()
   };
 }
 var MACRO_AI_RULE='You are given a macro regime read and an exposure map computed from the user\'s real holdings. Use these figures directly. If a value you need appears in noDataFor or is absent, say "insufficient data" for that point — never estimate or invent a number. Do not issue buy or sell instructions.';

@@ -2,6 +2,7 @@
 
 const crypto = require("crypto");
 const { verifyToken, planFor } = require("./_lib");
+const { getStore: getBlobStore } = require("@netlify/blobs");
 
 const ALLOWED_MODELS = new Set([
   "claude-fable-5-1",
@@ -136,7 +137,6 @@ exports.handler = async function (event) {
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: { message: "Server AI is not configured." } }) };
   }
 
-  const { getStore: getBlobStore } = require("@netlify/blobs");
   try { require("@netlify/blobs").connectLambda(event); } catch (e) {}
   const ip = clientIp(event);
   const h = event.headers || {};
