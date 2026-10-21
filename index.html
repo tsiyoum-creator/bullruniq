@@ -255,7 +255,7 @@ button { font: inherit; cursor: pointer; }
 .hero .kick-in:nth-child(3) { animation-delay: .16s; }
 .hero .kick-in:nth-child(4) { animation-delay: .24s; }
 .hero .kick-in:nth-child(5) { animation-delay: .32s; }
-.hero .panel { animation: rise .9s var(--ease) .15s both; }
+.hero .panel { animation: rise .9s var(--ease) .15s backwards; }
 .hero .chart-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.4s var(--ease) .5s forwards; }
 .hero .bar-fill { animation: grow .9s var(--ease) .7s both; }
 
@@ -272,6 +272,12 @@ button { font: inherit; cursor: pointer; }
   opacity: 0; transition: opacity .3s;
 }
 .spot:hover::before { opacity: 1; }
+
+/* 3D tilt: cards turn toward the pointer; inner layers lift off the surface */
+.tilt { transform-style: preserve-3d; will-change: transform; transition: transform .35s var(--ease); }
+.js .reveal.tilt { transition: transform .35s var(--ease), opacity .7s var(--ease); }
+.tilt .metrics, .tilt .chart { transform: translateZ(28px); }
+.tilt .metrics, .tilt .chart, .tilt .holdings { transition: transform .35s var(--ease); }
 
 .chart-head { display: flex; justify-content: space-between; font-family: var(--f-mono); font-size: 11px; color: var(--text-3); margin-bottom: 8px; }
 #chartRead { color: var(--text); }
@@ -314,6 +320,7 @@ button { font: inherit; cursor: pointer; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero::before, .spot::before { display: none; }
+  .tilt, .tilt * { transform: none !important; }
   .rail::after { transition: none; }
 }
 
@@ -493,7 +500,7 @@ button { font: inherit; cursor: pointer; }
       <p class="hero-note kick-in">Opens instantly with a sample portfolio · Every AI call logged and graded, wins and losses · Educational tool, not financial advice</p>
     </div>
 
-    <aside class="panel spot" aria-label="Sample portfolio dashboard">
+    <aside class="panel spot tilt" aria-label="Sample portfolio dashboard">
       <div class="panel-top">
         <span class="panel-title">Command center</span>
         <span class="panel-live"><span class="live-dot"></span>Live</span>
@@ -628,7 +635,7 @@ button { font: inherit; cursor: pointer; }
       </ol>
     </div>
 
-    <div class="signal reveal spot" aria-label="Sample signal output">
+    <div class="signal reveal spot tilt" aria-label="Sample signal output">
       <div class="signal-head"><div class="signal-label">Sample output · Markets</div><button class="rerun" id="rerunBtn" type="button">Re-run ↻</button></div>
       <div class="signal-row">
         <div>
@@ -773,6 +780,18 @@ track('pageview');
       el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
       el.style.setProperty('--my', (e.clientY - r.top) + 'px');
     });
+  });
+
+  // 3D tilt: each card turns toward the pointer
+  document.querySelectorAll('.tilt').forEach(function(el) {
+    if (reduceMotion) return;
+    el.addEventListener('pointermove', function(e) {
+      var r = el.getBoundingClientRect();
+      var px = (e.clientX - r.left) / r.width - 0.5;
+      var py = (e.clientY - r.top) / r.height - 0.5;
+      el.style.transform = 'perspective(1100px) rotateX(' + (-py * 9).toFixed(2) + 'deg) rotateY(' + (px * 11).toFixed(2) + 'deg)';
+    });
+    el.addEventListener('pointerleave', function() { el.style.transform = ''; });
   });
 
   // Hero chart: scrub to read each month. Sample data, labelled as such.
