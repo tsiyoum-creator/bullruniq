@@ -42,6 +42,13 @@ const SECTOR_LABELS = {
 
 async function fetchJson(url, headers) {
   const r = await fetch(url, { headers: headers || UA });
+  if (r.status === 429) {
+    const retryAfter = r.headers.get("Retry-After") || "60";
+    const err = new Error("upstream 429");
+    err.status = 429;
+    err.retryAfter = retryAfter;
+    throw err;
+  }
   if (!r.ok) throw new Error("upstream " + r.status);
   return r.json();
 }
@@ -271,6 +278,64 @@ exports.handler = async function (event) {
         .sort(function (a, b) { return b.momentum_score - a.momentum_score; })
         .slice(0, 25);
     };
+  } else if (q.kind === "sell_signals") {
+    // Composite sell-signal scanner: surfaces coins from the top 250 that show two or more
+    // distribution signals simultaneously — ATH proximity, volume spike, and momentum fade.
+    // Each signal contributes 0-33 points; score >= 50 warrants attention.
+    // ATH proximity (0-33): within 20% of ATH gets points, within 5% gets full score.
+    // Volume spike (0-33): volume/market-cap ratio above 0.20 gets points, >0.50 gets full.
+    // Momentum fade (0-34): positive 30d but negative 7d (classic late-cycle distribution).
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:top250_sell_signals";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) {
+          return c.market_cap > 100e6 && !STABLE_AND_WRAPPED_IDS.has(c.id);
+        })
+        .map(function (c) {
+          const athChangePct = typeof c.ath_change_percentage === "number" ? c.ath_change_percentage : -100;
+          const volRatio = c.market_cap > 0 ? (c.total_volume || 0) / c.market_cap : 0;
+          const change7d = typeof c.price_change_percentage_7d_in_currency === "number" ? c.price_change_percentage_7d_in_currency : 0;
+          const change30d = typeof c.price_change_percentage_30d_in_currency === "number" ? c.price_change_percentage_30d_in_currency : 0;
+
+          // ATH proximity score: 0 when >20% below ATH, 33 when <=5% below ATH
+          const athScore = athChangePct >= -20
+            ? Math.round(33 * (1 - Math.max(0, Math.abs(athChangePct) - 5) / 15))
+            : 0;
+          // Volume spike score: 0 when ratio <0.10, 33 when ratio >=0.50
+          const volScore = volRatio >= 0.10
+            ? Math.min(33, Math.round(33 * (volRatio - 0.10) / 0.40))
+            : 0;
+          // Momentum fade score: positive 30d but negative 7d signals distribution
+          const fadingScore = (change30d > 5 && change7d < 0) ? Math.min(34, Math.round(34 * Math.min(1, (-change7d) / 10))) : 0;
+
+          const signal_score = athScore + volScore + fadingScore;
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            ath: c.ath,
+            ath_change_pct: athChangePct,
+            market_cap: c.market_cap,
+            volume_24h: c.total_volume,
+            volume_mcap_ratio: volRatio,
+            change_7d: change7d,
+            change_30d: change30d,
+            signal_score: signal_score,
+            signals: {
+              ath_proximity: athScore > 0,
+              volume_spike: volScore > 0,
+              momentum_fade: fadingScore > 0,
+            },
+          };
+        })
+        .filter(function (c) { return c.signal_score >= 30; })
+        .sort(function (a, b) { return b.signal_score - a.signal_score; })
+        .slice(0, 20);
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -280,7 +345,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|sell_signals or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");
@@ -307,6 +372,10 @@ exports.handler = async function (event) {
     const payload = transform ? transform(data) : data;
     return { statusCode: 200, headers: CORS, body: JSON.stringify(payload) };
   } catch (err) {
+    // Propagate CoinGecko rate-limit responses so clients can back off correctly.
+    if (err.status === 429) {
+      return { statusCode: 429, headers: { ...CORS, "Retry-After": err.retryAfter || "60" }, body: JSON.stringify({ error: "market data rate limited — retry after " + (err.retryAfter || "60") + "s" }) };
+    }
     if (cache) {
       try {
         const c = await cache.get(key, { type: "json" });

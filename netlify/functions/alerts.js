@@ -88,8 +88,9 @@ function cgId(ticker) {
   const upper = String(ticker).toUpperCase();
   if (CGMAP[upper]) return CGMAP[upper];
   const lower = String(ticker).toLowerCase();
-  // Only accept CG-safe IDs: lowercase letters, digits, hyphens
-  return /^[a-z0-9-]+$/.test(lower) ? lower : null;
+  // Only accept CG-safe IDs: lowercase letters, digits, hyphens, max 60 chars.
+  // 60 matches the longest real CoinGecko IDs and prevents URL bloat.
+  return /^[a-z0-9-]{1,60}$/.test(lower) ? lower : null;
 }
 
 async function sendEmail(RESEND, to, subject, html, FROM) {

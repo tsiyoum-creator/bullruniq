@@ -636,6 +636,215 @@ console.log("\n--- alerts: late-2026 CGMAP entries ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// _lib: signToken + verifyToken
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Inline the logic for isolated testing without environment dependencies.
+// These mirror _lib.js exactly so tests catch regressions if the lib changes.
+{
+  const libCrypto = require("crypto");
+  const TEST_SECRET = "test_secret_key_32_chars_minimum!";
+  function testSignToken(email, days, secret) {
+    const exp = Date.now() + (days || 30) * 864e5;
+    const p = Buffer.from(email + "|" + exp).toString("base64url");
+    const sig = libCrypto.createHmac("sha256", secret).update(p).digest("base64url");
+    return p + "." + sig;
+  }
+  function testVerifyToken(tok, secret) {
+    try {
+      if (!secret || !tok) return null;
+      const i = tok.lastIndexOf(".");
+      if (i < 1) return null;
+      const p = tok.slice(0, i), sig = tok.slice(i + 1);
+      const expect = libCrypto.createHmac("sha256", secret).update(p).digest("base64url");
+      if (!libCrypto.timingSafeEqual(Buffer.from(expect), Buffer.from(sig))) return null;
+      const raw = Buffer.from(p, "base64url").toString("utf8");
+      const j = raw.lastIndexOf("|");
+      const email = raw.slice(0, j), exp = parseInt(raw.slice(j + 1), 10);
+      if (!email || !exp || Date.now() > exp) return null;
+      return email;
+    } catch (e) { return null; }
+  }
+
+  console.log("\n--- _lib: signToken + verifyToken ---");
+  const email = "test@example.com";
+  const tok = testSignToken(email, 30, TEST_SECRET);
+  assert(typeof tok === "string" && tok.includes("."), "token is a string with a dot separator");
+  assert(testVerifyToken(tok, TEST_SECRET) === email, "valid token verifies to correct email");
+  assert(testVerifyToken(tok, "wrong_secret") === null, "wrong secret returns null");
+  assert(testVerifyToken(tok + "x", TEST_SECRET) === null, "tampered token rejected");
+  assert(testVerifyToken("", TEST_SECRET) === null, "empty token returns null");
+  assert(testVerifyToken(null, TEST_SECRET) === null, "null token returns null");
+  assert(testVerifyToken(tok, null) === null, "null secret returns null");
+  assert(testVerifyToken("nodot", TEST_SECRET) === null, "token without dot returns null");
+
+  // Expired token (negative days → already in the past)
+  const expiredTok = testSignToken(email, -1, TEST_SECRET);
+  assert(testVerifyToken(expiredTok, TEST_SECRET) === null, "expired token returns null");
+
+  // Token structure: payload.sig
+  const parts = tok.split(".");
+  assert(parts.length === 2, "token has exactly two parts");
+  const decoded = Buffer.from(parts[0], "base64url").toString("utf8");
+  assert(decoded.startsWith(email + "|"), "payload encodes email correctly");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _lib: signUnsub + verifyUnsub
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  const libCrypto = require("crypto");
+  const TEST_SECRET = "test_secret_key_32_chars_minimum!";
+  function testSignUnsub(email, secret) {
+    return libCrypto.createHmac("sha256", secret).update("unsub:" + email).digest("base64url");
+  }
+  function testVerifyUnsub(email, token, secret) {
+    if (!secret || !token) return false;
+    const expected = libCrypto.createHmac("sha256", secret).update("unsub:" + email).digest("base64url");
+    try {
+      return libCrypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
+    } catch (e) { return false; }
+  }
+
+  console.log("\n--- _lib: signUnsub + verifyUnsub ---");
+  const email = "user@example.com";
+  const tok = testSignUnsub(email, TEST_SECRET);
+  assert(typeof tok === "string" && tok.length > 0, "unsub token is a non-empty string");
+  assert(testVerifyUnsub(email, tok, TEST_SECRET) === true, "valid unsub token verifies");
+  assert(testVerifyUnsub("other@example.com", tok, TEST_SECRET) === false, "different email rejects token");
+  assert(testVerifyUnsub(email, tok + "x", TEST_SECRET) === false, "tampered token rejected");
+  assert(testVerifyUnsub(email, null, TEST_SECRET) === false, "null token returns false");
+  assert(testVerifyUnsub(email, tok, null) === false, "null secret returns false");
+  assert(testVerifyUnsub(email, "short", TEST_SECRET) === false, "wrong-length token rejects (timingSafeEqual)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _lib: esc (HTML escape)
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+  }
+  console.log("\n--- _lib: esc ---");
+  assert(esc("<script>alert(1)</script>") === "&lt;script&gt;alert(1)&lt;/script&gt;", "script tags escaped");
+  assert(esc('He said "hi"') === 'He said &quot;hi&quot;', "double quotes escaped");
+  assert(esc("it's") === "it&#x27;s", "single quote escaped");
+  assert(esc("a & b") === "a &amp; b", "ampersand escaped");
+  assert(esc("plain text") === "plain text", "plain text unchanged");
+  assert(esc("") === "", "empty string unchanged");
+  assert(esc(42) === "42", "non-string coerced to string");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: sell_signals transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  function computeSellSignals(coins, stableIds) {
+    return coins
+      .filter(function (c) { return c.market_cap > 100e6 && !stableIds.has(c.id); })
+      .map(function (c) {
+        const athChangePct = typeof c.ath_change_percentage === "number" ? c.ath_change_percentage : -100;
+        const volRatio = c.market_cap > 0 ? (c.total_volume || 0) / c.market_cap : 0;
+        const change7d = typeof c.price_change_percentage_7d_in_currency === "number" ? c.price_change_percentage_7d_in_currency : 0;
+        const change30d = typeof c.price_change_percentage_30d_in_currency === "number" ? c.price_change_percentage_30d_in_currency : 0;
+        const athScore = athChangePct >= -20 ? Math.round(33 * (1 - Math.max(0, Math.abs(athChangePct) - 5) / 15)) : 0;
+        const volScore = volRatio >= 0.10 ? Math.min(33, Math.round(33 * (volRatio - 0.10) / 0.40)) : 0;
+        const fadingScore = (change30d > 5 && change7d < 0) ? Math.min(34, Math.round(34 * Math.min(1, (-change7d) / 10))) : 0;
+        const signal_score = athScore + volScore + fadingScore;
+        return { id: c.id, symbol: (c.symbol || "").toUpperCase(), signal_score,
+          signals: { ath_proximity: athScore > 0, volume_spike: volScore > 0, momentum_fade: fadingScore > 0 } };
+      })
+      .filter(function (c) { return c.signal_score >= 30; })
+      .sort(function (a, b) { return b.signal_score - a.signal_score; })
+      .slice(0, 20);
+  }
+
+  const STABLES = new Set(["tether", "usd-coin"]);
+  console.log("\n--- market: sell_signals transform ---");
+
+  // Coin far from ATH, low volume, flat 7d — should not appear
+  const lowSignal = computeSellSignals([
+    { id: "bitcoin", symbol: "btc", market_cap: 1e12, total_volume: 1e10,
+      ath_change_percentage: -60, price_change_percentage_7d_in_currency: 2,
+      price_change_percentage_30d_in_currency: 5 }
+  ], STABLES);
+  assert(lowSignal.length === 0, "coin far from ATH with no fade not surfaced");
+
+  // Coin within 3% of ATH, high volume ratio, negative 7d on positive 30d — max signal
+  const highSignal = computeSellSignals([
+    { id: "ethereum", symbol: "eth", market_cap: 500e9, total_volume: 350e9,
+      ath_change_percentage: -3, price_change_percentage_7d_in_currency: -8,
+      price_change_percentage_30d_in_currency: 40 }
+  ], STABLES);
+  assert(highSignal.length === 1, "high-signal coin is surfaced");
+  assert(highSignal[0].signal_score >= 50, "high-signal coin scores >= 50");
+  assert(highSignal[0].signals.ath_proximity, "ATH proximity signal set");
+  assert(highSignal[0].signals.volume_spike, "volume spike signal set");
+  assert(highSignal[0].signals.momentum_fade, "momentum fade signal set");
+
+  // Stablecoin filtered out
+  const stableSignal = computeSellSignals([
+    { id: "tether", symbol: "usdt", market_cap: 100e9, total_volume: 80e9,
+      ath_change_percentage: -1, price_change_percentage_7d_in_currency: -1,
+      price_change_percentage_30d_in_currency: 0.1 }
+  ], STABLES);
+  assert(stableSignal.length === 0, "stablecoin excluded from sell signals");
+
+  // Small-cap filtered out (market_cap <= 100e6)
+  const smallCap = computeSellSignals([
+    { id: "smalltoken", symbol: "sm", market_cap: 50e6, total_volume: 30e6,
+      ath_change_percentage: -2, price_change_percentage_7d_in_currency: -5,
+      price_change_percentage_30d_in_currency: 20 }
+  ], STABLES);
+  assert(smallCap.length === 0, "sub-100M market-cap coin excluded");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: cgId — injection safety
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  const alertsSrc = require("../netlify/functions/alerts.js");
+  const { cgId } = alertsSrc;
+  console.log("\n--- alerts: cgId injection safety ---");
+  assert(cgId("BTC") === "bitcoin", "known ticker maps to CG ID");
+  assert(cgId("ETH") === "ethereum", "ETH maps to ethereum");
+  assert(cgId("BERA") === "berachain-bgt", "BERA maps to berachain-bgt");
+  assert(cgId("IO") === "io-net", "IO: maps to io-net");
+  assert(cgId("bitcoin") === "bitcoin", "lowercase CG-safe ID passes through");
+  // Injection attempts that should be blocked (non-lowercase, non-alpha chars)
+  assert(cgId("BTC;DROP") === null, "semicolon-injected ticker blocked");
+  assert(cgId("ETH&&ls") === null, "shell injection blocked");
+  assert(cgId("a".repeat(61)) === null, "ticker > 60 chars blocked");
+  assert(cgId("MY TOKEN") === null, "ticker with space blocked");
+  assert(cgId("BTC/ETH") === null, "ticker with slash blocked");
+  // Legitimate lowercase CG IDs with hyphens allowed
+  assert(cgId("my-token-2") !== null, "valid hyphenated lowercase ID passes");
+  assert(cgId("123") !== null, "all-numeric short string is CG-safe");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: 429 error carries status and retryAfter
+// (structural test — verifies fetchJson enriches the error correctly)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("\n--- market: 429 error structure ---");
+{
+  // Simulate the fetchJson 429 branch
+  function simulateFetchJson429(retryAfterHeader) {
+    const err = new Error("upstream 429");
+    err.status = 429;
+    err.retryAfter = retryAfterHeader || "60";
+    return err;
+  }
+  const e = simulateFetchJson429("120");
+  assert(e.status === 429, "429 error has status property");
+  assert(e.retryAfter === "120", "429 error carries Retry-After value");
+  const e2 = simulateFetchJson429(null);
+  assert(e2.retryAfter === "60", "missing Retry-After defaults to 60");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");

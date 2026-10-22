@@ -17,12 +17,12 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-20",
+  asOf: "2026-10-22",
 
   current: {
     regime: "longend",
     confidence: 82,
-    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is eight days away with markets pricing a hold at 3.75–4.00%; no pivot language in pre-meeting guidance. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin remains range-bound near $82k ahead of the FOMC.",
+    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is six days away with markets pricing a hold at 3.75–4.00%; no pivot language in pre-meeting guidance. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin remains range-bound near $82k ahead of the FOMC.",
     forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. The Oct 28 FOMC is the next potential inflection: any hint of pivot language would challenge the longend thesis, but current guidance offers none. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
   },
 
