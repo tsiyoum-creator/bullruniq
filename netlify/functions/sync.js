@@ -72,6 +72,7 @@ function validateUserData(data) {
       if (h.avg !== undefined && (typeof h.avg !== "number" || !isFinite(h.avg) || h.avg < 0)) return false;
       if (h.stop !== undefined && (typeof h.stop !== "number" || !isFinite(h.stop) || h.stop < 0)) return false;
       if (h.tp !== undefined && (typeof h.tp !== "number" || !isFinite(h.tp) || h.tp < 0)) return false;
+      if (h.notes !== undefined && (typeof h.notes !== "string" || h.notes.length > 1000)) return false;
     }
   }
   // Validate watchlist if present
@@ -86,6 +87,7 @@ function validateUserData(data) {
       if (w.name !== undefined && (typeof w.name !== "string" || w.name.length > 100)) return false;
       if (w.targetPrice !== undefined && (typeof w.targetPrice !== "number" || !isFinite(w.targetPrice) || w.targetPrice < 0)) return false;
       if (w.sellTarget !== undefined && (typeof w.sellTarget !== "number" || !isFinite(w.sellTarget) || w.sellTarget < 0)) return false;
+      if (w.notes !== undefined && (typeof w.notes !== "string" || w.notes.length > 1000)) return false;
     }
   }
   return true;

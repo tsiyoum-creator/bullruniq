@@ -172,6 +172,7 @@ function validateUserData(data) {
       if (h.avg !== undefined && (typeof h.avg !== "number" || !isFinite(h.avg) || h.avg < 0)) return false;
       if (h.stop !== undefined && (typeof h.stop !== "number" || !isFinite(h.stop) || h.stop < 0)) return false;
       if (h.tp !== undefined && (typeof h.tp !== "number" || !isFinite(h.tp) || h.tp < 0)) return false;
+      if (h.notes !== undefined && (typeof h.notes !== "string" || h.notes.length > 1000)) return false;
     }
   }
   if (data.wl !== undefined) {
@@ -185,6 +186,7 @@ function validateUserData(data) {
       if (w.name !== undefined && (typeof w.name !== "string" || w.name.length > 100)) return false;
       if (w.targetPrice !== undefined && (typeof w.targetPrice !== "number" || !isFinite(w.targetPrice) || w.targetPrice < 0)) return false;
       if (w.sellTarget !== undefined && (typeof w.sellTarget !== "number" || !isFinite(w.sellTarget) || w.sellTarget < 0)) return false;
+      if (w.notes !== undefined && (typeof w.notes !== "string" || w.notes.length > 1000)) return false;
     }
   }
   return true;
@@ -231,6 +233,17 @@ console.log("\n--- sync: validateUserData ---");
   assert(validateUserData({ wl: [{ sellTarget: -1 }] }) === false, "negative sellTarget rejected");
   assert(validateUserData({ port: { crypto: new Array(201).fill({ ticker: "BTC" }) } }) === false, "crypto array > 200 rejected");
   assert(validateUserData({ wl: new Array(101).fill({ ticker: "ETH" }) }) === false, "watchlist > 100 rejected");
+
+  // notes field on holdings
+  assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: "Bought at support" }] } }) === true, "valid notes string accepted");
+  assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: "A".repeat(1000) }] } }) === true, "notes at 1000 chars accepted");
+  assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: "A".repeat(1001) }] } }) === false, "notes > 1000 chars rejected");
+  assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: 123 }] } }) === false, "non-string notes on holding rejected");
+
+  // notes field on watchlist
+  assert(validateUserData({ wl: [{ ticker: "ETH", notes: "Watching for breakout" }] }) === true, "valid notes on watchlist item accepted");
+  assert(validateUserData({ wl: [{ ticker: "ETH", notes: "A".repeat(1001) }] }) === false, "notes > 1000 chars on watchlist rejected");
+  assert(validateUserData({ wl: [{ ticker: "ETH", notes: false }] }) === false, "boolean notes on watchlist rejected");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -667,6 +680,107 @@ console.log("\n--- macro: buildMacroContext includes dataAgeInDays ---");
   const src = fs.readFileSync(path.join(__dirname, "../macro.js"), "utf8");
   assert(src.includes("dataAgeInDays"), "macro.js buildMacroContext exports dataAgeInDays field");
   assert(src.includes("macroDataAge()"), "dataAgeInDays is computed from macroDataAge()");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: cgId — ticker-to-CoinGecko-ID resolution
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { cgId } = require("../netlify/functions/alerts");
+
+console.log("\n--- alerts: cgId ---");
+{
+  // Known map entries
+  assert(cgId("BTC") === "bitcoin", "BTC → bitcoin");
+  assert(cgId("ETH") === "ethereum", "ETH → ethereum");
+  assert(cgId("SOL") === "solana", "SOL → solana");
+  assert(cgId("HYPE") === "hyperliquid", "HYPE → hyperliquid");
+  assert(cgId("BERA") === "berachain-bgt", "BERA → berachain-bgt");
+  assert(cgId("POL") === "matic-network", "POL → matic-network (same as MATIC)");
+
+  // Case-insensitive lookup
+  assert(cgId("btc") === "bitcoin", "lowercase btc → bitcoin");
+  assert(cgId("Eth") === "ethereum", "mixed-case Eth → ethereum");
+
+  // Fallback: unknown ticker with valid CG-safe ID format
+  assert(cgId("unknown-token") === "unknown-token", "valid CG-safe unknown ticker passes through");
+  assert(cgId("my-token-123") === "my-token-123", "hyphenated token ID passes through");
+
+  // Blocked: ticker with unsafe chars returns null
+  assert(cgId("TICKER!@#") === null, "ticker with special chars returns null");
+  assert(cgId("Bad Token") === null, "ticker with space returns null");
+  assert(cgId("TICKER/") === null, "ticker with slash returns null");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: trend_reversal transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function trendReversalTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const recovering = [];
+  const fading = [];
+  data.forEach(function (c) {
+    if (!c.market_cap || c.market_cap < 50e6) return;
+    const d1 = c.price_change_percentage_24h;
+    const d7 = c.price_change_percentage_7d_in_currency;
+    if (typeof d1 !== "number" || typeof d7 !== "number") return;
+    const item = {
+      id: c.id,
+      symbol: (c.symbol || "").toUpperCase(),
+      name: c.name,
+      price: c.current_price,
+      market_cap: c.market_cap,
+      change_24h: d1,
+      change_7d: d7,
+      change_30d: c.price_change_percentage_30d_in_currency,
+    };
+    if (d1 > 2 && d7 < -5) recovering.push(item);
+    else if (d1 < -2 && d7 > 5) fading.push(item);
+  });
+  return {
+    recovering: recovering.sort(function (a, b) { return b.change_24h - a.change_24h; }).slice(0, 15),
+    fading: fading.sort(function (a, b) { return a.change_24h - b.change_24h; }).slice(0, 15),
+  };
+}
+
+console.log("\n--- market: trend_reversal transform ---");
+{
+  const coins = [
+    { id: "token-a", symbol: "TKA", name: "Token A", current_price: 1.0, market_cap: 200e6, price_change_percentage_24h: 5.0, price_change_percentage_7d_in_currency: -10.0, price_change_percentage_30d_in_currency: -15.0 },
+    { id: "token-b", symbol: "TKB", name: "Token B", current_price: 2.0, market_cap: 150e6, price_change_percentage_24h: -5.0, price_change_percentage_7d_in_currency: 15.0, price_change_percentage_30d_in_currency: 20.0 },
+    { id: "token-c", symbol: "TKC", name: "Token C", current_price: 3.0, market_cap: 500e6, price_change_percentage_24h: 1.0, price_change_percentage_7d_in_currency: -20.0, price_change_percentage_30d_in_currency: -25.0 },
+    { id: "token-d", symbol: "TKD", name: "Token D", current_price: 4.0, market_cap: 10e6, price_change_percentage_24h: 10.0, price_change_percentage_7d_in_currency: -20.0, price_change_percentage_30d_in_currency: -30.0 },
+    { id: "token-e", symbol: "TKE", name: "Token E", current_price: 5.0, market_cap: 300e6, price_change_percentage_24h: null, price_change_percentage_7d_in_currency: -10.0, price_change_percentage_30d_in_currency: null },
+  ];
+
+  const result = trendReversalTransform(coins);
+
+  assert(typeof result === "object" && !Array.isArray(result), "result is an object with two keys");
+  assert(Array.isArray(result.recovering), "recovering is an array");
+  assert(Array.isArray(result.fading), "fading is an array");
+
+  // token-a: 24h=+5%, 7d=-10% → recovering
+  assert(result.recovering.length === 1, "one recovering coin (token-a meets thresholds)");
+  assert(result.recovering[0].symbol === "TKA", "recovering coin is TKA");
+
+  // token-b: 24h=-5%, 7d=+15% → fading
+  assert(result.fading.length === 1, "one fading coin (token-b meets thresholds)");
+  assert(result.fading[0].symbol === "TKB", "fading coin is TKB");
+
+  // token-c: 24h=+1% (< 2%) — does not qualify for recovering
+  // token-d: market_cap < 50M — excluded regardless of signal
+  // token-e: null 24h — skipped
+  assert(!result.recovering.find(function (x) { return x.symbol === "TKC"; }), "token-c excluded (24h below +2% threshold)");
+  assert(!result.recovering.find(function (x) { return x.symbol === "TKD"; }), "token-d excluded (market cap below 50M)");
+  assert(!result.recovering.find(function (x) { return x.symbol === "TKE"; }), "token-e excluded (null 24h)");
+
+  // Returns empty lists, not error, when no coins qualify
+  const emptyResult = trendReversalTransform([]);
+  assert(emptyResult.recovering.length === 0 && emptyResult.fading.length === 0, "empty input returns empty arrays");
+
+  // non-array input passthrough
+  assert(trendReversalTransform(null) === null, "null passthrough");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

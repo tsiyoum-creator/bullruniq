@@ -271,6 +271,42 @@ exports.handler = async function (event) {
         .sort(function (a, b) { return b.momentum_score - a.momentum_score; })
         .slice(0, 25);
     };
+  } else if (q.kind === "trend_reversal") {
+    // Trend reversal scanner: coins showing a signal where short-term and medium-term
+    // momentum diverge — a potential inflection point indicator for investors.
+    // "recovering": 24h > +2% but 7d < -5% → recovering from a recent downtrend.
+    // "fading": 24h < -2% but 7d > +5% → momentum fading from a recent uptrend.
+    // Micro-caps (market_cap < $50M) excluded to filter noise.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h,7d,30d";
+    key = "mkt:top250_reversal";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      const recovering = [];
+      const fading = [];
+      data.forEach(function (c) {
+        if (!c.market_cap || c.market_cap < 50e6) return;
+        const d1 = c.price_change_percentage_24h;
+        const d7 = c.price_change_percentage_7d_in_currency;
+        if (typeof d1 !== "number" || typeof d7 !== "number") return;
+        const item = {
+          id: c.id,
+          symbol: (c.symbol || "").toUpperCase(),
+          name: c.name,
+          price: c.current_price,
+          market_cap: c.market_cap,
+          change_24h: d1,
+          change_7d: d7,
+          change_30d: c.price_change_percentage_30d_in_currency,
+        };
+        if (d1 > 2 && d7 < -5) recovering.push(item);
+        else if (d1 < -2 && d7 > 5) fading.push(item);
+      });
+      return {
+        recovering: recovering.sort(function (a, b) { return b.change_24h - a.change_24h; }).slice(0, 15),
+        fading: fading.sort(function (a, b) { return a.change_24h - b.change_24h; }).slice(0, 15),
+      };
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -280,7 +316,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");
