@@ -1,7 +1,7 @@
 // BullrunIQ — market news feed (/api/news).
 
 const TTL_MS = 15 * 60000;
-const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=300" };
+const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" };
 
 function decodeEntities(s) {
   return String(s)

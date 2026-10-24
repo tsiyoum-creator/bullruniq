@@ -1,9 +1,17 @@
 // BullrunIQ — minimal first-party analytics beacon.
 
 const GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
+const GIF_B64 = GIF.toString("base64");
+const GIF_HEADERS = { "Content-Type": "image/gif", "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate", "Access-Control-Allow-Origin": "*" };
+function gifResponse() { return { statusCode: 200, headers: GIF_HEADERS, body: GIF_B64, isBase64Encoded: true }; }
+
+const MAX_BODY_BYTES = 2048;
 
 exports.handler = async function (event) {
   try {
+    if ((event.body || "").length > MAX_BODY_BYTES) {
+      return gifResponse();
+    }
     let e = {};
     if (event.httpMethod === "POST") {
       try { e = JSON.parse(event.body || "{}"); } catch (x) {}
@@ -24,14 +32,5 @@ exports.handler = async function (event) {
   } catch (err) {
     console.log("[analytics] error", err.message);
   }
-  return {
-    statusCode: 200,
-    headers: {
-      "Content-Type": "image/gif",
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-      "Access-Control-Allow-Origin": "*",
-    },
-    body: GIF.toString("base64"),
-    isBase64Encoded: true,
-  };
+  return gifResponse();
 };

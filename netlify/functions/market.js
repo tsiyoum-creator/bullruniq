@@ -1,7 +1,7 @@
 // BullrunIQ — market data proxy (/api/market).
 
 const TTL_MS = 10 * 60000;
-const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
+const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120", "X-Content-Type-Options": "nosniff" };
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
@@ -158,6 +158,8 @@ exports.handler = async function (event) {
           return typeof c.ath_change_percentage === "number" && c.ath_change_percentage >= -20;
         })
         .map(function (c) {
+          const c7d = c.price_change_percentage_7d_in_currency || 0;
+          const c30d = c.price_change_percentage_30d_in_currency || 0;
           return {
             id: c.id,
             symbol: (c.symbol || "").toUpperCase(),
@@ -168,6 +170,10 @@ exports.handler = async function (event) {
             market_cap: c.market_cap,
             change_7d: c.price_change_percentage_7d_in_currency,
             change_30d: c.price_change_percentage_30d_in_currency,
+            // Momentum score for coins near ATH: a positive value here alongside
+            // ath_change_pct near 0 is the strongest profit-taking signal in the app —
+            // the coin is approaching its ATH while buyers are still accelerating.
+            momentum_score: parseFloat(((c7d * 0.4) + (c30d * 0.6)).toFixed(2)),
           };
         })
         .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });

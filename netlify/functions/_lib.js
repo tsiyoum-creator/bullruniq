@@ -84,4 +84,9 @@ function verifyUnsub(email, token) {
   } catch (e) { return false; }
 }
 
-module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys, signUnsub, verifyUnsub };
+// Per-plan daily AI request caps — shared by generate.js (enforcement) and sync.js
+// (reporting remaining). Both must read from here so a change to one plan's cap
+// doesn't silently diverge between the two files.
+const PLAN_DAILY_CAPS = { free: 50, pro: 500, elite: 1000, advisor: 2000 };
+
+module.exports = { secretKey, signToken, verifyToken, planFor, json, esc, listAllKeys, signUnsub, verifyUnsub, PLAN_DAILY_CAPS };
