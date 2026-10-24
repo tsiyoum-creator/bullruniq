@@ -784,6 +784,187 @@ console.log("\n--- market: trend_reversal transform ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// market: momentum transform logic
+// Coins positive on BOTH 7d and 30d, ranked by composite score.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function momentumTransform(data) {
+  if (!Array.isArray(data)) return data;
+  return data
+    .filter(function (c) {
+      return typeof c.price_change_percentage_7d_in_currency === "number" &&
+        typeof c.price_change_percentage_30d_in_currency === "number" &&
+        c.price_change_percentage_7d_in_currency > 0 &&
+        c.price_change_percentage_30d_in_currency > 0 &&
+        c.market_cap > 50e6;
+    })
+    .map(function (c) {
+      const change7d = c.price_change_percentage_7d_in_currency;
+      const change30d = c.price_change_percentage_30d_in_currency;
+      return {
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        price: c.current_price,
+        market_cap: c.market_cap,
+        change_7d: change7d,
+        change_30d: change30d,
+        momentum_score: (change7d * 0.4) + (change30d * 0.6),
+      };
+    })
+    .sort(function (a, b) { return b.momentum_score - a.momentum_score; })
+    .slice(0, 25);
+}
+
+console.log("\n--- market: momentum transform ---");
+{
+  const coins = [
+    { id: "coin-a", symbol: "CA", name: "Coin A", current_price: 10, market_cap: 200e6, price_change_percentage_7d_in_currency: 20, price_change_percentage_30d_in_currency: 50 },
+    { id: "coin-b", symbol: "CB", name: "Coin B", current_price: 5,  market_cap: 100e6, price_change_percentage_7d_in_currency: 5,  price_change_percentage_30d_in_currency: 15 },
+    { id: "coin-c", symbol: "CC", name: "Coin C", current_price: 2,  market_cap: 500e6, price_change_percentage_7d_in_currency: -3, price_change_percentage_30d_in_currency: 10 },
+    { id: "coin-d", symbol: "CD", name: "Coin D", current_price: 1,  market_cap: 30e6,  price_change_percentage_7d_in_currency: 30, price_change_percentage_30d_in_currency: 60 },
+    { id: "coin-e", symbol: "CE", name: "Coin E", current_price: 3,  market_cap: 150e6, price_change_percentage_7d_in_currency: 10, price_change_percentage_30d_in_currency: -5 },
+  ];
+
+  const result = momentumTransform(coins);
+
+  // coin-a: both positive, market_cap ok → included
+  // coin-b: both positive, market_cap ok → included
+  // coin-c: 7d is negative → excluded
+  // coin-d: both positive but market_cap < 50M → excluded
+  // coin-e: 30d is negative → excluded
+  assert(result.length === 2, "only coins with both 7d and 30d positive and mcap > 50M qualify");
+  assert(result[0].symbol === "CA", "coin-a ranked first (higher momentum_score)");
+  assert(result[1].symbol === "CB", "coin-b ranked second");
+
+  // Verify momentum_score formula: (7d * 0.4) + (30d * 0.6)
+  const expectedScoreA = (20 * 0.4) + (50 * 0.6); // 38
+  const expectedScoreB = (5 * 0.4) + (15 * 0.6);  // 11
+  assert(approx(result[0].momentum_score, expectedScoreA), "coin-a momentum_score = (20*0.4)+(50*0.6) = 38");
+  assert(approx(result[1].momentum_score, expectedScoreB), "coin-b momentum_score = (5*0.4)+(15*0.6) = 11");
+
+  // Both fields must be present on the result
+  assert(typeof result[0].change_7d === "number" && typeof result[0].change_30d === "number", "change_7d and change_30d present");
+  assert(typeof result[0].market_cap === "number", "market_cap present");
+
+  // Edge cases
+  assert(momentumTransform([]) !== null && momentumTransform([]).length === 0, "empty array returns empty");
+  assert(momentumTransform(null) === null, "null passthrough");
+
+  // slice(0,25): generate 30 coins all with valid positive momentum — only 25 should return
+  const manyCoins = Array.from({ length: 30 }, function (_, i) {
+    return { id: "t" + i, symbol: "T" + i, name: "T" + i, current_price: 1, market_cap: 100e6,
+      price_change_percentage_7d_in_currency: i + 1, price_change_percentage_30d_in_currency: i + 1 };
+  });
+  const capped = momentumTransform(manyCoins);
+  assert(capped.length === 25, "result capped at 25 coins");
+  assert(capped[0].momentum_score >= capped[capped.length - 1].momentum_score, "sorted descending by momentum_score");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: ath_nearby momentum_score field
+// ─────────────────────────────────────────────────────────────────────────────
+
+function athNearbyWithMomentum(data) {
+  if (!Array.isArray(data)) return data;
+  return data
+    .filter(function (c) {
+      return typeof c.ath_change_percentage === "number" && c.ath_change_percentage >= -20;
+    })
+    .map(function (c) {
+      const c7d = c.price_change_percentage_7d_in_currency || 0;
+      const c30d = c.price_change_percentage_30d_in_currency || 0;
+      return {
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        price: c.current_price,
+        ath: c.ath,
+        ath_change_pct: c.ath_change_percentage,
+        market_cap: c.market_cap,
+        change_7d: c.price_change_percentage_7d_in_currency,
+        change_30d: c.price_change_percentage_30d_in_currency,
+        momentum_score: parseFloat(((c7d * 0.4) + (c30d * 0.6)).toFixed(2)),
+      };
+    })
+    .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
+}
+
+console.log("\n--- market: ath_nearby momentum_score ---");
+{
+  const coins = [
+    { id: "coin-x", symbol: "cx", name: "X", current_price: 95, ath: 100, ath_change_percentage: -5.0,  market_cap: 1e9, price_change_percentage_7d_in_currency: 10, price_change_percentage_30d_in_currency: 20 },
+    { id: "coin-y", symbol: "cy", name: "Y", current_price: 82, ath: 100, ath_change_percentage: -18.0, market_cap: 500e6, price_change_percentage_7d_in_currency: -5, price_change_percentage_30d_in_currency: -10 },
+    { id: "coin-z", symbol: "cz", name: "Z", current_price: 60, ath: 100, ath_change_percentage: -40.0, market_cap: 200e6, price_change_percentage_7d_in_currency: 5, price_change_percentage_30d_in_currency: 8 },
+  ];
+
+  const result = athNearbyWithMomentum(coins);
+
+  // coin-x: -5% from ATH, within -20% → included
+  // coin-y: -18% from ATH, within -20% → included
+  // coin-z: -40% from ATH, outside -20% → excluded
+  assert(result.length === 2, "coin-z excluded (beyond -20%)");
+  assert(result[0].symbol === "CX", "coin-x ranked first (closer to ATH)");
+
+  // momentum_score = (7d * 0.4) + (30d * 0.6)
+  const expectedX = parseFloat(((10 * 0.4) + (20 * 0.6)).toFixed(2)); // 16.00
+  const expectedY = parseFloat(((-5 * 0.4) + (-10 * 0.6)).toFixed(2)); // -8.00
+  assert(result[0].momentum_score === expectedX, "coin-x momentum_score: (10*0.4)+(20*0.6)=16");
+  assert(result[1].momentum_score === expectedY, "coin-y momentum_score: (-5*0.4)+(-10*0.6)=-8");
+
+  // null change values fall back to 0 in the score
+  const noChange = [{ id: "nc", symbol: "nc", name: "NC", current_price: 95, ath: 100, ath_change_percentage: -5.0, market_cap: 1e9, price_change_percentage_7d_in_currency: null, price_change_percentage_30d_in_currency: undefined }];
+  const ncResult = athNearbyWithMomentum(noChange);
+  assert(ncResult.length === 1 && ncResult[0].momentum_score === 0, "null/undefined change fields produce momentum_score of 0");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _lib: PLAN_DAILY_CAPS exported and matches both sync and generate values
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- _lib: PLAN_DAILY_CAPS export ---");
+{
+  const lib = require("../netlify/functions/_lib");
+  assert(typeof lib.PLAN_DAILY_CAPS === "object", "PLAN_DAILY_CAPS exported from _lib");
+  assert(lib.PLAN_DAILY_CAPS.free === 50,   "free cap is 50");
+  assert(lib.PLAN_DAILY_CAPS.pro === 500,   "pro cap is 500");
+  assert(lib.PLAN_DAILY_CAPS.elite === 1000, "elite cap is 1000");
+  assert(lib.PLAN_DAILY_CAPS.advisor === 2000, "advisor cap is 2000");
+
+  // Verify sync.js no longer defines its own copy
+  const syncJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/sync.js"), "utf8");
+  assert(!syncJs.includes("const PLAN_DAILY_CAPS = {"), "sync.js no longer defines its own PLAN_DAILY_CAPS");
+  assert(syncJs.includes("PLAN_DAILY_CAPS"), "sync.js still uses PLAN_DAILY_CAPS (imported from _lib)");
+
+  // Verify generate.js no longer defines its own copy
+  const generateJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  assert(!generateJs.includes("const PLAN_DAILY_CAPS = {"), "generate.js no longer defines its own PLAN_DAILY_CAPS");
+  assert(generateJs.includes("PLAN_DAILY_CAPS"), "generate.js still uses PLAN_DAILY_CAPS (imported from _lib)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: ath_nearby momentum_score present in production market.js
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: ath_nearby production momentum_score ---");
+{
+  const marketJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes("momentum_score"), "market.js ath_nearby includes momentum_score field");
+  assert(marketJs.includes("X-Content-Type-Options"), "market.js CORS includes X-Content-Type-Options: nosniff");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// track: body size guard present in production track.js
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- track: body size guard ---");
+{
+  const trackJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/track.js"), "utf8");
+  assert(trackJs.includes("MAX_BODY_BYTES"), "track.js defines MAX_BODY_BYTES guard");
+  assert(trackJs.includes("2048"), "MAX_BODY_BYTES is set to 2048");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
