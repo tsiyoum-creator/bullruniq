@@ -78,6 +78,11 @@ const CGMAP = {
   // Late-2026 additions
   BERA:"berachain-bgt", IO:"io-net", GRASS:"grass",
   BANANA:"banana-gun", POL:"matic-network",
+  // Q4 2026 additions
+  PENGU:"pudgy-penguins", MOCA:"moca-network", CGPT:"chaingpt",
+  PROMPT:"stfil", PNUT:"peanut-the-squirrel", SKYAI:"skyai",
+  CATI:"catizen", LUCE:"luce", CHILLGUY:"chillguy",
+  DBIO:"debio-network", MUBARAK:"mubarak",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };

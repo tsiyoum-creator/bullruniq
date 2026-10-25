@@ -17,13 +17,13 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-21",
+  asOf: "2026-10-25",
 
   current: {
     regime: "longend",
     confidence: 82,
-    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is seven days away with markets pricing a hold at 3.75–4.00%; no pivot language in pre-meeting guidance. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin remains range-bound near $82k ahead of the FOMC.",
-    forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. The Oct 28 FOMC is the next potential inflection: any hint of pivot language would challenge the longend thesis, but current guidance offers none. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
+    summary: "The 30-year sits at 5.42% and the 10-year has held above 5.00% for nearly three weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is three days away with markets pricing a hold at 3.75–4.00%; no pivot language in pre-meeting guidance. Dollar (DXY 100.5) has remained above 100 for seven consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin remains range-bound near $83k ahead of the FOMC.",
+    forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. The Oct 28 FOMC is the next potential inflection — now three days out — and any hint of pivot language would challenge the longend thesis, but current guidance offers none. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
   },
 
   regimes: [
@@ -61,19 +61,19 @@ var MACRO_DATA = {
 
   /* thresholds[] drive checkFalsifiers(). op: 'gt' | 'lt' */
   indicators: [
-    { k:"dxy",      n:"DXY",                 v:100.30, u:"",      asOf:"2026-10-07", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
-    { k:"ust30",    n:"UST 30y",             v:5.38,   u:"%",     asOf:"2026-10-07", src:"US Treasury",     op:"gt", th:5.75, trips:"longend"   },
-    { k:"ust10",    n:"UST 10y",             v:5.02,   u:"%",     asOf:"2026-10-07", src:"US Treasury",     op:"gt", th:5.25, trips:"longend"   },
-    { k:"ust2",     n:"UST 2y",              v:4.68,   u:"%",     asOf:"2026-10-07", src:"US Treasury",     op:null, th:null, trips:null        },
+    { k:"dxy",      n:"DXY",                 v:100.50, u:"",      asOf:"2026-10-25", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
+    { k:"ust30",    n:"UST 30y",             v:5.42,   u:"%",     asOf:"2026-10-25", src:"US Treasury",     op:"gt", th:5.75, trips:"longend"   },
+    { k:"ust10",    n:"UST 10y",             v:5.05,   u:"%",     asOf:"2026-10-25", src:"US Treasury",     op:"gt", th:5.25, trips:"longend"   },
+    { k:"ust2",     n:"UST 2y",              v:4.70,   u:"%",     asOf:"2026-10-25", src:"US Treasury",     op:null, th:null, trips:null        },
     { k:"ffr",      n:"Fed funds target",    v:3.875,  u:"%",     asOf:"2026-09-17", src:"FOMC",            op:"gt", th:4.5,  trips:"longend"   },
     { k:"netliq",   n:"Net liquidity",       v:5812,   u:"bn",    asOf:"2026-10-01", src:"Fed H.4.1",       op:null, th:null, trips:null        },
     { k:"tga",      n:"Treasury General Acct", v:921,  u:"bn",    asOf:"2026-10-01", src:"Fed H.4.1",       op:null, th:null, trips:null        },
     { k:"rrp",      n:"Overnight RRP",       v:1,      u:"bn",    asOf:"2026-10-01", src:"Fed H.4.1",       op:null, th:null, trips:null        },
-    { k:"gold",     n:"Gold",                v:4421.50,u:"/oz",   asOf:"2026-10-07", src:"Trading Economics", op:null, th:null, trips:null      },
-    { k:"stables",  n:"Stablecoin supply",   v:312.40, u:"bn",    asOf:"2026-10-05", src:"DefiLlama",       op:"lt", th:280,  trips:"deflation" },
+    { k:"gold",     n:"Gold",                v:4440.00,u:"/oz",   asOf:"2026-10-25", src:"Trading Economics", op:null, th:null, trips:null      },
+    { k:"stables",  n:"Stablecoin supply",   v:313.50, u:"bn",    asOf:"2026-10-25", src:"DefiLlama",       op:"lt", th:280,  trips:"deflation" },
     { k:"cofer",    n:"COFER USD share",     v:57.13,  u:"%",     asOf:"2026-Q1",    src:"IMF COFER",       op:null, th:null, trips:null        },
     { k:"ism",      n:"ISM Manufacturing",   v:54.6,   u:"",      asOf:"2026-09",    src:"ISM",             op:"lt", th:48,   trips:"deflation" },
-    { k:"btc",      n:"Bitcoin",             v:82100,  u:"",      asOf:"2026-10-07", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
+    { k:"btc",      n:"Bitcoin",             v:83200,  u:"",      asOf:"2026-10-25", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
     { k:"termprem", n:"ACM term premium",    v:null,   u:"",      asOf:null,         src:"NY Fed",          op:null, th:null, trips:null        },
     { k:"real10",   n:"10y TIPS real",       v:null,   u:"%",     asOf:null,         src:"US Treasury",     op:null, th:null, trips:null        },
     { k:"move",     n:"MOVE index",          v:null,   u:"",      asOf:null,         src:"ICE",             op:null, th:null, trips:null        }
