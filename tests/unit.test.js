@@ -93,17 +93,14 @@ function computeLadder(avg, qty, price, regime) {
 
 console.log("\n--- alerts: computeLadder ---");
 {
-  // Below 10% gain → null
   assert(computeLadder(100, 10, 105, "liquidity") === null, "gain < 10% returns null");
   assert(computeLadder(100, 10, 109.9, "liquidity") === null, "gain exactly 9.9% returns null");
 
-  // Exactly at 10% gain → ladder computed (10 >= 10 is a boundary — verify)
   const at10 = computeLadder(100, 10, 110, "liquidity");
   assert(at10 !== null, "gain = 10% returns ladder");
   assert(approx(at10.gainPct, 10), "gainPct correct at 10%");
   assert(at10.hits.length === 0, "no rungs hit at exactly 10% gain");
 
-  // 60% gain, standard regime: first two rungs hit (+25%, +50%)
   const at60 = computeLadder(100, 8, 160, "liquidity");
   assert(at60 !== null, "60% gain returns ladder");
   assert(at60.hits.length === 2, "two rungs hit at 60% gain (liquidity)");
@@ -112,11 +109,9 @@ console.log("\n--- alerts: computeLadder ---");
   assert(approx(at60.rungs[0].price, 125), "rung 0 price = avg * 1.25");
   assert(approx(at60.rungs[0].qty, 2), "rung qty = total * 0.25");
 
-  // Tight regime (longend): 60% gain → hits rungs at 15%, 30%, 60% but not 100%
   const tight60 = computeLadder(100, 8, 160, "longend");
   assert(tight60.hits.length === 3, "three rungs hit at 60% gain (longend)");
 
-  // Invalid inputs
   assert(computeLadder(0, 10, 100, "liquidity") === null, "avg=0 returns null");
   assert(computeLadder(-1, 10, 100, "liquidity") === null, "avg<0 returns null");
   assert(computeLadder(100, 0, 100, "liquidity") === null, "qty=0 returns null");
@@ -199,7 +194,6 @@ console.log("\n--- sync: validateUserData ---");
   assert(validateUserData([]) === false, "array rejected");
   assert(validateUserData("string") === false, "string rejected");
 
-  // cash
   assert(validateUserData({ cash: 0 }) === true, "cash=0 valid");
   assert(validateUserData({ cash: 50000 }) === true, "cash=50000 valid");
   assert(validateUserData({ cash: -1 }) === false, "negative cash rejected");
@@ -208,14 +202,12 @@ console.log("\n--- sync: validateUserData ---");
   assert(validateUserData({ cash: Infinity }) === false, "Infinity cash rejected");
   assert(validateUserData({ cash: "1000" }) === false, "string cash rejected");
 
-  // cashApy
   assert(validateUserData({ cashApy: 5 }) === true, "cashApy=5 valid");
   assert(validateUserData({ cashApy: 0 }) === true, "cashApy=0 valid");
   assert(validateUserData({ cashApy: 100 }) === true, "cashApy=100 valid");
   assert(validateUserData({ cashApy: -0.1 }) === false, "negative cashApy rejected");
   assert(validateUserData({ cashApy: 101 }) === false, "cashApy > 100 rejected");
 
-  // portfolio crypto
   assert(validateUserData({ port: { crypto: [] } }) === true, "empty crypto array valid");
   assert(validateUserData({ port: { crypto: [{ ticker: "BTC", qty: 0.5, avg: 60000 }] } }) === true, "valid holding");
   assert(validateUserData({ port: { crypto: [{ ticker: "BTC!!", qty: 0.5 }] } }) === false, "invalid ticker chars rejected");
@@ -225,7 +217,6 @@ console.log("\n--- sync: validateUserData ---");
   assert(validateUserData({ port: { crypto: [{ stop: -1 }] } }) === false, "negative stop rejected");
   assert(validateUserData({ port: { crypto: [{ tp: -1 }] } }) === false, "negative tp rejected");
 
-  // watchlist
   assert(validateUserData({ wl: [] }) === true, "empty watchlist valid");
   assert(validateUserData({ wl: [{ ticker: "ETH", targetPrice: 3000, sellTarget: 5000 }] }) === true, "valid watchlist item");
   assert(validateUserData({ wl: [{ ticker: "TICKER!@#" }] }) === false, "invalid watchlist ticker chars rejected");
@@ -234,13 +225,11 @@ console.log("\n--- sync: validateUserData ---");
   assert(validateUserData({ port: { crypto: new Array(201).fill({ ticker: "BTC" }) } }) === false, "crypto array > 200 rejected");
   assert(validateUserData({ wl: new Array(101).fill({ ticker: "ETH" }) }) === false, "watchlist > 100 rejected");
 
-  // notes field on holdings
   assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: "Bought at support" }] } }) === true, "valid notes string accepted");
   assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: "A".repeat(1000) }] } }) === true, "notes at 1000 chars accepted");
   assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: "A".repeat(1001) }] } }) === false, "notes > 1000 chars rejected");
   assert(validateUserData({ port: { crypto: [{ ticker: "BTC", notes: 123 }] } }) === false, "non-string notes on holding rejected");
 
-  // notes field on watchlist
   assert(validateUserData({ wl: [{ ticker: "ETH", notes: "Watching for breakout" }] }) === true, "valid notes on watchlist item accepted");
   assert(validateUserData({ wl: [{ ticker: "ETH", notes: "A".repeat(1001) }] }) === false, "notes > 1000 chars on watchlist rejected");
   assert(validateUserData({ wl: [{ ticker: "ETH", notes: false }] }) === false, "boolean notes on watchlist rejected");
@@ -252,12 +241,15 @@ console.log("\n--- sync: validateUserData ---");
 
 const SERVER_ALERT_FLAGS = new Set([
   "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
-  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
+  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted", "serverDrawdownAlerted",
 ]);
+
+const ROOT_SERVER_FLAGS = ["serverDrawdownAlerted", "portfolioPeak"];
 
 function stripServerFlags(data) {
   if (!data || typeof data !== "object") return data;
   const out = Object.assign({}, data);
+  for (const flag of ROOT_SERVER_FLAGS) delete out[flag];
   if (out.port && Array.isArray(out.port.crypto)) {
     out.port = Object.assign({}, out.port);
     out.port.crypto = out.port.crypto.map(function (h) {
@@ -305,15 +297,26 @@ console.log("\n--- sync: stripServerFlags ---");
   assert(clean.wl[0].serverAlerted === undefined, "serverAlerted stripped from watchlist");
   assert(clean.wl[0].serverSellAlerted === undefined, "serverSellAlerted stripped from watchlist");
 
-  // Original object must not be mutated
   assert(dirty.port.crypto[0].serverStopAlerted === true, "original object not mutated");
   assert(dirty.wl[0].serverAlerted === true, "original watchlist not mutated");
 
-  // Edge cases
   assert(stripServerFlags(null) === null, "null passthrough");
   assert(stripServerFlags("str") === "str", "non-object passthrough");
   const noPort = stripServerFlags({ cash: 500 });
   assert(noPort.cash === 500 && !noPort.port, "data without port untouched");
+
+  const withRootFlags = {
+    cash: 2000,
+    portfolioPeak: 50000,
+    serverDrawdownAlerted: true,
+    port: { crypto: [{ ticker: "BTC", qty: 1 }] },
+  };
+  const cleanRoot = stripServerFlags(withRootFlags);
+  assert(cleanRoot.cash === 2000, "cash preserved when root flags stripped");
+  assert(cleanRoot.portfolioPeak === undefined, "portfolioPeak stripped from root");
+  assert(cleanRoot.serverDrawdownAlerted === undefined, "serverDrawdownAlerted stripped from root");
+  assert(withRootFlags.portfolioPeak === 50000, "original not mutated (portfolioPeak)");
+  assert(withRootFlags.serverDrawdownAlerted === true, "original not mutated (serverDrawdownAlerted)");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,7 +367,6 @@ console.log("\n--- news: scoreByTickers ---");
   assert(scoreByTickers("Bitcoin hits $100k", ["BTC", "bitcoin"]) === 1, "case-insensitive match");
   assert(scoreByTickers("BTC and ETH surge", ["BTC", "ETH"]) === 2, "two ticker matches");
   assert(scoreByTickers("Market update", ["BTC"]) === 0, "no match returns 0");
-  // includes() is substring-based: "sol" is in "solana", "eth" is in "ethereum"
   assert(scoreByTickers("solana and ethereum rally", ["SOL", "ETH", "BTC"]) === 2, "substring match: SOL→solana, ETH→ethereum");
   assert(scoreByTickers("solana and ethereum rally", ["SOL", "solana", "ethereum"]) === 3, "3 matches: sol substring + solana + ethereum");
   assert(scoreByTickers("", ["BTC"]) === 0, "empty title returns 0");
@@ -407,17 +409,14 @@ console.log("\n--- news: parseRss ---");
   assert(typeof items[0].at === "number" && items[0].at > 0, "pubDate converted to timestamp");
   assert(items[0].at > items[1].at, "older item has smaller timestamp");
 
-  // Empty/malformed XML
   assert(parseRss("", "X").length === 0, "empty XML returns empty array");
   assert(parseRss("no items here", "X").length === 0, "XML without items returns empty");
 
-  // Title truncation at 160 chars
   const longTitle = "A".repeat(200);
   const longRss = `<rss><channel><item><title>${longTitle}</title><link>https://example.com</link></item></channel></rss>`;
   const longItems = parseRss(longRss, "X");
   assert(longItems.length === 1 && longItems[0].t.length === 160, "title truncated to 160 chars");
 
-  // CDATA section stripping
   const cdataRss = `<rss><channel><item><title><![CDATA[Bitcoin & Crypto Update]]></title><link>https://example.com/cdata</link></item></channel></rss>`;
   const cdataItems = parseRss(cdataRss, "X");
   assert(cdataItems.length === 1, "CDATA item parsed");
@@ -439,21 +438,16 @@ console.log("\n--- news: rankByTickers ---");
   assert(ranked.length <= 20, "returns at most 20 items");
   assert(ranked[0].t === "ETH and BTC surge together", "double-match item ranked first");
   assert(ranked[1].t === "BTC breaks $100k" || ranked[1].t === "ETH staking update", "single-match items ranked second/third");
-  // Among equal scores, more recent items come first
   const score0 = scoreByTickers(ranked[0].t, ["BTC", "ETH"]);
   const score1 = scoreByTickers(ranked[1].t, ["BTC", "ETH"]);
   assert(score0 >= score1, "higher-scored items always appear before lower-scored");
 
-  // No matching tickers — falls back to recency order
   const noMatch = rankByTickers(items, ["XRP"]);
   assert(noMatch[0].at >= noMatch[noMatch.length - 1].at, "no-match items sorted by recency");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // platform: checkAlerts re-arm boundary
-// Tests the corrected re-arm logic: alerted resets when dist >= 2%, not >= 5%.
-// This prevents a dead-zone where a price bouncing between 2-5% from target
-// never re-triggers.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function simulateCheckAlerts(watchlistItem, currentPrice) {
@@ -470,37 +464,29 @@ function simulateCheckAlerts(watchlistItem, currentPrice) {
 
 console.log("\n--- platform: checkAlerts re-arm ---");
 {
-  // Within 2% of target: alert fires
   var w1 = simulateCheckAlerts({ targetPrice: 50000, alerted: false }, 49100);
   assert(w1.alerted === true && w1._fired === true, "alert fires when price within 2% of target");
 
-  // Within 2% but already alerted: no re-fire
   var w2 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 49100);
   assert(w2.alerted === true && !w2._fired, "no re-fire when already alerted");
 
-  // Price moves to 3% above target (dist = 3%): re-arm at >= 2% boundary
   var w3 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 51550);
   assert(w3.alerted === false, "re-arms when dist is 3% (>= 2% boundary)");
 
-  // After re-arm, price comes back within 2%: fires again
   var w4 = simulateCheckAlerts({ targetPrice: 50000, alerted: false }, 49500);
   assert(w4.alerted === true && w4._fired === true, "fires again after re-arm");
 
-  // Price 2.1% above target: should re-arm (dist > 2%)
-  // price = 51100: dist = |50000-51100|/51100*100 = 2.15%
   var w5 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 51100);
   var dist5 = Math.abs((50000 - 51100) / 51100 * 100);
   assert(dist5 >= 2, "dist at 51100 is >= 2% (2.15%)");
   assert(w5.alerted === false, "re-arms when dist is 2.15% above target");
 
-  // Price 4% from target (old 5% threshold would NOT re-arm, new 2% DOES)
   var w6 = simulateCheckAlerts({ targetPrice: 50000, alerted: true }, 52000);
   assert(w6.alerted === false, "re-arms at 4% — fixed dead-zone from old >= 5 threshold");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// alerts: server-side buy alert re-arm threshold matches unit-test expectation
-// Verifies that the production dist >= 2 (not the old >= 5) threshold is used.
+// alerts: server-side buy alert re-arm threshold
 // ─────────────────────────────────────────────────────────────────────────────
 
 function simulateServerBuyAlert(w, price) {
@@ -517,23 +503,18 @@ function simulateServerBuyAlert(w, price) {
 
 console.log("\n--- alerts: server-side buy alert re-arm (dist >= 2) ---");
 {
-  // Price within 2% of target — alert fires
   var s1 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: false }, 49100);
   assert(s1.serverAlerted === true && s1._fired === true, "server alert fires within 2% of target");
 
-  // Already alerted — no re-fire
   var s2 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 49100);
   assert(s2.serverAlerted === true && !s2._fired, "no re-fire when already alerted");
 
-  // dist = 3% (>= 2): re-arms
   var s3 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 51550);
   assert(s3.serverAlerted === false, "re-arms at 3% from target");
 
-  // dist = 4%: re-arms (would have been BLOCKED with old >= 5 threshold)
   var s4 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 52000);
   assert(s4.serverAlerted === false, "re-arms at 4% — old >=5 threshold would have left this stuck");
 
-  // dist = 1.5% (< 2): does NOT re-arm when already alerted
   var s5 = simulateServerBuyAlert({ targetPrice: 50000, serverAlerted: true }, 50760);
   var dist5 = Math.abs((50000 - 50760) / 50760 * 100);
   assert(dist5 < 2, "dist at 50760 is < 2%");
@@ -567,7 +548,6 @@ console.log("\n--- macro: checkFalsifiers null-indicator guard ---");
   assert(trips.length === 0, "null-value indicators produce no NaN trips");
   assert(!trips.some(function(t) { return isNaN(t.v); }), "no NaN in trips array");
 
-  // Verify a live indicator does trip correctly
   var liveIndicators = [{ k: "ust10", n: "UST 10y", v: 5.30, op: "gt", th: 5.25 }];
   var liveTrips = checkFalsifiers_test(liveIndicators);
   assert(liveTrips.length === 1, "live indicator above threshold trips correctly");
@@ -594,13 +574,11 @@ console.log("\n--- macro: MACRO_AI_RULE leading-space check ---");
 
 console.log("\n--- news: decodeEntities CDATA stripping ---");
 {
-  // Verify the alternation regex (|) correctly strips CDATA opening and closing markers.
   assert(decodeEntities("<![CDATA[hello & world]]>") === "hello &amp; world" ||
          decodeEntities("<![CDATA[hello & world]]>") === "hello & world",
     "CDATA markers stripped, inner text preserved");
   assert(!decodeEntities("<![CDATA[test]]>").includes("<![CDATA["), "CDATA open marker removed");
   assert(!decodeEntities("<![CDATA[test]]>").includes("]]>"), "CDATA close marker removed");
-  // Plain text unaffected
   assert(decodeEntities("Bitcoin &amp; Crypto") === "Bitcoin & Crypto", "entity decode still works");
 }
 
@@ -650,8 +628,6 @@ console.log("\n--- alerts: late-2026 CGMAP entries ---");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generate: getBlobStore must be imported at module level, not inside handler
-// A module-level import ensures dailyOk() can use it without a ReferenceError
-// that would silently rate-limit every authenticated user.
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log("\n--- generate: getBlobStore module-level import ---");
@@ -664,7 +640,6 @@ console.log("\n--- generate: getBlobStore module-level import ---");
   assert(importLine >= 0, "getStore imported from @netlify/blobs");
   const handlerLine = lines.findIndex(l => l.includes("exports.handler"));
   assert(importLine < handlerLine, "getStore import appears before exports.handler (module-level)");
-  // No second occurrence of the import inside the handler body
   const importCount = lines.filter(l => l.includes("getStore") && l.includes("@netlify/blobs")).length;
   assert(importCount === 1, "only one getStore import — not duplicated inside handler");
 }
@@ -690,7 +665,6 @@ const { cgId } = require("../netlify/functions/alerts");
 
 console.log("\n--- alerts: cgId ---");
 {
-  // Known map entries
   assert(cgId("BTC") === "bitcoin", "BTC → bitcoin");
   assert(cgId("ETH") === "ethereum", "ETH → ethereum");
   assert(cgId("SOL") === "solana", "SOL → solana");
@@ -698,15 +672,12 @@ console.log("\n--- alerts: cgId ---");
   assert(cgId("BERA") === "berachain-bgt", "BERA → berachain-bgt");
   assert(cgId("POL") === "matic-network", "POL → matic-network (same as MATIC)");
 
-  // Case-insensitive lookup
   assert(cgId("btc") === "bitcoin", "lowercase btc → bitcoin");
   assert(cgId("Eth") === "ethereum", "mixed-case Eth → ethereum");
 
-  // Fallback: unknown ticker with valid CG-safe ID format
   assert(cgId("unknown-token") === "unknown-token", "valid CG-safe unknown ticker passes through");
   assert(cgId("my-token-123") === "my-token-123", "hyphenated token ID passes through");
 
-  // Blocked: ticker with unsafe chars returns null
   assert(cgId("TICKER!@#") === null, "ticker with special chars returns null");
   assert(cgId("Bad Token") === null, "ticker with space returns null");
   assert(cgId("TICKER/") === null, "ticker with slash returns null");
@@ -759,33 +730,21 @@ console.log("\n--- market: trend_reversal transform ---");
   assert(typeof result === "object" && !Array.isArray(result), "result is an object with two keys");
   assert(Array.isArray(result.recovering), "recovering is an array");
   assert(Array.isArray(result.fading), "fading is an array");
-
-  // token-a: 24h=+5%, 7d=-10% → recovering
   assert(result.recovering.length === 1, "one recovering coin (token-a meets thresholds)");
   assert(result.recovering[0].symbol === "TKA", "recovering coin is TKA");
-
-  // token-b: 24h=-5%, 7d=+15% → fading
   assert(result.fading.length === 1, "one fading coin (token-b meets thresholds)");
   assert(result.fading[0].symbol === "TKB", "fading coin is TKB");
-
-  // token-c: 24h=+1% (< 2%) — does not qualify for recovering
-  // token-d: market_cap < 50M — excluded regardless of signal
-  // token-e: null 24h — skipped
   assert(!result.recovering.find(function (x) { return x.symbol === "TKC"; }), "token-c excluded (24h below +2% threshold)");
   assert(!result.recovering.find(function (x) { return x.symbol === "TKD"; }), "token-d excluded (market cap below 50M)");
   assert(!result.recovering.find(function (x) { return x.symbol === "TKE"; }), "token-e excluded (null 24h)");
 
-  // Returns empty lists, not error, when no coins qualify
   const emptyResult = trendReversalTransform([]);
   assert(emptyResult.recovering.length === 0 && emptyResult.fading.length === 0, "empty input returns empty arrays");
-
-  // non-array input passthrough
   assert(trendReversalTransform(null) === null, "null passthrough");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // market: momentum transform logic
-// Coins positive on BOTH 7d and 30d, ranked by composite score.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function momentumTransform(data) {
@@ -828,30 +787,19 @@ console.log("\n--- market: momentum transform ---");
 
   const result = momentumTransform(coins);
 
-  // coin-a: both positive, market_cap ok → included
-  // coin-b: both positive, market_cap ok → included
-  // coin-c: 7d is negative → excluded
-  // coin-d: both positive but market_cap < 50M → excluded
-  // coin-e: 30d is negative → excluded
   assert(result.length === 2, "only coins with both 7d and 30d positive and mcap > 50M qualify");
   assert(result[0].symbol === "CA", "coin-a ranked first (higher momentum_score)");
   assert(result[1].symbol === "CB", "coin-b ranked second");
 
-  // Verify momentum_score formula: (7d * 0.4) + (30d * 0.6)
-  const expectedScoreA = (20 * 0.4) + (50 * 0.6); // 38
-  const expectedScoreB = (5 * 0.4) + (15 * 0.6);  // 11
+  const expectedScoreA = (20 * 0.4) + (50 * 0.6);
+  const expectedScoreB = (5 * 0.4) + (15 * 0.6);
   assert(approx(result[0].momentum_score, expectedScoreA), "coin-a momentum_score = (20*0.4)+(50*0.6) = 38");
   assert(approx(result[1].momentum_score, expectedScoreB), "coin-b momentum_score = (5*0.4)+(15*0.6) = 11");
-
-  // Both fields must be present on the result
   assert(typeof result[0].change_7d === "number" && typeof result[0].change_30d === "number", "change_7d and change_30d present");
   assert(typeof result[0].market_cap === "number", "market_cap present");
-
-  // Edge cases
   assert(momentumTransform([]) !== null && momentumTransform([]).length === 0, "empty array returns empty");
   assert(momentumTransform(null) === null, "null passthrough");
 
-  // slice(0,25): generate 30 coins all with valid positive momentum — only 25 should return
   const manyCoins = Array.from({ length: 30 }, function (_, i) {
     return { id: "t" + i, symbol: "T" + i, name: "T" + i, current_price: 1, market_cap: 100e6,
       price_change_percentage_7d_in_currency: i + 1, price_change_percentage_30d_in_currency: i + 1 };
@@ -899,20 +847,14 @@ console.log("\n--- market: ath_nearby momentum_score ---");
   ];
 
   const result = athNearbyWithMomentum(coins);
-
-  // coin-x: -5% from ATH, within -20% → included
-  // coin-y: -18% from ATH, within -20% → included
-  // coin-z: -40% from ATH, outside -20% → excluded
   assert(result.length === 2, "coin-z excluded (beyond -20%)");
   assert(result[0].symbol === "CX", "coin-x ranked first (closer to ATH)");
 
-  // momentum_score = (7d * 0.4) + (30d * 0.6)
-  const expectedX = parseFloat(((10 * 0.4) + (20 * 0.6)).toFixed(2)); // 16.00
-  const expectedY = parseFloat(((-5 * 0.4) + (-10 * 0.6)).toFixed(2)); // -8.00
+  const expectedX = parseFloat(((10 * 0.4) + (20 * 0.6)).toFixed(2));
+  const expectedY = parseFloat(((-5 * 0.4) + (-10 * 0.6)).toFixed(2));
   assert(result[0].momentum_score === expectedX, "coin-x momentum_score: (10*0.4)+(20*0.6)=16");
   assert(result[1].momentum_score === expectedY, "coin-y momentum_score: (-5*0.4)+(-10*0.6)=-8");
 
-  // null change values fall back to 0 in the score
   const noChange = [{ id: "nc", symbol: "nc", name: "NC", current_price: 95, ath: 100, ath_change_percentage: -5.0, market_cap: 1e9, price_change_percentage_7d_in_currency: null, price_change_percentage_30d_in_currency: undefined }];
   const ncResult = athNearbyWithMomentum(noChange);
   assert(ncResult.length === 1 && ncResult[0].momentum_score === 0, "null/undefined change fields produce momentum_score of 0");
@@ -931,12 +873,10 @@ console.log("\n--- _lib: PLAN_DAILY_CAPS export ---");
   assert(lib.PLAN_DAILY_CAPS.elite === 1000, "elite cap is 1000");
   assert(lib.PLAN_DAILY_CAPS.advisor === 2000, "advisor cap is 2000");
 
-  // Verify sync.js no longer defines its own copy
   const syncJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/sync.js"), "utf8");
   assert(!syncJs.includes("const PLAN_DAILY_CAPS = {"), "sync.js no longer defines its own PLAN_DAILY_CAPS");
   assert(syncJs.includes("PLAN_DAILY_CAPS"), "sync.js still uses PLAN_DAILY_CAPS (imported from _lib)");
 
-  // Verify generate.js no longer defines its own copy
   const generateJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/generate.js"), "utf8");
   assert(!generateJs.includes("const PLAN_DAILY_CAPS = {"), "generate.js no longer defines its own PLAN_DAILY_CAPS");
   assert(generateJs.includes("PLAN_DAILY_CAPS"), "generate.js still uses PLAN_DAILY_CAPS (imported from _lib)");
@@ -962,6 +902,83 @@ console.log("\n--- track: body size guard ---");
   const trackJs = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/track.js"), "utf8");
   assert(trackJs.includes("MAX_BODY_BYTES"), "track.js defines MAX_BODY_BYTES guard");
   assert(trackJs.includes("2048"), "MAX_BODY_BYTES is set to 2048");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: portfolio drawdown calculation
+// ─────────────────────────────────────────────────────────────────────────────
+
+function computeDrawdownPct(currentValue, peakValue) {
+  if (!peakValue || peakValue <= 0) return 0;
+  return (peakValue - currentValue) / peakValue * 100;
+}
+
+console.log("\n--- alerts: portfolio drawdown calculation ---");
+{
+  assert(approx(computeDrawdownPct(70000, 100000), 30), "30% drawdown from 100k to 70k");
+  assert(approx(computeDrawdownPct(50000, 100000), 50), "50% drawdown from 100k to 50k");
+  assert(approx(computeDrawdownPct(100000, 100000), 0), "0% drawdown when at peak");
+  assert(approx(computeDrawdownPct(110000, 100000), -10), "negative drawdown when above peak");
+  assert(computeDrawdownPct(50000, 0) === 0, "zero peak returns 0% drawdown");
+  assert(computeDrawdownPct(50000, null) === 0, "null peak returns 0% drawdown");
+
+  const peakAbove30 = 100000;
+  assert(computeDrawdownPct(69000, peakAbove30) >= 30, "69k triggers 30% drawdown alert");
+  assert(computeDrawdownPct(86000, peakAbove30) < 15, "86k clears re-arm threshold (< 15% drawdown)");
+  assert(computeDrawdownPct(85000, peakAbove30) >= 15, "85k does not yet clear re-arm threshold");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// auth: email domain validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+function isValidAuthEmail(email) {
+  const e = String(email || "").trim().toLowerCase();
+  const atIdx = e.indexOf("@");
+  const domain = atIdx > 0 ? e.slice(atIdx + 1) : "";
+  return !(!e || atIdx < 1 || e.length > 200 || !domain.includes(".") || domain.endsWith("."));
+}
+
+console.log("\n--- auth: email domain validation ---");
+{
+  assert(isValidAuthEmail("user@example.com") === true, "valid email accepted");
+  assert(isValidAuthEmail("user@sub.domain.org") === true, "subdomain email accepted");
+  assert(isValidAuthEmail("user@") === false, "email with no domain rejected");
+  assert(isValidAuthEmail("user@nodot") === false, "domain with no dot rejected");
+  assert(isValidAuthEmail("user@domain.") === false, "domain ending in dot rejected");
+  assert(isValidAuthEmail("@example.com") === false, "email starting with @ rejected");
+  assert(isValidAuthEmail("") === false, "empty string rejected");
+  assert(isValidAuthEmail("notanemail") === false, "no @ rejected");
+  assert(isValidAuthEmail("a@b.c") === true, "minimal valid email accepted");
+  assert(isValidAuthEmail("A@B.C") === true, "uppercase normalised and accepted");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: parallel user load (production alerts.js uses Promise.allSettled)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: parallel user load structure ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const alertsJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("Promise.allSettled"), "alerts.js uses Promise.allSettled for parallel user loading");
+  assert(!alertsJs.includes("for (const email of users)"), "sequential for-of-await over users removed");
+  assert(alertsJs.includes("LOAD_BATCH"), "LOAD_BATCH constant defined for batch size");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sync: stripServerFlags strips root-level server flags (production file check)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- sync: root server flags in production sync.js ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const syncJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/sync.js"), "utf8");
+  assert(syncJs.includes("ROOT_SERVER_FLAGS"), "sync.js defines ROOT_SERVER_FLAGS for root-level stripping");
+  assert(syncJs.includes("portfolioPeak"), "portfolioPeak included in root server flags");
+  assert(syncJs.includes("serverDrawdownAlerted"), "serverDrawdownAlerted included in server flags");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
