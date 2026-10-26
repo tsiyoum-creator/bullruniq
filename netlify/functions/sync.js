@@ -21,12 +21,16 @@ const MAX_BYTES = 256 * 1024;
 // If a client POSTs these, we strip them before saving so alerts cannot be silenced.
 const SERVER_ALERT_FLAGS = new Set([
   "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
-  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted",
+  "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted", "serverDrawdownAlerted",
 ]);
+
+// Root-level server-managed fields (portfolio-wide, not per-holding/watchlist).
+const ROOT_SERVER_FLAGS = ["serverDrawdownAlerted", "portfolioPeak"];
 
 function stripServerFlags(data) {
   if (!data || typeof data !== "object") return data;
   const out = Object.assign({}, data);
+  for (const flag of ROOT_SERVER_FLAGS) delete out[flag];
   if (out.port && Array.isArray(out.port.crypto)) {
     out.port = Object.assign({}, out.port);
     out.port.crypto = out.port.crypto.map(function (h) {

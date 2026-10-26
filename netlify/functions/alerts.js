@@ -180,6 +180,17 @@ function athProximityAlertHtml(h, price, athPrice, athChangePct, email, athDate)
     + emailFooter(unsubUrl(email));
 }
 
+function drawdownAlertHtml(totalValue, peakValue, drawdownPct, email) {
+  return emailHeader()
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#e05555;margin-bottom:10px'>📉 Portfolio drawdown alert</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>Portfolio down " + drawdownPct.toFixed(0) + "% from peak</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 12px'>"
+    + "Your tracked crypto portfolio is now <b style='color:#e05555'>" + fp(totalValue) + "</b> — down <b style='color:#e05555'>" + drawdownPct.toFixed(1) + "%</b> from its recent peak of <b style='color:#f0ece4'>" + fp(peakValue) + "</b>. "
+    + "A 30%+ drawdown historically marks a significant deleveraging event. Review your stop-loss levels and position sizes.</div>"
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#e05555;color:#fff;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your portfolio →</a>"
+    + emailFooter(unsubUrl(email));
+}
+
 function concentrationAlertHtml(ticker, holdingValue, totalValue, pctOfPortfolio, email) {
   const t = esc(ticker);
   return emailHeader()
@@ -263,12 +274,21 @@ exports.handler = async function (event) {
   } catch (e) { console.log("[alerts] storage error:", e.message); return { statusCode: 200, body: "storage error" }; }
   if (!users.length) return { statusCode: 200, body: "no users" };
 
-  // Load each user's state; collect crypto tickers that have any target
+  // Load all users' state in parallel batches; collect crypto tickers that have any target
+  const LOAD_BATCH = 20;
   const recs = {};
   const ids = new Set();
-  for (const email of users) {
-    try {
-      const rec = await store.get(email, { type: "json" });
+  for (let i = 0; i < users.length; i += LOAD_BATCH) {
+    const batch = users.slice(i, i + LOAD_BATCH);
+    const results = await Promise.allSettled(
+      batch.map(function (email) {
+        return store.get(email, { type: "json" }).then(function (rec) { return { email: email, rec: rec }; });
+      })
+    );
+    for (const result of results) {
+      if (result.status !== "fulfilled") continue;
+      const email = result.value.email;
+      const rec = result.value.rec;
       const wlist = rec && rec.data && Array.isArray(rec.data.wl) ? rec.data.wl : [];
       const hold = rec && rec.data && rec.data.port && Array.isArray(rec.data.port.crypto) ? rec.data.port.crypto : [];
       const hasWl = wlist.some(function (w) { return w && (w.targetPrice || w.sellTarget); });
@@ -288,7 +308,7 @@ exports.handler = async function (event) {
           }
         });
       }
-    } catch (e) {}
+    }
   }
   if (!ids.size) return { statusCode: 200, body: "no targets" };
 
@@ -428,13 +448,44 @@ exports.handler = async function (event) {
       }
     }
 
+    // ── Portfolio drawdown alert: fires when crypto portfolio drops 30%+ from tracked peak ──
+    if (sent < MAX_EMAILS_PER_RUN && sentThisUser < MAX_EMAILS_PER_USER) {
+      const pricedHoldings = hold.filter(function (h) {
+        if (!h || !h.qty) return false;
+        const hid = cgId(h.ticker);
+        return !!(hid && prices[hid] && prices[hid].usd);
+      });
+      if (pricedHoldings.length >= 1) {
+        const totalPortValue = pricedHoldings.reduce(function (s, h) {
+          return s + (prices[cgId(h.ticker)].usd * h.qty);
+        }, 0);
+        const prevPeak = rec.data.portfolioPeak || 0;
+        if (totalPortValue > prevPeak) {
+          rec.data.portfolioPeak = totalPortValue;
+          changed = true;
+        }
+        const peak = rec.data.portfolioPeak || 0;
+        if (peak > 0) {
+          const drawdownPct = (peak - totalPortValue) / peak * 100;
+          if (drawdownPct >= 30 && !rec.data.serverDrawdownAlerted) {
+            try {
+              const ok = await sendEmail(RESEND, email, "📉 Your portfolio is down " + drawdownPct.toFixed(0) + "% from its peak", drawdownAlertHtml(totalPortValue, peak, drawdownPct, email), FROM);
+              if (ok) { sent++; sentThisUser++; rec.data.serverDrawdownAlerted = true; changed = true; console.log("[alerts] drawdown " + email + " down " + drawdownPct.toFixed(1) + "% from peak " + fp(peak)); }
+            } catch (e) { console.log("[alerts] drawdown email error:", e.message); }
+          } else if (drawdownPct < 15 && rec.data.serverDrawdownAlerted) {
+            rec.data.serverDrawdownAlerted = false; changed = true; // re-arm once portfolio recovers to within 15% of peak
+          }
+        }
+      }
+    }
+
     for (const w of rec.data.wl || []) {
       if (!w) continue;
       const id = cgId(w.ticker);
       const p = id && prices[id] && prices[id].usd;
       if (!p) continue; // unknown ticker / stock — skip
 
-      // BUY alert: price within 2% of the buy target (approaching from any direction)
+      // BUY alert: price within 2% of and at or below the buy target (approaching from above)
       if (w.targetPrice) {
         const dist = Math.abs((w.targetPrice - p) / p * 100);
         if (dist < 2 && p <= w.targetPrice && !w.serverAlerted && sent < MAX_EMAILS_PER_RUN && sentThisUser < MAX_EMAILS_PER_USER) {
