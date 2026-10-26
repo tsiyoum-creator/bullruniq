@@ -37,7 +37,9 @@ exports.handler = async function (event) {
   try { p = JSON.parse(event.body || "{}"); } catch (e) {}
   const action = p.action;
   const email = String(p.email || "").trim().toLowerCase();
-  if (!email || email.indexOf("@") < 1 || email.length > 200) return jsonCors(400, { error: "Enter a valid email." });
+  const atIdx = email.indexOf("@");
+  const domain = atIdx > 0 ? email.slice(atIdx + 1) : "";
+  if (!email || atIdx < 1 || email.length > 200 || !domain.includes(".") || domain.endsWith(".")) return jsonCors(400, { error: "Enter a valid email." });
 
   const blobs = require("@netlify/blobs");
   try { blobs.connectLambda(event); } catch (e) { console.log("[auth] connectLambda failed:", e.message); }
