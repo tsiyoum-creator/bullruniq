@@ -22,6 +22,7 @@ const MAX_BYTES = 256 * 1024;
 const SERVER_ALERT_FLAGS = new Set([
   "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
   "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted", "serverDrawdownAlerted",
+  "serverDcaRung",
 ]);
 
 // Root-level server-managed fields (portfolio-wide, not per-holding/watchlist).

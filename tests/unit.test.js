@@ -242,6 +242,7 @@ console.log("\n--- sync: validateUserData ---");
 const SERVER_ALERT_FLAGS = new Set([
   "serverAlerted", "serverSellAlerted", "serverStopAlerted", "serverTpAlerted",
   "serverLadderHits", "serverAthAlerted", "serverConcentrationAlerted", "serverDrawdownAlerted",
+  "serverDcaRung",
 ]);
 
 const ROOT_SERVER_FLAGS = ["serverDrawdownAlerted", "portfolioPeak"];
@@ -276,7 +277,7 @@ console.log("\n--- sync: stripServerFlags ---");
     cash: 1000,
     port: {
       crypto: [
-        { ticker: "BTC", qty: 1, serverStopAlerted: true, serverTpAlerted: true, serverLadderHits: 2 },
+        { ticker: "BTC", qty: 1, serverStopAlerted: true, serverTpAlerted: true, serverLadderHits: 2, serverDcaRung: 1 },
         { ticker: "ETH", qty: 10, serverConcentrationAlerted: true },
       ],
     },
@@ -292,6 +293,7 @@ console.log("\n--- sync: stripServerFlags ---");
   assert(clean.port.crypto[0].serverStopAlerted === undefined, "serverStopAlerted stripped from holding");
   assert(clean.port.crypto[0].serverTpAlerted === undefined, "serverTpAlerted stripped from holding");
   assert(clean.port.crypto[0].serverLadderHits === undefined, "serverLadderHits stripped from holding");
+  assert(clean.port.crypto[0].serverDcaRung === undefined, "serverDcaRung stripped from holding");
   assert(clean.port.crypto[1].serverConcentrationAlerted === undefined, "serverConcentrationAlerted stripped");
   assert(clean.wl[0].ticker === "SOL", "watchlist ticker preserved");
   assert(clean.wl[0].serverAlerted === undefined, "serverAlerted stripped from watchlist");
@@ -979,6 +981,143 @@ console.log("\n--- sync: root server flags in production sync.js ---");
   assert(syncJs.includes("ROOT_SERVER_FLAGS"), "sync.js defines ROOT_SERVER_FLAGS for root-level stripping");
   assert(syncJs.includes("portfolioPeak"), "portfolioPeak included in root server flags");
   assert(syncJs.includes("serverDrawdownAlerted"), "serverDrawdownAlerted included in server flags");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: serverDcaRung flag present in sync.js server flags
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: serverDcaRung in sync.js SERVER_ALERT_FLAGS ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const syncJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/sync.js"), "utf8");
+  assert(syncJs.includes("serverDcaRung"), "sync.js includes serverDcaRung in SERVER_ALERT_FLAGS");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: DCA rung logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function computeDcaRung(avg, price) {
+  if (!avg || avg <= 0 || !price) return 0;
+  const lossFromAvg = (avg - price) / avg * 100;
+  return lossFromAvg >= 60 ? 3 : lossFromAvg >= 40 ? 2 : lossFromAvg >= 20 ? 1 : 0;
+}
+
+console.log("\n--- alerts: DCA rung computation ---");
+{
+  assert(computeDcaRung(100, 81) === 0, "19% loss: no DCA rung");
+  assert(computeDcaRung(100, 80) === 1, "20% loss: rung 1");
+  assert(computeDcaRung(100, 60) === 2, "40% loss: rung 2");
+  assert(computeDcaRung(100, 40) === 3, "60% loss: rung 3");
+  assert(computeDcaRung(100, 39) === 3, "61% loss: rung 3");
+  assert(computeDcaRung(0, 50) === 0, "avg=0: no rung");
+  assert(computeDcaRung(100, 120) === 0, "price above avg: no rung");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: btc_alt_divergence endpoint present in production market.js
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: btc_alt_divergence endpoint ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const marketJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes("btc_alt_divergence"), "market.js has btc_alt_divergence kind");
+  assert(marketJs.includes("rotation_signal"), "btc_alt_divergence returns rotation_signal");
+  assert(marketJs.includes("altseason"), "btc_alt_divergence includes altseason signal");
+  assert(marketJs.includes("btc_dominance"), "btc_alt_divergence includes btc_dominance signal");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: btc_alt_divergence transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function btcAltDivergenceTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const btc = data.find(function (c) { return c.id === "bitcoin"; });
+  if (!btc) return { error: "bitcoin data unavailable" };
+  const alts = data.filter(function (c) {
+    return c.id !== "bitcoin" && c.market_cap > 500e6 &&
+      typeof c.price_change_percentage_7d_in_currency === "number" &&
+      typeof c.price_change_percentage_30d_in_currency === "number";
+  });
+  const avg7d = alts.length
+    ? alts.reduce(function (s, c) { return s + c.price_change_percentage_7d_in_currency; }, 0) / alts.length
+    : null;
+  const avg30d = alts.length
+    ? alts.reduce(function (s, c) { return s + c.price_change_percentage_30d_in_currency; }, 0) / alts.length
+    : null;
+  const btc7d = btc.price_change_percentage_7d_in_currency;
+  const btc30d = btc.price_change_percentage_30d_in_currency;
+  const alt_out_7d = avg7d !== null ? avg7d - btc7d : null;
+  const alt_out_30d = avg30d !== null ? avg30d - btc30d : null;
+  let rotation_signal = "neutral";
+  if (alt_out_7d !== null && alt_out_30d !== null) {
+    if (alt_out_7d > 5 && alt_out_30d > 5) rotation_signal = "altseason";
+    else if (alt_out_7d > 2) rotation_signal = "alts_leading";
+    else if (alt_out_7d < -5 && alt_out_30d < -5) rotation_signal = "btc_dominance";
+    else if (alt_out_7d < -2) rotation_signal = "btc_leading";
+  }
+  return {
+    btc: { price: btc.current_price, change_7d: btc7d, change_30d: btc30d, market_cap: btc.market_cap },
+    alt_basket: { count: alts.length, avg_change_7d: avg7d !== null ? parseFloat(avg7d.toFixed(2)) : null, avg_change_30d: avg30d !== null ? parseFloat(avg30d.toFixed(2)) : null },
+    alt_outperformance_7d: alt_out_7d !== null ? parseFloat(alt_out_7d.toFixed(2)) : null,
+    alt_outperformance_30d: alt_out_30d !== null ? parseFloat(alt_out_30d.toFixed(2)) : null,
+    rotation_signal: rotation_signal,
+  };
+}
+
+console.log("\n--- market: btc_alt_divergence transform ---");
+{
+  const coins = [
+    { id: "bitcoin", current_price: 82000, market_cap: 1.6e12, price_change_percentage_7d_in_currency: 2.0, price_change_percentage_30d_in_currency: 5.0 },
+    { id: "ethereum", current_price: 3200, market_cap: 384e9, price_change_percentage_7d_in_currency: 10.0, price_change_percentage_30d_in_currency: 18.0 },
+    { id: "solana", current_price: 180, market_cap: 87e9, price_change_percentage_7d_in_currency: 12.0, price_change_percentage_30d_in_currency: 20.0 },
+    { id: "micro-cap", current_price: 0.001, market_cap: 100e6, price_change_percentage_7d_in_currency: 50.0, price_change_percentage_30d_in_currency: 100.0 },
+  ];
+
+  const result = btcAltDivergenceTransform(coins);
+  assert(result.btc.change_7d === 2.0, "btc 7d change extracted");
+  assert(result.alt_basket.count === 2, "micro-cap excluded, 2 qualifying alts");
+  // avg alt 7d = (10 + 12) / 2 = 11, btc 7d = 2, outperformance = 9
+  assert(result.alt_outperformance_7d === 9, "alt outperformance 7d = (10+12)/2 - 2 = 9");
+  assert(result.rotation_signal === "altseason", "alt_out_7d=9 > 5 and alt_out_30d=14 > 5 → altseason");
+
+  const btcDomCoins = [
+    { id: "bitcoin", current_price: 90000, market_cap: 1.8e12, price_change_percentage_7d_in_currency: 15.0, price_change_percentage_30d_in_currency: 30.0 },
+    { id: "ethereum", current_price: 2800, market_cap: 336e9, price_change_percentage_7d_in_currency: 5.0, price_change_percentage_30d_in_currency: 10.0 },
+  ];
+  const dom = btcAltDivergenceTransform(btcDomCoins);
+  // alt_out_7d = 5 - 15 = -10, alt_out_30d = 10 - 30 = -20 → btc_dominance
+  assert(dom.rotation_signal === "btc_dominance", "strongly negative alt outperformance → btc_dominance");
+
+  const neutralCoins = [
+    { id: "bitcoin", current_price: 80000, market_cap: 1.5e12, price_change_percentage_7d_in_currency: 3.0, price_change_percentage_30d_in_currency: 8.0 },
+    { id: "ethereum", current_price: 3000, market_cap: 360e9, price_change_percentage_7d_in_currency: 4.5, price_change_percentage_30d_in_currency: 10.0 },
+  ];
+  const neut = btcAltDivergenceTransform(neutralCoins);
+  // alt_out_7d = 4.5 - 3 = 1.5 (between -2 and +2) → neutral
+  assert(neut.rotation_signal === "neutral", "outperformance between -2 and +2 → neutral");
+
+  assert(btcAltDivergenceTransform([]).error === "bitcoin data unavailable", "no bitcoin data returns error");
+  assert(btcAltDivergenceTransform(null) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: DCA html function and dcaRung stripping in sync.js
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: dcaAlertHtml and serverDcaRung strip in production ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const alertsJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("dcaAlertHtml"), "alerts.js defines dcaAlertHtml");
+  assert(alertsJs.includes("serverDcaRung"), "alerts.js uses serverDcaRung flag");
+  assert(alertsJs.includes("DCA opportunity"), "DCA alert has recognisable subject/heading");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

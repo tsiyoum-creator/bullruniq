@@ -313,6 +313,55 @@ exports.handler = async function (event) {
         fading: fading.sort(function (a, b) { return a.change_24h - b.change_24h; }).slice(0, 15),
       };
     };
+  } else if (q.kind === "btc_alt_divergence") {
+    // BTC vs altcoin rotation signal: compares BTC 7d/30d performance against
+    // broad altcoin basket. A positive alt_outperformance_7d means alts are rotating
+    // ahead of BTC — historically the start of altcoin season.
+    // Returns btc performance, alt basket performance, and a rotation_signal label.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:btc_alt_divergence";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      const btc = data.find(function (c) { return c.id === "bitcoin"; });
+      if (!btc) return { error: "bitcoin data unavailable" };
+      const alts = data.filter(function (c) {
+        return c.id !== "bitcoin" && c.market_cap > 500e6 &&
+          typeof c.price_change_percentage_7d_in_currency === "number" &&
+          typeof c.price_change_percentage_30d_in_currency === "number";
+      });
+      const avg7d = alts.length
+        ? alts.reduce(function (s, c) { return s + c.price_change_percentage_7d_in_currency; }, 0) / alts.length
+        : null;
+      const avg30d = alts.length
+        ? alts.reduce(function (s, c) { return s + c.price_change_percentage_30d_in_currency; }, 0) / alts.length
+        : null;
+      const btc7d = btc.price_change_percentage_7d_in_currency;
+      const btc30d = btc.price_change_percentage_30d_in_currency;
+      const alt_out_7d = avg7d !== null ? avg7d - btc7d : null;
+      const alt_out_30d = avg30d !== null ? avg30d - btc30d : null;
+      let rotation_signal = "neutral";
+      if (alt_out_7d !== null && alt_out_30d !== null) {
+        if (alt_out_7d > 5 && alt_out_30d > 5) rotation_signal = "altseason";
+        else if (alt_out_7d > 2) rotation_signal = "alts_leading";
+        else if (alt_out_7d < -5 && alt_out_30d < -5) rotation_signal = "btc_dominance";
+        else if (alt_out_7d < -2) rotation_signal = "btc_leading";
+      }
+      return {
+        btc: { price: btc.current_price, change_7d: btc7d, change_30d: btc30d, market_cap: btc.market_cap },
+        alt_basket: { count: alts.length, avg_change_7d: avg7d !== null ? parseFloat(avg7d.toFixed(2)) : null, avg_change_30d: avg30d !== null ? parseFloat(avg30d.toFixed(2)) : null },
+        alt_outperformance_7d: alt_out_7d !== null ? parseFloat(alt_out_7d.toFixed(2)) : null,
+        alt_outperformance_30d: alt_out_30d !== null ? parseFloat(alt_out_30d.toFixed(2)) : null,
+        rotation_signal: rotation_signal,
+        signal_note: {
+          altseason: "Alts outperforming BTC strongly on both 7d and 30d — classic altcoin season signal. Historical high-risk/high-reward window for altcoin exposure.",
+          alts_leading: "Alts outperforming BTC over 7 days — early rotation signal. Watch for continuation before sizing up.",
+          btc_dominance: "BTC strongly outperforming alts on both timeframes — capital flowing into BTC dominance. Risk-off for altcoin positions.",
+          btc_leading: "BTC outperforming alts over 7 days — rotation into BTC. Cautious on alt exposure.",
+          neutral: "No clear rotation signal between BTC and alts. Wait for divergence to expand before acting.",
+        }[rotation_signal],
+      };
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -322,7 +371,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");
