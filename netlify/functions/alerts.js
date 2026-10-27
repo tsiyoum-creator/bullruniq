@@ -191,6 +191,30 @@ function drawdownAlertHtml(totalValue, peakValue, drawdownPct, email) {
     + emailFooter(unsubUrl(email));
 }
 
+function dcaAlertHtml(h, price, downPct, email) {
+  const name = esc(h.name || h.ticker);
+  const ticker = esc(h.ticker);
+  const costBasis = (h.avg || 0) * (h.qty || 0);
+  const currentValue = price * (h.qty || 0);
+  const unrealisedLoss = currentValue - costBasis;
+  // Suggest a 25% DCA add at current price (quarter of existing position value)
+  const dcaSize = costBasis > 0 ? costBasis * 0.25 : null;
+  const dcaQty = dcaSize && price > 0 ? dcaSize / price : null;
+  const blendedAvg = (dcaQty && h.avg && h.qty)
+    ? ((h.avg * h.qty + price * dcaQty) / (h.qty + dcaQty))
+    : null;
+  return emailHeader()
+    + "<div style='font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;margin-bottom:10px'>📉 DCA opportunity</div>"
+    + "<div style='font-family:Georgia,serif;font-size:30px;color:#f0ece4;margin-bottom:8px'>" + ticker + " down " + downPct.toFixed(0) + "% from your avg cost</div>"
+    + "<div style='color:#8a8278;font-size:15px;line-height:1.7;max-width:420px;margin:0 auto 12px'>"
+    + name + " is now <b style='color:#c9a84c'>" + fp(price) + "</b> vs your avg cost of <b style='color:#f0ece4'>" + fp(h.avg) + "</b>. "
+    + "Unrealised P&L: <b style='color:#e05555'>" + fp(unrealisedLoss) + "</b>.</div>"
+    + (dcaQty ? "<div style='color:#8a8278;font-size:13px;line-height:1.7;max-width:420px;margin:0 auto 12px'>A 25% add (~" + dcaQty.toFixed(4) + " " + esc(h.ticker) + " for " + fp(dcaSize) + ") would blend your cost to approx <b style='color:#c9a84c'>" + fp(blendedAvg) + "</b> — only if you still hold conviction and have managed your stop.</div>" : "")
+    + "<div style='color:#5c574e;font-size:12px;line-height:1.6;max-width:420px;margin:0 auto 22px'>DCA into a falling knife without a clear thesis or a stop is one of the most common ways investors compound losses. Only add if your original reason to hold is intact.</div>"
+    + "<a href='https://bullruniq.com/platform' style='display:inline-block;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px;padding:14px 32px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase'>Review your position →</a>"
+    + emailFooter(unsubUrl(email));
+}
+
 function concentrationAlertHtml(ticker, holdingValue, totalValue, pctOfPortfolio, email) {
   const t = esc(ticker);
   return emailHeader()
@@ -416,6 +440,30 @@ exports.handler = async function (event) {
         } else if (ath && ath.ath_change_pct < -20 && h.serverAthAlerted) {
           // Re-arm once price falls more than 20% below ATH (moved out of distribution zone)
           h.serverAthAlerted = false; changed = true;
+        }
+      }
+
+      // ── DCA opportunity alert: fires when a holding is down 20%+ from avg cost ──
+      // Alerts the investor to a potential DCA level and blended-avg math.
+      // Fires once per 20% down-step: at -20%, -40%, -60% from avg.
+      // Re-arms when price recovers within 10% of the previous alert level.
+      if (h.avg && h.qty && sent < MAX_EMAILS_PER_RUN && sentThisUser < MAX_EMAILS_PER_USER) {
+        const lossFromAvg = h.avg > 0 ? (h.avg - p) / h.avg * 100 : 0;
+        // Compute which -20% rung we're at (1 = -20%, 2 = -40%, 3 = -60%)
+        const dcaRung = lossFromAvg >= 60 ? 3 : lossFromAvg >= 40 ? 2 : lossFromAvg >= 20 ? 1 : 0;
+        const prevDcaRung = h.serverDcaRung || 0;
+        if (dcaRung > 0 && dcaRung > prevDcaRung) {
+          try {
+            const ok = await sendEmail(RESEND, email, "📉 " + h.ticker + " is down " + lossFromAvg.toFixed(0) + "% from your avg cost — DCA level", dcaAlertHtml(h, p, lossFromAvg, email), FROM);
+            if (ok) {
+              sent++; sentThisUser++;
+              h.serverDcaRung = dcaRung;
+              changed = true;
+              console.log("[alerts] dca " + email + " " + h.ticker + " down " + lossFromAvg.toFixed(1) + "% @ " + p);
+            }
+          } catch (e) { console.log("[alerts] dca email error:", e.message); }
+        } else if (dcaRung === 0 && prevDcaRung > 0) {
+          h.serverDcaRung = 0; changed = true; // re-arm once price recovers above -15% from avg
         }
       }
     }
