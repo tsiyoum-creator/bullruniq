@@ -40,6 +40,18 @@ function scoreByTickers(title, tickers) {
   return tickers.reduce(function (n, tk) { return n + (lower.includes(tk.toLowerCase()) ? 1 : 0); }, 0);
 }
 
+// Re-sort items so ticker-matched headlines bubble to the top, preserving recency within each tier.
+function rankByTickers(items, tickers) {
+  const scored = items.map(function (item) {
+    return { item, score: scoreByTickers(item.t, tickers) };
+  });
+  scored.sort(function (a, b) {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.item.at - a.item.at;
+  });
+  return scored.slice(0, 20).map(function (x) { return x.item; });
+}
+
 exports.handler = async function (event) {
   const blobs = require("@netlify/blobs");
   try { blobs.connectLambda(event); } catch (e) {}
@@ -100,15 +112,3 @@ exports.decodeEntities = decodeEntities;
 exports.parseRss = parseRss;
 exports.scoreByTickers = scoreByTickers;
 exports.rankByTickers = rankByTickers;
-
-// Re-sort items so ticker-matched headlines bubble to the top, preserving recency within each tier.
-function rankByTickers(items, tickers) {
-  const scored = items.map(function (item) {
-    return { item, score: scoreByTickers(item.t, tickers) };
-  });
-  scored.sort(function (a, b) {
-    if (b.score !== a.score) return b.score - a.score;
-    return b.item.at - a.item.at;
-  });
-  return scored.slice(0, 20).map(function (x) { return x.item; });
-}

@@ -17,13 +17,13 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-27",
+  asOf: "2026-10-28",
 
   current: {
     regime: "longend",
-    confidence: 80,
-    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is tomorrow with markets pricing a hold at 3.75–4.00%; no pivot language in pre-meeting guidance. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin remains range-bound near $82k ahead of the FOMC.",
-    forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. The Oct 28 FOMC (tomorrow) is the next potential inflection: any hint of pivot language would challenge the longend thesis, but current guidance offers none. Confidence trimmed to 80 to reflect 24-hour event risk ahead of the decision. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
+    confidence: 78,
+    summary: "The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks — the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. The October 28 FOMC is today; markets have priced a hold at 3.75–4.00% with no pivot language expected. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin is range-bound near $82k; the FOMC outcome is the near-term binary for risk assets.",
+    forBook: "Rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. Today's FOMC (Oct 28) is the near-term inflection point: a hold with no pivot language confirms the longend thesis remains in force; any dovish surprise would open a short-term risk rally. Confidence trimmed to 78 to reflect FOMC day binary risk. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
   },
 
   regimes: [

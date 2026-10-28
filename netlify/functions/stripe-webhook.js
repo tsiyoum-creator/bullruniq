@@ -2,8 +2,6 @@
 
 const crypto = require("crypto");
 
-
-
 function verifyStripe(rawBody, sigHeader, secret) {
   if (!sigHeader || !secret) return false;
   const parts = {};
