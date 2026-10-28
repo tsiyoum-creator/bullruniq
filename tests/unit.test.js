@@ -1121,6 +1121,90 @@ console.log("\n--- alerts: dcaAlertHtml and serverDcaRung strip in production --
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// _lib: esc() — XSS escaping
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { esc } = require("../netlify/functions/_lib");
+
+console.log("\n--- _lib: esc() XSS escaping ---");
+{
+  assert(esc("<script>alert(1)</script>") === "&lt;script&gt;alert(1)&lt;/script&gt;", "< and > escaped");
+  assert(esc('"hello"') === "&quot;hello&quot;", "double quotes escaped");
+  assert(esc("it's") === "it&#x27;s", "single quotes escaped");
+  assert(esc("a&b") === "a&amp;b", "ampersand escaped");
+  assert(esc("safe text") === "safe text", "plain text unchanged");
+  assert(esc("") === "", "empty string unchanged");
+  assert(esc(123) === "123", "non-string coerced to string");
+  assert(esc("<>&\"'") === "&lt;&gt;&amp;&quot;&#x27;", "all special chars escaped in one pass");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _lib: signUnsub / verifyUnsub
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { signUnsub, verifyUnsub } = require("../netlify/functions/_lib");
+
+console.log("\n--- _lib: signUnsub / verifyUnsub ---");
+{
+  const origSecret = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = "test-unsub-secret";
+
+  const tok = signUnsub("user@example.com");
+  assert(typeof tok === "string" && tok.length > 0, "signUnsub returns non-empty string");
+  assert(verifyUnsub("user@example.com", tok) === true, "verifyUnsub accepts valid token");
+  assert(verifyUnsub("other@example.com", tok) === false, "verifyUnsub rejects wrong email");
+  assert(verifyUnsub("user@example.com", tok + "x") === false, "verifyUnsub rejects tampered token");
+  assert(verifyUnsub("user@example.com", "") === false, "verifyUnsub rejects empty token");
+  assert(verifyUnsub("user@example.com", null) === false, "verifyUnsub rejects null token");
+
+  // Token from signUnsub cannot be reused as an auth token (different prefix)
+  const tok2 = signUnsub("another@example.com");
+  assert(tok !== tok2, "different emails produce different tokens");
+
+  if (origSecret === undefined) delete process.env.AUTH_SECRET;
+  else process.env.AUTH_SECRET = origSecret;
+
+  // Without secret, signUnsub returns null
+  const savedSecret = process.env.AUTH_SECRET;
+  delete process.env.AUTH_SECRET;
+  assert(signUnsub("user@example.com") === null, "signUnsub returns null when AUTH_SECRET absent");
+  assert(verifyUnsub("user@example.com", "anytoken") === false, "verifyUnsub returns false when AUTH_SECRET absent");
+  if (savedSecret !== undefined) process.env.AUTH_SECRET = savedSecret;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _lib: signToken / verifyToken round-trip (using _lib directly)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { signToken: libSignToken, verifyToken: libVerifyToken } = require("../netlify/functions/_lib");
+
+console.log("\n--- _lib: signToken / verifyToken via module ---");
+{
+  const origSecret = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = "test-lib-token-secret";
+
+  const tok = libSignToken("investor@example.com", 30);
+  assert(typeof tok === "string" && tok.includes("."), "signToken produces dot-separated token");
+  assert(libVerifyToken(tok) === "investor@example.com", "verifyToken returns correct email");
+
+  // Tampered payload
+  const parts = tok.split(".");
+  const tampered = parts[0] + "X." + parts[1];
+  assert(libVerifyToken(tampered) === null, "tampered payload rejected");
+
+  // Tampered signature
+  const tamperedSig = parts[0] + "." + parts[1] + "X";
+  assert(libVerifyToken(tamperedSig) === null, "tampered signature rejected");
+
+  // No secret
+  process.env.AUTH_SECRET = "";
+  assert(libVerifyToken(tok) === null, "empty secret rejects any token");
+
+  if (origSecret === undefined) delete process.env.AUTH_SECRET;
+  else process.env.AUTH_SECRET = origSecret;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
