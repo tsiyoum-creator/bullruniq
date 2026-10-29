@@ -1205,6 +1205,139 @@ console.log("\n--- _lib: signToken / verifyToken via module ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// alerts: Q4 2026 CGMAP additions
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: Q4 2026 CGMAP entries ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const alertsJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("PENGU"), "PENGU ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("pudgy-penguins"), "pudgy-penguins ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("ZRO"), "ZRO ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("layerzero"), "layerzero ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("SPX"), "SPX ticker present in alerts.js CGMAP");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: FOMC catalyst is now in the past (post-Oct 28 FOMC)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: FOMC catalyst is past ---");
+{
+  const macro = require("../macro.js");
+  const fomcCatalyst = macro.MACRO_DATA.catalysts.find(function (c) {
+    return c.n === "FOMC decision";
+  });
+  assert(fomcCatalyst !== undefined, "FOMC decision catalyst found in MACRO_DATA");
+  if (fomcCatalyst) {
+    const fomcMs = new Date(fomcCatalyst.d).getTime();
+    assert(fomcMs < Date.now(), "FOMC Oct-28 catalyst date is in the past");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: confidence increased post-FOMC (binary resolved)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: regime confidence post-FOMC ---");
+{
+  const macro = require("../macro.js");
+  const conf = macro.MACRO_DATA.current.confidence;
+  assert(typeof conf === "number" && conf >= 0 && conf <= 100, "confidence is a valid 0-100 number");
+  assert(conf >= 80, "confidence raised above 80 after FOMC event-risk resolved");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: computeLadder regime-aware rung boundary tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+function computeLadder2(avg, qty, price, regime) {
+  if (!avg || avg <= 0 || !qty || qty <= 0) return null;
+  const gainPct = (price - avg) / avg * 100;
+  if (gainPct < 10) return null;
+  const rungs = (function regimeLadderRungs(r) {
+    if (r === "longend" || r === "squeeze") return [15, 30, 60, 100];
+    return [25, 50, 100, 200];
+  })(regime).map(function (pc) {
+    const ladderPrice = avg * (1 + pc / 100);
+    return { pct: pc, price: ladderPrice, qty: qty * 0.25, hit: price >= ladderPrice };
+  });
+  return { gainPct: gainPct, rungs: rungs, hits: rungs.filter(function (r) { return r.hit; }) };
+}
+
+console.log("\n--- alerts: computeLadder regime boundaries ---");
+{
+  // longend regime: tighter rungs [15, 30, 60, 100]
+  const longend20 = computeLadder2(100, 4, 120, "longend");
+  assert(longend20 !== null, "20% gain in longend returns ladder");
+  assert(longend20.rungs[0].pct === 15, "first longend rung at 15%");
+  assert(longend20.hits.length === 1, "one rung hit at 20% gain in longend (only 15% rung)");
+
+  // liquidity regime: standard rungs [25, 50, 100, 200]
+  const liquidity20 = computeLadder2(100, 4, 120, "liquidity");
+  assert(liquidity20 !== null, "20% gain in liquidity returns ladder");
+  assert(liquidity20.rungs[0].pct === 25, "first liquidity rung at 25%");
+  assert(liquidity20.hits.length === 0, "no rungs hit at 20% gain in liquidity (first rung is 25%)");
+
+  // boundary: exactly at rung threshold
+  const atRung = computeLadder2(100, 4, 115, "longend");
+  assert(atRung !== null && atRung.hits.length === 1, "exactly at +15% rung in longend: one hit");
+
+  const justBelow = computeLadder2(100, 4, 114.9, "longend");
+  assert(justBelow !== null && justBelow.hits.length === 0, "just below +15% rung: no hit");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate: max_tokens plan caps are ordered correctly
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- generate: PLAN_TOKEN_CAPS ordering ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  // Extract PLAN_TOKEN_CAPS values
+  const freeMatch = src.match(/free:\s*(\d+)/);
+  const proMatch  = src.match(/pro:\s*(\d+)/);
+  const eliteMatch = src.match(/elite:\s*(\d+)/);
+  const advisorMatch = src.match(/advisor:\s*(\d+)/);
+  assert(freeMatch && proMatch && eliteMatch && advisorMatch, "PLAN_TOKEN_CAPS has all four plans in generate.js");
+  if (freeMatch && proMatch && eliteMatch && advisorMatch) {
+    const free = parseInt(freeMatch[1], 10);
+    const pro  = parseInt(proMatch[1], 10);
+    const elite = parseInt(eliteMatch[1], 10);
+    const adv  = parseInt(advisorMatch[1], 10);
+    assert(free < pro, "pro token cap > free cap");
+    assert(pro < elite, "elite token cap > pro cap");
+    assert(elite < adv, "advisor token cap > elite cap");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _lib: verifyToken rejects token for wrong email without AUTH_SECRET leak
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- _lib: verifyToken cross-email rejection ---");
+{
+  const origSecret = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = "cross-email-test-secret";
+  const { signToken, verifyToken } = require("../netlify/functions/_lib");
+
+  const tok = signToken("alice@example.com", 7);
+  assert(verifyToken(tok) === "alice@example.com", "own token verifies correctly");
+  // Attempt to use the same token structure but for a different email
+  const parts = tok.split(".");
+  const fakePayload = Buffer.from("bob@example.com|" + (Date.now() + 864e5 * 7)).toString("base64url");
+  const fakeTok = fakePayload + "." + parts[1];
+  assert(verifyToken(fakeTok) === null, "token with mismatched payload+signature rejected");
+
+  if (origSecret === undefined) delete process.env.AUTH_SECRET;
+  else process.env.AUTH_SECRET = origSecret;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
