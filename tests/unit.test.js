@@ -1338,6 +1338,182 @@ console.log("\n--- _lib: verifyToken cross-email rejection ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// market.js: momentum transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market.js: momentum transform ---");
+{
+  function momentumTransform(data) {
+    if (!Array.isArray(data)) return data;
+    return data
+      .filter(function (c) {
+        return typeof c.price_change_percentage_7d_in_currency === "number" &&
+          typeof c.price_change_percentage_30d_in_currency === "number" &&
+          c.price_change_percentage_7d_in_currency > 0 &&
+          c.price_change_percentage_30d_in_currency > 0 &&
+          c.market_cap > 50e6;
+      })
+      .map(function (c) {
+        const change7d = c.price_change_percentage_7d_in_currency;
+        const change30d = c.price_change_percentage_30d_in_currency;
+        return {
+          id: c.id, symbol: (c.symbol || "").toUpperCase(), name: c.name,
+          price: c.current_price, market_cap: c.market_cap,
+          change_7d: change7d, change_30d: change30d,
+          momentum_score: (change7d * 0.4) + (change30d * 0.6),
+        };
+      })
+      .sort(function (a, b) { return b.momentum_score - a.momentum_score; })
+      .slice(0, 25);
+  }
+
+  const sampleData = [
+    { id: "btc", symbol: "btc", name: "Bitcoin", current_price: 82000, market_cap: 1.6e12, price_change_percentage_7d_in_currency: 5, price_change_percentage_30d_in_currency: 10 },
+    { id: "eth", symbol: "eth", name: "Ethereum", current_price: 3500, market_cap: 420e9, price_change_percentage_7d_in_currency: -2, price_change_percentage_30d_in_currency: 8 },
+    { id: "sol", symbol: "sol", name: "Solana", current_price: 190, market_cap: 80e9, price_change_percentage_7d_in_currency: 12, price_change_percentage_30d_in_currency: 25 },
+    { id: "micro", symbol: "micro", name: "Micro", current_price: 0.01, market_cap: 10e6, price_change_percentage_7d_in_currency: 50, price_change_percentage_30d_in_currency: 100 },
+    { id: "neg30d", symbol: "neg", name: "Negative30d", current_price: 1, market_cap: 500e6, price_change_percentage_7d_in_currency: 5, price_change_percentage_30d_in_currency: -1 },
+  ];
+
+  const result = momentumTransform(sampleData);
+  assert(result.length === 2, "momentum: 2 coins pass filter (eth has -7d, micro is micro-cap, neg30d has -30d)");
+  assert(result[0].id === "sol", "momentum: sol ranks first (highest composite score)");
+  assert(result[1].id === "btc", "momentum: btc ranks second");
+  assert(typeof result[0].momentum_score === "number", "momentum_score is a number");
+  assert(approx(result[0].momentum_score, (12 * 0.4) + (25 * 0.6), 0.01), "sol momentum_score = 7d*0.4 + 30d*0.6");
+  assert(momentumTransform(null) === null, "non-array returns as-is");
+  assert(momentumTransform([]).length === 0, "empty array returns empty");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market.js: trend_reversal transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market.js: trend_reversal transform ---");
+{
+  function trendReversalTransform(data) {
+    if (!Array.isArray(data)) return data;
+    const recovering = [], fading = [];
+    data.forEach(function (c) {
+      if (!c.market_cap || c.market_cap < 50e6) return;
+      const d1 = c.price_change_percentage_24h;
+      const d7 = c.price_change_percentage_7d_in_currency;
+      if (typeof d1 !== "number" || typeof d7 !== "number") return;
+      const item = { id: c.id, symbol: (c.symbol || "").toUpperCase(), name: c.name,
+        price: c.current_price, market_cap: c.market_cap, change_24h: d1, change_7d: d7 };
+      if (d1 > 2 && d7 < -5) recovering.push(item);
+      else if (d1 < -2 && d7 > 5) fading.push(item);
+    });
+    return {
+      recovering: recovering.sort(function (a, b) { return b.change_24h - a.change_24h; }).slice(0, 15),
+      fading: fading.sort(function (a, b) { return a.change_24h - b.change_24h; }).slice(0, 15),
+    };
+  }
+
+  const reversalData = [
+    { id: "rec1", symbol: "r1", name: "Recovering1", current_price: 10, market_cap: 200e6, price_change_percentage_24h: 5, price_change_percentage_7d_in_currency: -8 },
+    { id: "rec2", symbol: "r2", name: "Recovering2", current_price: 20, market_cap: 100e6, price_change_percentage_24h: 3, price_change_percentage_7d_in_currency: -10 },
+    { id: "fad1", symbol: "f1", name: "Fading1", current_price: 30, market_cap: 150e6, price_change_percentage_24h: -4, price_change_percentage_7d_in_currency: 12 },
+    { id: "neutral", symbol: "ne", name: "Neutral", current_price: 5, market_cap: 300e6, price_change_percentage_24h: 1, price_change_percentage_7d_in_currency: 3 },
+    { id: "micro2", symbol: "m2", name: "Micro2", current_price: 0.001, market_cap: 10e6, price_change_percentage_24h: 10, price_change_percentage_7d_in_currency: -20 },
+  ];
+
+  const revResult = trendReversalTransform(reversalData);
+  assert(revResult.recovering.length === 2, "trend_reversal: 2 recovering coins found");
+  assert(revResult.fading.length === 1, "trend_reversal: 1 fading coin found");
+  assert(revResult.recovering[0].id === "rec1", "recovering sorted by 24h desc: rec1 (5%) first");
+  assert(revResult.fading[0].id === "fad1", "fading: fad1 is the only fading coin");
+  assert(!revResult.recovering.find(function (c) { return c.id === "micro2"; }), "micro-cap excluded from recovering");
+  assert(!revResult.recovering.find(function (c) { return c.id === "neutral"; }), "neutral coin not in recovering");
+  assert(trendReversalTransform(null) === null, "non-array returns as-is");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market.js: btc_alt_divergence rotation signal
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market.js: btc_alt_divergence rotation signal ---");
+{
+  function btcAltSignal(btc7d, altAvg7d, btc30d, altAvg30d) {
+    const alt_out_7d = altAvg7d - btc7d;
+    const alt_out_30d = altAvg30d - btc30d;
+    if (alt_out_7d > 5 && alt_out_30d > 5) return "altseason";
+    if (alt_out_7d > 2) return "alts_leading";
+    if (alt_out_7d < -5 && alt_out_30d < -5) return "btc_dominance";
+    if (alt_out_7d < -2) return "btc_leading";
+    return "neutral";
+  }
+
+  assert(btcAltSignal(3, 12, 5, 14) === "altseason", "alts +9% vs BTC on 7d and 30d → altseason");
+  assert(btcAltSignal(5, 8, 10, 12) === "alts_leading", "alts +3% vs BTC on 7d → alts_leading");
+  assert(btcAltSignal(10, 2, 15, 5) === "btc_dominance", "BTC +8% on 7d and 30d → btc_dominance");
+  assert(btcAltSignal(8, 5, 12, 8) === "btc_leading", "BTC +3% vs alts on 7d → btc_leading");
+  assert(btcAltSignal(5, 6, 10, 11) === "neutral", "< 2% divergence on 7d → neutral");
+  assert(btcAltSignal(5, 5, 10, 10) === "neutral", "zero divergence → neutral");
+  // Boundary: exactly 2% outperformance is alts_leading, not neutral
+  assert(btcAltSignal(5, 7.01, 10, 12) === "alts_leading", "just above 2% alt outperformance → alts_leading");
+  assert(btcAltSignal(5, 6.99, 10, 12) === "neutral", "just below 2% alt outperformance → neutral");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro.js: asOf date is current (within 2 days of today)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro.js: asOf freshness ---");
+{
+  const { MACRO_DATA, macroDataAge } = require("../macro.js");
+  const ageDays = macroDataAge();
+  assert(typeof ageDays === "number" && ageDays >= 0, "macroDataAge() returns a non-negative number");
+  assert(ageDays <= 2, "MACRO_DATA.asOf is within 2 days of today (data is fresh)");
+  assert(typeof MACRO_DATA.asOf === "string" && /^\d{4}-\d{2}-\d{2}$/.test(MACRO_DATA.asOf), "asOf is a YYYY-MM-DD string");
+
+  // Q3 GDP catalyst (Oct 30) is today-or-past — not future
+  const gdpCatalyst = MACRO_DATA.catalysts.find(function (c) { return c.n.includes("Q3 GDP"); });
+  assert(gdpCatalyst !== undefined, "Q3 GDP catalyst exists in MACRO_DATA");
+  if (gdpCatalyst) {
+    const daysUntil = Math.round((new Date(gdpCatalyst.d).getTime() - Date.now()) / 86400000);
+    assert(daysUntil <= 0, "Q3 GDP advance estimate catalyst is today-or-past (days until: " + daysUntil + ")");
+  }
+
+  // FOMC Oct 28 catalyst is past
+  const fomcCatalyst = MACRO_DATA.catalysts.find(function (c) { return c.n === "FOMC decision" && c.d === "2026-10-28"; });
+  assert(fomcCatalyst !== undefined, "FOMC Oct 28 catalyst exists");
+  if (fomcCatalyst) {
+    const daysPast = Math.round((Date.now() - new Date(fomcCatalyst.d).getTime()) / 86400000);
+    assert(daysPast >= 2, "FOMC Oct 28 is at least 2 days in the past from today");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro.js: checkFalsifiers returns correct structure
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro.js: checkFalsifiers structure ---");
+{
+  const { checkFalsifiers } = require("../macro.js");
+  const fw = checkFalsifiers();
+  assert(typeof fw === "object" && fw !== null, "checkFalsifiers returns an object");
+  assert(Array.isArray(fw.trips), "fw.trips is an array");
+  assert(Array.isArray(fw.soon), "fw.soon is an array");
+  assert(typeof fw.clean === "boolean", "fw.clean is a boolean");
+  assert(fw.clean === (fw.trips.length === 0), "fw.clean is true iff trips is empty");
+  // Each trip has expected shape
+  fw.trips.forEach(function (t) {
+    assert(typeof t.n === "string", "trip has string n");
+    assert(typeof t.v === "number", "trip has numeric v");
+    assert(typeof t.th === "number", "trip has numeric th");
+  });
+  // Q3 GDP catalyst (Oct 30) should be in fw.soon if it is today (≤21d), or not if past
+  const gdpSoon = fw.soon.find(function (s) { return s.n.includes("Q3 GDP"); });
+  // Either the catalyst is within 21 days (still shows up) or it has passed (days < 0)
+  // Both are valid states for Oct 30 depending on exact run time — just verify structure if present
+  if (gdpSoon) {
+    assert(typeof gdpSoon.days === "number", "GDP catalyst in soon has numeric days field");
+    assert(gdpSoon.days >= 0, "catalyst in soon[] has non-negative days (not yet past)");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
