@@ -135,6 +135,19 @@ exports.handler = async function (event) {
   const authz = (h.authorization || h.Authorization || "").replace(/^Bearer\s+/i, "").trim();
   const authedEmail = verifyToken(authz);
 
+  // Parse and validate payload before touching rate-limit counters so a malformed
+  // request doesn't consume a user's daily quota.
+  let payload;
+  try { payload = JSON.parse(event.body || "{}"); } catch (e) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Invalid JSON body" } }) };
+  }
+
+  let { system, messages, prompt, model, max_tokens } = payload;
+  if (!messages && prompt) messages = [{ role: "user", content: String(prompt) }];
+  if (!validateMessages(messages)) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing or invalid messages" } }) };
+  }
+
   let userPlan = "free";
 
   if (authedEmail) {
@@ -157,17 +170,6 @@ exports.handler = async function (event) {
       const retryAfter = secondsUntilMidnightUTC();
       return { statusCode: 429, headers: { ...CORS, "Retry-After": retryAfter, "X-RateLimit-Limit": String(DAILY_IP_CAP), "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + parseInt(retryAfter, 10)) }, body: JSON.stringify({ error: { message: "Daily AI limit reached for this network. Log in or add your own API key in Settings for more." } }) };
     }
-  }
-
-  let payload;
-  try { payload = JSON.parse(event.body || "{}"); } catch (e) {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Invalid JSON body" } }) };
-  }
-
-  let { system, messages, prompt, model, max_tokens } = payload;
-  if (!messages && prompt) messages = [{ role: "user", content: String(prompt) }];
-  if (!validateMessages(messages)) {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: { message: "Missing or invalid messages" } }) };
   }
 
   model = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
