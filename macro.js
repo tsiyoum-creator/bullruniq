@@ -17,13 +17,13 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-10-30",
+  asOf: "2026-11-01",
 
   current: {
     regime: "longend",
     confidence: 82,
-    summary: "FOMC held at 3.75–4.00% two days ago with no pivot language — exactly as priced. The 30-year sits at 5.36% and the 10-year has held above 5.00% for two weeks, the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin is range-bound near $82k. Q3 GDP advance estimate releases today (Oct 30) — this is the current binary: a miss below 2% begins to build the deflation case.",
-    forBook: "The FOMC held as expected, removing one layer of event risk. Today's Q3 GDP advance estimate is the live binary: a print below 2% would begin to build the deflation case, potentially opening a short-term risk rally on pivot expectations; a strong print above 3% reinforces the longend thesis with no catalyst for a pivot. Either way, rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
+    summary: "FOMC held at 3.75–4.00% on Oct 28 with no pivot language — exactly as priced. Q3 GDP advance estimate was released Oct 30 (figure not yet verified in this block). The 30-year sits at 5.36% and the 10-year has held above 5.00% for over two weeks, the longest stretch since July 2007. Treasury's buyback program expanded to $4bn+ per operation with no sign of the buyers' strike abating. Dollar (DXY 100.3) has remained above 100 for six consecutive weeks. IIJA authority expired 2026-09-30, closing a $282bn unallocated infrastructure outflow tap — a negative flow signal now fully in effect. Bitcoin is range-bound near $82k. Quarterly Refunding Statement due Nov 2 is the next live binary: watch the duration mix for any shift toward shorter maturities and whether the buyback program is extended.",
+    forBook: "The FOMC held as expected, removing one layer of event risk. The Q3 GDP advance estimate (Oct 30) resolved one binary — its outcome is not yet in this data block. The Quarterly Refunding Statement on Nov 2 is now the active watch: a shift toward shorter-duration issuance would be Treasury acknowledging long-end pressure, a first step toward curve control; extension of buybacks at current pace confirms the buyers' strike is structural. Either way, rising real yields plus a firming dollar is historically the worst combination for long-duration risk assets, crypto included. The IIJA expiry compounds the picture on the liquidity side. This is not the regime a debasement or liquidity thesis needs — that thesis requires a Fed pivot and a falling dollar, neither of which is in progress."
   },
 
   regimes: [

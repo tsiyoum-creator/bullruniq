@@ -1456,6 +1456,189 @@ console.log("\n--- market.js: btc_alt_divergence rotation signal ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// _lib: signUnsub / verifyUnsub
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- _lib: signUnsub / verifyUnsub ---");
+{
+  const origSecret = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = "unsub-test-secret-xyz";
+  const { signUnsub, verifyUnsub } = require("../netlify/functions/_lib");
+
+  const email = "user@example.com";
+  const token = signUnsub(email);
+
+  assert(typeof token === "string" && token.length > 0, "signUnsub returns a non-empty string");
+  assert(verifyUnsub(email, token) === true, "valid token verifies successfully");
+  assert(verifyUnsub("other@example.com", token) === false, "token for different email rejected");
+  assert(verifyUnsub(email, token + "x") === false, "tampered token rejected");
+  assert(verifyUnsub(email, "") === false, "empty token rejected");
+  assert(verifyUnsub(email, null) === false, "null token rejected");
+  assert(verifyUnsub(email, undefined) === false, "undefined token rejected");
+
+  // Two calls with the same email produce the same token (deterministic HMAC)
+  const token2 = signUnsub(email);
+  assert(token === token2, "signUnsub is deterministic for the same email");
+
+  // Different emails produce different tokens
+  const tokenB = signUnsub("bob@example.com");
+  assert(token !== tokenB, "different emails produce different tokens");
+
+  if (origSecret === undefined) delete process.env.AUTH_SECRET;
+  else process.env.AUTH_SECRET = origSecret;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate.js: validateMessages edge cases
+// Inlined from generate.js (same pattern as other functions in this suite) because
+// generate.js requires @netlify/blobs at the module level which is unavailable here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ALLOWED_ROLES = new Set(["user", "assistant"]);
+const ALLOWED_BLOCK_TYPES = new Set(["text", "image", "tool_use", "tool_result"]);
+
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
+  for (const m of messages) {
+    if (!m || typeof m !== "object") return false;
+    if (!ALLOWED_ROLES.has(m.role)) return false;
+    if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
+    if (typeof m.content === "string" && m.content.length > 20000) return false;
+    if (Array.isArray(m.content)) {
+      if (m.content.length > 20) return false;
+      for (const block of m.content) {
+        if (!block || typeof block !== "object") return false;
+        if (typeof block.type !== "string" || !ALLOWED_BLOCK_TYPES.has(block.type)) return false;
+        if (block.type === "text") {
+          if (typeof block.text !== "string") return false;
+          if (block.text.length > 20000) return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+console.log("\n--- generate.js: validateMessages edge cases ---");
+{
+  // Basic valid cases
+  assert(validateMessages([{ role: "user", content: "hello" }]) === true, "single user message valid");
+  assert(validateMessages([{ role: "user", content: "hi" }, { role: "assistant", content: "hello" }]) === true, "user+assistant pair valid");
+
+  // Invalid inputs
+  assert(validateMessages(null) === false, "null rejected");
+  assert(validateMessages(undefined) === false, "undefined rejected");
+  assert(validateMessages([]) === false, "empty array rejected");
+  assert(validateMessages("string") === false, "string rejected");
+  assert(validateMessages({}) === false, "plain object rejected");
+
+  // Role validation
+  assert(validateMessages([{ role: "system", content: "hi" }]) === false, "system role rejected");
+  assert(validateMessages([{ role: "tool", content: "hi" }]) === false, "tool role rejected");
+  assert(validateMessages([{ role: "", content: "hi" }]) === false, "empty role rejected");
+
+  // Content length
+  assert(validateMessages([{ role: "user", content: "a".repeat(20001) }]) === false, "string content > 20000 chars rejected");
+  assert(validateMessages([{ role: "user", content: "a".repeat(20000) }]) === true, "string content at 20000 chars accepted");
+
+  // Array length limits
+  const tooMany = Array.from({ length: 41 }, function (_, i) {
+    return { role: i % 2 === 0 ? "user" : "assistant", content: "msg" };
+  });
+  assert(validateMessages(tooMany) === false, "41 messages rejected (>40 limit)");
+  const exactly40 = Array.from({ length: 40 }, function (_, i) {
+    return { role: i % 2 === 0 ? "user" : "assistant", content: "msg" };
+  });
+  assert(validateMessages(exactly40) === true, "exactly 40 messages accepted");
+
+  // Content block validation
+  assert(validateMessages([{ role: "user", content: [{ type: "text", text: "hello" }] }]) === true, "text block valid");
+  assert(validateMessages([{ role: "user", content: [{ type: "image", source: {} }] }]) === true, "image block valid (type allowed)");
+  assert(validateMessages([{ role: "user", content: [{ type: "script", text: "evil()" }] }]) === false, "unknown block type rejected");
+  assert(validateMessages([{ role: "user", content: [{ type: "text", text: "a".repeat(20001) }] }]) === false, "text block > 20000 chars rejected");
+  assert(validateMessages([{ role: "user", content: [{ type: "text", text: "a".repeat(20000) }] }]) === true, "text block at 20000 chars accepted");
+
+  // Non-string text in text block
+  assert(validateMessages([{ role: "user", content: [{ type: "text", text: 123 }] }]) === false, "numeric text in text block rejected");
+
+  // Too many content blocks
+  const tooManyBlocks = Array.from({ length: 21 }, function () { return { type: "text", text: "x" }; });
+  assert(validateMessages([{ role: "user", content: tooManyBlocks }]) === false, "21 content blocks rejected (>20 limit)");
+  const exactly20 = Array.from({ length: 20 }, function () { return { type: "text", text: "x" }; });
+  assert(validateMessages([{ role: "user", content: exactly20 }]) === true, "exactly 20 content blocks accepted");
+
+  // Non-object message
+  assert(validateMessages([null]) === false, "null message in array rejected");
+  assert(validateMessages(["string"]) === false, "string message in array rejected");
+
+  // Missing role
+  assert(validateMessages([{ content: "hi" }]) === false, "message without role rejected");
+
+  // Content is neither string nor array
+  assert(validateMessages([{ role: "user", content: 42 }]) === false, "numeric content rejected");
+  assert(validateMessages([{ role: "user", content: null }]) === false, "null content rejected");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro.js: upcoming catalysts (QRS Nov 2, buyback Nov 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro.js: upcoming catalysts ---");
+{
+  const { MACRO_DATA } = require("../macro.js");
+
+  const qrs = MACRO_DATA.catalysts.find(function (c) { return c.n === "Quarterly refunding statement"; });
+  assert(qrs !== undefined, "Quarterly refunding statement catalyst exists");
+  if (qrs) {
+    assert(qrs.d === "2026-11-02", "QRS catalyst date is 2026-11-02");
+    const daysUntil = Math.round((new Date(qrs.d).getTime() - Date.now()) / 86400000);
+    // QRS is Nov 2 — should be within a few days of today (Nov 1). It's upcoming or today.
+    assert(daysUntil >= -1 && daysUntil <= 3, "QRS is within ±1d to +3d of today (Nov 1–2)");
+    assert(typeof qrs.tests === "string" && qrs.tests.length > 0, "QRS catalyst has a tests description");
+  }
+
+  const buyback = MACRO_DATA.catalysts.find(function (c) { return c.n === "Buyback authority renewal"; });
+  assert(buyback !== undefined, "Buyback authority renewal catalyst exists");
+  if (buyback) {
+    assert(buyback.d === "2026-11-04", "Buyback catalyst date is 2026-11-04");
+    const daysUntilBuyback = Math.round((new Date(buyback.d).getTime() - Date.now()) / 86400000);
+    assert(daysUntilBuyback >= 0 && daysUntilBuyback <= 5, "Buyback renewal is 0–5 days from today");
+  }
+
+  const decFomc = MACRO_DATA.catalysts.find(function (c) { return c.d === "2026-12-09"; });
+  assert(decFomc !== undefined, "December FOMC + dot plot catalyst exists");
+  if (decFomc) {
+    const daysUntilDec = Math.round((new Date(decFomc.d).getTime() - Date.now()) / 86400000);
+    assert(daysUntilDec > 30, "December FOMC is more than 30 days away");
+    assert(decFomc.tests.includes("4.5%") || decFomc.tests.length > 0, "Dec FOMC catalyst has substantive tests description");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _lib: PLAN_DAILY_CAPS ordering and values
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- _lib: PLAN_DAILY_CAPS ---");
+{
+  const { PLAN_DAILY_CAPS } = require("../netlify/functions/_lib");
+
+  assert(typeof PLAN_DAILY_CAPS === "object" && PLAN_DAILY_CAPS !== null, "PLAN_DAILY_CAPS is an object");
+  assert(typeof PLAN_DAILY_CAPS.free === "number", "free cap is a number");
+  assert(typeof PLAN_DAILY_CAPS.pro === "number", "pro cap is a number");
+  assert(typeof PLAN_DAILY_CAPS.elite === "number", "elite cap is a number");
+  assert(typeof PLAN_DAILY_CAPS.advisor === "number", "advisor cap is a number");
+
+  assert(PLAN_DAILY_CAPS.free > 0, "free cap is positive");
+  assert(PLAN_DAILY_CAPS.pro > PLAN_DAILY_CAPS.free, "pro cap > free cap");
+  assert(PLAN_DAILY_CAPS.elite > PLAN_DAILY_CAPS.pro, "elite cap > pro cap");
+  assert(PLAN_DAILY_CAPS.advisor > PLAN_DAILY_CAPS.elite, "advisor cap > elite cap");
+
+  // Sanity bounds: free should be reasonable for a free plan, advisor should be <10k
+  assert(PLAN_DAILY_CAPS.free >= 10, "free cap >= 10 requests/day");
+  assert(PLAN_DAILY_CAPS.advisor <= 10000, "advisor cap <= 10,000 requests/day (sanity bound)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // macro.js: asOf date is current (within 2 days of today)
 // ─────────────────────────────────────────────────────────────────────────────
 
