@@ -82,6 +82,9 @@ const CGMAP = {
   PENGU:"pudgy-penguins", SPX:"spx6900", WEN:"wen-4",
   CETUS:"cetus-protocol", SEND:"send", HAEDAL:"haedal-protocol",
   ZRO:"layerzero", PUFFER:"puffer-finance",
+  // Late Q4 2026 additions
+  STX:"blockstack", DYDX:"dydx", GMX:"gmx", REZ:"renzo-protocol",
+  OSMO:"osmosis", KAVA:"kava", ANKR:"ankr", ROSE:"oasis-network",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };

@@ -1221,20 +1221,22 @@ console.log("\n--- alerts: Q4 2026 CGMAP entries ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// macro: FOMC catalyst is now in the past (post-Oct 28 FOMC)
+// macro: past catalysts pruned, upcoming ones present
 // ─────────────────────────────────────────────────────────────────────────────
 
-console.log("\n--- macro: FOMC catalyst is past ---");
+console.log("\n--- macro: past catalysts pruned ---");
 {
   const macro = require("../macro.js");
-  const fomcCatalyst = macro.MACRO_DATA.catalysts.find(function (c) {
-    return c.n === "FOMC decision";
+  // FOMC Oct 28 is well in the past — it should have been pruned from the list
+  const oct28Fomc = macro.MACRO_DATA.catalysts.find(function (c) {
+    return c.d === "2026-10-28";
   });
-  assert(fomcCatalyst !== undefined, "FOMC decision catalyst found in MACRO_DATA");
-  if (fomcCatalyst) {
-    const fomcMs = new Date(fomcCatalyst.d).getTime();
-    assert(fomcMs < Date.now(), "FOMC Oct-28 catalyst date is in the past");
-  }
+  assert(oct28Fomc === undefined, "FOMC Oct 28 catalyst removed (past event pruned)");
+  // QRS Nov 2 (today) should still be present — it is the active catalyst
+  const qrs = macro.MACRO_DATA.catalysts.find(function (c) {
+    return c.d === "2026-11-02";
+  });
+  assert(qrs !== undefined, "Quarterly Refunding Statement Nov-2 catalyst present");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1650,21 +1652,17 @@ console.log("\n--- macro.js: asOf freshness ---");
   assert(ageDays <= 2, "MACRO_DATA.asOf is within 2 days of today (data is fresh)");
   assert(typeof MACRO_DATA.asOf === "string" && /^\d{4}-\d{2}-\d{2}$/.test(MACRO_DATA.asOf), "asOf is a YYYY-MM-DD string");
 
-  // Q3 GDP catalyst (Oct 30) is today-or-past — not future
+  // Q3 GDP catalyst (Oct 30) is past — it should have been pruned from the list
   const gdpCatalyst = MACRO_DATA.catalysts.find(function (c) { return c.n.includes("Q3 GDP"); });
-  assert(gdpCatalyst !== undefined, "Q3 GDP catalyst exists in MACRO_DATA");
-  if (gdpCatalyst) {
-    const daysUntil = Math.round((new Date(gdpCatalyst.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntil <= 0, "Q3 GDP advance estimate catalyst is today-or-past (days until: " + daysUntil + ")");
-  }
+  assert(gdpCatalyst === undefined, "Q3 GDP catalyst pruned from MACRO_DATA (resolved past event)");
 
-  // FOMC Oct 28 catalyst is past
+  // FOMC Oct 28 catalyst is well past — should be pruned
   const fomcCatalyst = MACRO_DATA.catalysts.find(function (c) { return c.n === "FOMC decision" && c.d === "2026-10-28"; });
-  assert(fomcCatalyst !== undefined, "FOMC Oct 28 catalyst exists");
-  if (fomcCatalyst) {
-    const daysPast = Math.round((Date.now() - new Date(fomcCatalyst.d).getTime()) / 86400000);
-    assert(daysPast >= 2, "FOMC Oct 28 is at least 2 days in the past from today");
-  }
+  assert(fomcCatalyst === undefined, "FOMC Oct 28 entry pruned from catalysts (past event, days past: " + Math.round((Date.now() - new Date("2026-10-28").getTime()) / 86400000) + ")");
+
+  // Upcoming Dec 9 FOMC should still be present
+  const decFomc2 = MACRO_DATA.catalysts.find(function (c) { return c.d === "2026-12-09"; });
+  assert(decFomc2 !== undefined, "Dec 9 FOMC catalyst still present in upcoming list");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1694,6 +1692,123 @@ console.log("\n--- macro.js: checkFalsifiers structure ---");
     assert(typeof gdpSoon.days === "number", "GDP catalyst in soon has numeric days field");
     assert(gdpSoon.days >= 0, "catalyst in soon[] has non-negative days (not yet past)");
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: btc_alt_divergence — alts_leading and btc_leading branches
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: btc_alt_divergence alts_leading / btc_leading ---");
+{
+  // alts_leading: alt_out_7d > 2 but NOT > 5 (or alt_out_30d not > 5)
+  const altsLeadingCoins = [
+    { id: "bitcoin",  current_price: 82000, market_cap: 1.6e12, price_change_percentage_7d_in_currency: 3.0, price_change_percentage_30d_in_currency: 5.0 },
+    { id: "ethereum", current_price: 3200,  market_cap: 600e9,  price_change_percentage_7d_in_currency: 7.0, price_change_percentage_30d_in_currency: 6.0 },
+  ];
+  const altsLeading = btcAltDivergenceTransform(altsLeadingCoins);
+  // alt_out_7d = 7 - 3 = 4 (>2, not >5) → alts_leading
+  assert(altsLeading.rotation_signal === "alts_leading", "alt_out_7d=4 → alts_leading");
+  assert(typeof altsLeading.alt_outperformance_7d === "number", "alt_outperformance_7d is a number");
+
+  // btc_leading: alt_out_7d < -2 but NOT < -5 (or alt_out_30d not < -5)
+  const btcLeadingCoins = [
+    { id: "bitcoin",  current_price: 90000, market_cap: 1.8e12, price_change_percentage_7d_in_currency: 8.0, price_change_percentage_30d_in_currency: 12.0 },
+    { id: "ethereum", current_price: 2800,  market_cap: 600e9,  price_change_percentage_7d_in_currency: 4.0, price_change_percentage_30d_in_currency: 8.0  },
+  ];
+  const btcLeading = btcAltDivergenceTransform(btcLeadingCoins);
+  // alt_out_7d = 4 - 8 = -4 (< -2, not < -5) → btc_leading
+  assert(btcLeading.rotation_signal === "btc_leading", "alt_out_7d=-4 → btc_leading");
+
+  // Verify signal_note is present on all five rotation states
+  const states = ["altseason", "alts_leading", "btc_dominance", "btc_leading", "neutral"];
+  const fs = require("fs");
+  const marketJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/market.js"), "utf8");
+  states.forEach(function (s) {
+    assert(marketJs.includes('"' + s + '"'), "market.js rotation_signal includes \"" + s + "\"");
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: DCA rung re-arm (returns to 0 when price recovers above avg)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: DCA rung re-arm ---");
+{
+  // Rung fires at -20%
+  assert(computeDcaRung(100, 79) === 1, "79% of avg (-21%) → rung 1");
+  // Price recovers back above avg — rung resets to 0
+  assert(computeDcaRung(100, 101) === 0, "price above avg → rung 0 (re-arm)");
+  // Partial recovery (-10%) — rung stays 0 (below first threshold)
+  assert(computeDcaRung(100, 90) === 0, "10% loss → rung 0 (below threshold)");
+
+  // Verify alerts.js production code resets serverDcaRung to 0 when rung drops to 0
+  const fs = require("fs");
+  const alertsJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("serverDcaRung = 0"), "alerts.js resets serverDcaRung to 0 on re-arm");
+  assert(alertsJs.includes("dcaRung === 0 && prevDcaRung > 0"), "alerts.js re-arm condition correct");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: new late-Q4 2026 CGMAP additions
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: late-Q4 2026 CGMAP entries ---");
+{
+  const fs = require("fs");
+  const alertsJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("STX"), "STX (Stacks) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("blockstack"), "blockstack CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("DYDX"), "DYDX ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"dydx"'), "dydx CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("GMX"), "GMX ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"gmx"'), "gmx CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("REZ"), "REZ (Renzo) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("renzo-protocol"), "renzo-protocol CG ID present in alerts.js CGMAP");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: catalysts list no longer contains Oct 28 / Oct 30 past events
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: catalysts pruned of past events ---");
+{
+  const macro = require("../macro.js");
+  const catalysts = macro.MACRO_DATA.catalysts;
+  assert(Array.isArray(catalysts), "catalysts is an array");
+  // Oct 28 FOMC and Oct 30 GDP are now in the past — they should be removed
+  const oct28 = catalysts.find(function (c) { return c.d === "2026-10-28"; });
+  const oct30 = catalysts.find(function (c) { return c.d === "2026-10-30"; });
+  assert(!oct28, "Oct 28 FOMC entry removed from catalysts (past event)");
+  assert(!oct30, "Oct 30 GDP entry removed from catalysts (past event)");
+  // Upcoming catalysts should still exist
+  const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
+  assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
+  // asOf should be updated to today (2026-11-02)
+  assert(macro.MACRO_DATA.asOf === "2026-11-02", "MACRO_DATA.asOf updated to 2026-11-02");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate: validateMessages edge cases
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- generate: validateMessages edge cases ---");
+{
+  const { validateMessages } = require("../netlify/functions/generate");
+  assert(validateMessages([{ role: "user", content: "hello" }]) === true, "single user message valid");
+  assert(validateMessages([]) === false, "empty messages array rejected");
+  assert(validateMessages(null) === false, "null messages rejected");
+  assert(validateMessages([{ role: "user", content: "x".repeat(20001) }]) === false, "content > 20000 chars rejected");
+  assert(validateMessages([{ role: "system", content: "hi" }]) === false, "invalid role rejected");
+  assert(validateMessages([{ role: "user", content: 123 }]) === false, "non-string non-array content rejected");
+  // Array content: valid text block
+  assert(validateMessages([{ role: "user", content: [{ type: "text", text: "hello" }] }]) === true, "array content with text block valid");
+  // Array content: invalid block type
+  assert(validateMessages([{ role: "user", content: [{ type: "script", text: "bad" }] }]) === false, "invalid block type rejected");
+  // Message count limit (40)
+  const manyMsgs = Array.from({ length: 41 }, function (_, i) { return { role: i % 2 === 0 ? "user" : "assistant", content: "x" }; });
+  assert(validateMessages(manyMsgs) === false, "more than 40 messages rejected");
+  const exactly40 = Array.from({ length: 40 }, function (_, i) { return { role: i % 2 === 0 ? "user" : "assistant", content: "x" }; });
+  assert(validateMessages(exactly40) === true, "exactly 40 messages accepted");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
