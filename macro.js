@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-11-02",
+  asOf: "2026-11-03",
 
   current: {
     regime: "longend",
@@ -141,7 +141,23 @@ var MACRO_TAGS = {
   META:{r:"liquidity",f:"hs",  b:null,   w:"Spender, not receiver."},
   AAPL:{r:"liquidity",f:null,  b:null,   w:"Broad duration / consumer. Not a flow or bottleneck play."},
   GLD:{r:"fiscdom",  f:null,   b:null,   w:"Debasement hedge. Central banks bought 863t in 2025."},
-  TLT:{r:"deflation",f:null,   b:null,   w:"Long duration. Directly punished by the regime currently in force."}
+  TLT:{r:"deflation",f:null,   b:null,   w:"Long duration. Directly punished by the regime currently in force."},
+  // DeFi / yield infrastructure
+  PENDLE:{r:"liquidity",f:null,b:null,   w:"Yield tokenisation. Structurally needs falling rates to expand TVL; high beta to the liquidity regime."},
+  AAVE:{r:"liquidity", f:null, b:null,   w:"Lending protocol. Revenue is a function of borrowing demand; rises with risk-on liquidity expansion."},
+  // Restaking / infrastructure
+  EIGEN:{r:"liquidity",f:null, b:null,   w:"EigenLayer restaking. Early-stage infrastructure; adoption is gated by the liquidity cycle."},
+  // L1 infrastructure
+  TIA:{r:"liquidity", f:null,  b:null,   w:"Celestia data availability. Infrastructure bet — earns fees when app-chain activity is high, which requires risk-on."},
+  HYPE:{r:"liquidity", f:null, b:null,   w:"Hyperliquid. Perp DEX token. Fee revenue is directly tied to trading volume, which is highest in risk-on."},
+  // AI / compute
+  IO:{r:"fiscdom",  f:"hs",   b:null,   w:"io.net decentralised GPU. Rides the hyperscaler capex wave at the infrastructure layer."},
+  // Newer L1s
+  S:{r:"liquidity",  f:null,  b:null,   w:"Sonic. High-throughput L1. EVM-compatible with aggressive incentive programme; high-beta liquidity trade."},
+  BERA:{r:"liquidity",f:null, b:null,   w:"Berachain. Novel proof-of-liquidity L1. Incentive-driven bootstrapping phase; depends on risk appetite."},
+  // Meme / social momentum (no regime edge — regime-neutral)
+  WIF:{r:"liquidity", f:null, b:null,   w:"Dogwifhat. Meme. Pure sentiment play — goes up most when risk appetite is highest."},
+  PEPE:{r:"liquidity",f:null, b:null,   w:"Pepe. Meme. Same driver as WIF — sentiment-gated, amplified in liquidity regimes."}
 };
 var MTAGK='briq-macrotags';
 var macroTags={};

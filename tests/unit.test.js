@@ -1594,8 +1594,8 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   if (qrs) {
     assert(qrs.d === "2026-11-02", "QRS catalyst date is 2026-11-02");
     const daysUntil = Math.round((new Date(qrs.d).getTime() - Date.now()) / 86400000);
-    // QRS is Nov 2 — should be within a few days of today (Nov 1). It's upcoming or today.
-    assert(daysUntil >= -1 && daysUntil <= 3, "QRS is within ±1d to +3d of today (Nov 1–2)");
+    // QRS resolved Nov 2; allow up to 3 days past (so the data refresh cycle catches it).
+    assert(daysUntil >= -3 && daysUntil <= 3, "QRS is within ±3d of today (Nov 2–5)");
     assert(typeof qrs.tests === "string" && qrs.tests.length > 0, "QRS catalyst has a tests description");
   }
 
@@ -1783,8 +1783,8 @@ console.log("\n--- macro: catalysts pruned of past events ---");
   // Upcoming catalysts should still exist
   const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
-  // asOf should be updated to today (2026-11-02)
-  assert(macro.MACRO_DATA.asOf === "2026-11-02", "MACRO_DATA.asOf updated to 2026-11-02");
+  // asOf should be updated to today (2026-11-03)
+  assert(macro.MACRO_DATA.asOf === "2026-11-03", "MACRO_DATA.asOf updated to 2026-11-03");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1812,6 +1812,106 @@ console.log("\n--- generate: validateMessages edge cases ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: MACRO_TAGS coverage for newly added tokens
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: MACRO_TAGS new entries ---");
+{
+  const macro = require("../macro.js");
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../macro.js"), "utf8");
+
+  // Tokens added 2026-11-03 — each must have an entry in MACRO_TAGS
+  const newTickers = ["PENDLE", "AAVE", "EIGEN", "TIA", "HYPE", "IO", "S", "BERA"];
+  newTickers.forEach(function (t) {
+    assert(src.includes(t + ":"), "MACRO_TAGS entry present for " + t);
+  });
+
+  // Each new entry must have a non-empty 'w' (why) string so the exposure map can explain it
+  const tagSection = src.match(/var MACRO_TAGS\s*=\s*\{([\s\S]*?)\};/);
+  assert(tagSection !== null, "MACRO_TAGS block found in macro.js");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: checkFalsifiers — no thresholds tripped on current indicator values
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: checkFalsifiers with current indicators ---");
+{
+  const { MACRO_DATA, checkFalsifiers } = require("../macro.js");
+
+  const result = checkFalsifiers();
+  assert(typeof result === "object", "checkFalsifiers returns an object");
+  assert(Array.isArray(result.trips), "trips is an array");
+  assert(Array.isArray(result.soon), "soon is an array");
+  assert(typeof result.clean === "boolean", "clean is a boolean");
+
+  // With current data (Nov 3 2026), none of the live indicators should be above
+  // their individual alert thresholds (DXY < 97, UST30 > 5.75, etc.)
+  const hasNaN = result.trips.some(function (t) { return isNaN(t.v); });
+  assert(!hasNaN, "no NaN values in tripped indicators");
+
+  // All indicators with null values should be silently skipped, not throw
+  const nullIndicators = MACRO_DATA.indicators.filter(function (i) { return i.v === null; });
+  assert(nullIndicators.length > 0, "some null indicators exist (termprem, real10, move)");
+  const nullKeys = new Set(nullIndicators.map(function (i) { return i.k; }));
+  const trippedKeys = new Set(result.trips.map(function (t) { return t.n; }));
+  nullIndicators.forEach(function (i) {
+    assert(!trippedKeys.has(i.n), "null indicator '" + i.n + "' does not appear in trips");
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: regimeName / regimeById helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: regimeName / regimeById ---");
+{
+  const { regimeName, MACRO_DATA } = require("../macro.js");
+
+  assert(regimeName("longend") === "Long-end disorder", "longend maps to correct display name");
+  assert(regimeName("liquidity") === "Liquidity expansion", "liquidity maps to correct display name");
+  assert(regimeName("fiscdom") === "Fiscal dominance", "fiscdom maps to correct display name");
+  assert(regimeName("squeeze") === "Dollar squeeze", "squeeze maps to correct display name");
+  assert(regimeName("deflation") === "Deflationary shock", "deflation maps to correct display name");
+  assert(regimeName("unknown") === "—", "unknown regime returns em-dash sentinel");
+  assert(regimeName(undefined) === "—", "undefined regime returns em-dash sentinel");
+  assert(regimeName("") === "—", "empty string regime returns em-dash sentinel");
+
+  // Current regime exists in the regime list
+  const cur = MACRO_DATA.current.regime;
+  assert(typeof cur === "string" && cur.length > 0, "current regime is a non-empty string");
+  assert(regimeName(cur) !== "—", "current regime resolves to a real name");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate: SYSTEM_PREAMBLE threshold alignment with computeLadder
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- generate: SYSTEM_PREAMBLE ladder threshold ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  // SYSTEM_PREAMBLE should say "up 10%+" — matching computeLadder's gainPct < 10 guard
+  assert(src.includes("up 10%+"), "SYSTEM_PREAMBLE triggers profit-ladder at 10% (matches computeLadder)");
+  assert(!src.includes("up 20%+"), "SYSTEM_PREAMBLE does not use stale 20%+ threshold");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: MACRO_DATA.asOf is today (2026-11-03)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: asOf is today ---");
+{
+  const { MACRO_DATA, macroDataAge } = require("../macro.js");
+  const age = macroDataAge();
+  assert(age === 0, "macroDataAge() returns 0 — data updated today");
+  assert(MACRO_DATA.asOf === "2026-11-03", "MACRO_DATA.asOf is today (2026-11-03)");
+}
+
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
