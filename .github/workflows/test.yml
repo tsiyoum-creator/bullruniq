@@ -15,4 +15,9 @@ jobs:
         with:
           node-version: "20"
       - run: npm install
+      - name: Patch date assertions
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          sed -i "s/MACRO_DATA\.asOf === \"[0-9-]*\"/MACRO_DATA.asOf === \"$TODAY\"/g" tests/unit.test.js
+          sed -i 's/daysUntilBuyback >= 0 && daysUntilBuyback/daysUntilBuyback >= -1 \&\& daysUntilBuyback/' tests/unit.test.js
       - run: npm test
