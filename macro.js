@@ -17,13 +17,13 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-11-03",
+  asOf: "2026-11-04",
 
   current: {
     regime: "longend",
-    confidence: 80,
-    summary: "The Quarterly Refunding Statement released today (Nov 2) is the active read: Treasury announced $119bn in nominal coupon auctions next week (unchanged from August) and extended the buyback program at $4bn+ per operation — confirming the buyers' strike is structural, not tactical. The 30-year sits at 5.36% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP advance estimate (Oct 30) printed at +2.2% — above the deflation threshold, removing that tail for now. Dollar (DXY 100.3) above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin is range-bound near $82k. Next dated binary: buyback authority renewal Nov 4.",
-    forBook: "The QRS resolved today without a duration-shortening surprise — no curve control signal yet. Buybacks extended at pace means Treasury is not yet capitulating on long-end management; the buyers' strike is structural. The GDP print at +2.2% removes the near-term deflation case, which tightens the regime map: long-end disorder remains the only active read. That is the worst configuration for long-duration risk assets. Rising real yields and a firming dollar with no Fed pivot on the horizon is not a setup that rewards being long crypto or high-multiple equity. The liquidity thesis needs a pivot and a falling dollar — neither is in progress. Next watch: buyback authority renewal Nov 4 (does it lapse or expand?) and Dec 9 FOMC dot plot for the 2027 terminal rate path."
+    confidence: 82,
+    summary: "Buyback authority renewal is the active binary today (Nov 4): whether Treasury expands, holds, or lets the program lapse signals the next step in long-end management. The QRS (Nov 2) resolved without a duration-shortening surprise — $119bn nominal coupons unchanged, buybacks extended at $4bn+ per operation, confirming the buyers' strike is structural. The 30-year sits at 5.38% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP at +2.2% removes the deflation tail. DXY 100.3 above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin range-bound near $82k. Next dated binary after today: Dec 9 FOMC dot plot.",
+    forBook: "The QRS resolved (Nov 2) without a duration-shortening surprise — no curve control signal. Buybacks extended at pace means Treasury is not capitulating on long-end management; the buyers' strike is structural. The GDP print at +2.2% removes the near-term deflation case, tightening the regime map: long-end disorder remains the only active read. The regime confidence moved to 82 as the Oct 28 FOMC event-risk resolved with no pivot language. That is the worst configuration for long-duration risk assets. Rising real yields and a firming dollar with no Fed pivot is not a setup that rewards being long crypto or high-multiple equity. The liquidity thesis needs a pivot and a falling dollar — neither is in progress. Watch: buyback authority outcome today (lapse vs expand) and the Dec 9 FOMC dot plot for the 2027 terminal rate path."
   },
 
   regimes: [
