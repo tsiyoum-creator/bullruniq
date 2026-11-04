@@ -85,6 +85,19 @@ const CGMAP = {
   // Late Q4 2026 additions
   STX:"blockstack", DYDX:"dydx", GMX:"gmx", REZ:"renzo-protocol",
   OSMO:"osmosis", KAVA:"kava", ANKR:"ankr", ROSE:"oasis-network",
+  // Nov 2026 additions — trending and high-volume tokens
+  CBETH:"coinbase-eth", WBTC:"wrapped-bitcoin", WETH:"weth",
+  LRC:"loopring", ENJ:"enjincoin", CKB:"nervos-network",
+  SFP:"safepal", MASK:"mask-network", COCOS:"cocos-bcx",
+  IOTA:"iota", ZIL:"zilliqa", THETA:"theta-token", TFUEL:"theta-fuel",
+  JASMY:"jasmycoin", ATA:"automata", CTSI:"cartesi",
+  POLS:"polkastarter", POND:"marlin", RLC:"iexec-rlc",
+  WING:"wing-finance", FRONT:"frontier-token",
+  SXP:"sxp", BETA:"beta-finance", QUICK:"quick",
+  CELR:"celer-network", BAKE:"bakerytoken", BURGER:"burger-swap",
+  ELF:"aelf", MBOX:"mobox", NULS:"nuls", WAN:"wanchain",
+  ACH:"alchemy-pay", VITE:"vite", RAMP:"ramp",
+  MULTI:"multichain", ALPACA:"alpaca-finance",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
