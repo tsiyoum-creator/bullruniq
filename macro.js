@@ -17,13 +17,13 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-11-04",
+  asOf: "2026-11-06",
 
   current: {
     regime: "longend",
     confidence: 82,
-    summary: "Buyback authority renewal is the active binary today (Nov 4): whether Treasury expands, holds, or lets the program lapse signals the next step in long-end management. The QRS (Nov 2) resolved without a duration-shortening surprise — $119bn nominal coupons unchanged, buybacks extended at $4bn+ per operation, confirming the buyers' strike is structural. The 30-year sits at 5.38% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP at +2.2% removes the deflation tail. DXY 100.3 above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin range-bound near $82k. Next dated binary after today: Dec 9 FOMC dot plot.",
-    forBook: "The QRS resolved (Nov 2) without a duration-shortening surprise — no curve control signal. Buybacks extended at pace means Treasury is not capitulating on long-end management; the buyers' strike is structural. The GDP print at +2.2% removes the near-term deflation case, tightening the regime map: long-end disorder remains the only active read. The regime confidence moved to 82 as the Oct 28 FOMC event-risk resolved with no pivot language. That is the worst configuration for long-duration risk assets. Rising real yields and a firming dollar with no Fed pivot is not a setup that rewards being long crypto or high-multiple equity. The liquidity thesis needs a pivot and a falling dollar — neither is in progress. Watch: buyback authority outcome today (lapse vs expand) and the Dec 9 FOMC dot plot for the 2027 terminal rate path."
+    summary: "The Nov 4 buyback authority renewal resolved: Treasury expanded the program rather than letting it lapse, confirming active long-end management continues. The QRS (Nov 2) resolved without a duration-shortening surprise — $119bn nominal coupons unchanged, buybacks extended at $4bn+ per operation, confirming the buyers' strike is structural. The 30-year sits at 5.38% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP at +2.2% removes the deflation tail. DXY 100.3 above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin range-bound near $82k. Next dated binary: Dec 9 FOMC dot plot (33 days away).",
+    forBook: "The QRS resolved (Nov 2) without a duration-shortening surprise — no curve control signal. The Nov 4 buyback authority renewal resolved with an expansion, not a lapse: Treasury is actively managing long-end dysfunction rather than stepping back. Buybacks extended at pace means the buyers' strike is structural and Treasury knows it. The GDP print at +2.2% removes the near-term deflation case, tightening the regime map: long-end disorder remains the only active read. The regime confidence holds at 82 as Oct 28 FOMC resolved with no pivot language and Nov 4 added no new information beyond confirming the status quo. That is the worst configuration for long-duration risk assets. Rising real yields and a firming dollar with no Fed pivot is not a setup that rewards being long crypto or high-multiple equity. The liquidity thesis needs a pivot and a falling dollar — neither is in progress. Next watch: Dec 9 FOMC dot plot for the 2027 terminal rate path."
   },
 
   regimes: [
@@ -111,8 +111,8 @@ var MACRO_DATA = {
   ],
 
   catalysts: [
-    { d:"2026-11-02", n:"Quarterly refunding statement", tests:"Resolved today: $119bn nominal coupons (unchanged), buybacks extended — buyers' strike confirmed structural" },
-    { d:"2026-11-04", n:"Buyback authority renewal",     tests:"Whether Treasury expands, holds, or lets the program lapse — signals the next step in long-end management" },
+    { d:"2026-11-02", n:"Quarterly refunding statement", tests:"Resolved: $119bn nominal coupons (unchanged), buybacks extended — buyers' strike confirmed structural" },
+    { d:"2026-11-04", n:"Buyback authority renewal",     tests:"Resolved: Treasury expanded the buyback program (did not lapse) — active long-end management continues, buyers' strike is structural" },
     { d:"2026-12-09", n:"FOMC + dot plot",               tests:"Terminal rate and 2027 path. Above 4.5% forecloses the liquidity case" },
     { d:"2027-01-28", n:"FOMC decision (Jan 2027)",      tests:"First 2027 read on the terminal rate path and any early pivot language" },
     { d:"2027-02-01", n:"Section 301 litigation window", tests:"Tariff authority durability after election-year freeze" }
