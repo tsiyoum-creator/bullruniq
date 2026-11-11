@@ -98,6 +98,12 @@ const CGMAP = {
   ELF:"aelf", MBOX:"mobox", NULS:"nuls", WAN:"wanchain",
   ACH:"alchemy-pay", VITE:"vite", RAMP:"ramp",
   MULTI:"multichain", ALPACA:"alpaca-finance",
+  // Mid-Nov 2026 additions — gaming, DeFi infrastructure, and L2 tokens
+  SCRT:"secret-2", CELO:"celo", METIS:"metis-token",
+  HOOK:"hooked-protocol", BICO:"biconomy",
+  ACE:"fusionist", PORTAL:"portal-gaming", PIXEL:"pixels",
+  GODS:"gods-unchained", PRIME:"echelon-prime",
+  AETHIR:"aethir",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };

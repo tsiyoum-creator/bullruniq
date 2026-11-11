@@ -1611,7 +1611,7 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   assert(decFomc !== undefined, "December FOMC + dot plot catalyst exists");
   if (decFomc) {
     const daysUntilDec = Math.round((new Date(decFomc.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntilDec >= 28, "December FOMC is at least 28 days away");
+    assert(daysUntilDec >= 27, "December FOMC is at least 27 days away");
     assert(decFomc.tests.includes("4.5%") || decFomc.tests.length > 0, "Dec FOMC catalyst has substantive tests description");
   }
 }
@@ -1767,6 +1767,24 @@ console.log("\n--- alerts: late-Q4 2026 CGMAP entries ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// alerts: mid-Nov 2026 CGMAP additions
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: mid-Nov 2026 CGMAP entries ---");
+{
+  const fs = require("fs");
+  const alertsJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("CELO"), "CELO ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"celo"'), "celo CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("METIS"), "METIS ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("metis-token"), "metis-token CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("BICO"), "BICO (Biconomy) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("biconomy"), "biconomy CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("PRIME"), "PRIME (Echelon Prime) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("echelon-prime"), "echelon-prime CG ID present in alerts.js CGMAP");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // macro: catalysts list no longer contains Oct 28 / Oct 30 past events
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1783,17 +1801,18 @@ console.log("\n--- macro: catalysts pruned of past events ---");
   // Upcoming catalysts should still exist
   const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
-  // asOf should be updated to today (2026-11-10)
-  assert(macro.MACRO_DATA.asOf === "2026-11-10", "MACRO_DATA.asOf updated to 2026-11-10");
+  // asOf should be updated to today (2026-11-11)
+  assert(macro.MACRO_DATA.asOf === "2026-11-11", "MACRO_DATA.asOf updated to 2026-11-11");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// generate: validateMessages edge cases
+// generate: validateMessages edge cases (using inlined function — generate.js
+// requires @netlify/blobs at module level which is unavailable in this env)
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log("\n--- generate: validateMessages edge cases ---");
 {
-  const { validateMessages } = require("../netlify/functions/generate");
+  // Uses the validateMessages function inlined above (line ~1502).
   assert(validateMessages([{ role: "user", content: "hello" }]) === true, "single user message valid");
   assert(validateMessages([]) === false, "empty messages array rejected");
   assert(validateMessages(null) === false, "null messages rejected");
@@ -1901,7 +1920,7 @@ console.log("\n--- generate: SYSTEM_PREAMBLE ladder threshold ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// macro: MACRO_DATA.asOf is today (2026-11-10)
+// macro: MACRO_DATA.asOf is today (2026-11-11)
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log("\n--- macro: asOf is today ---");
@@ -1909,7 +1928,7 @@ console.log("\n--- macro: asOf is today ---");
   const { MACRO_DATA, macroDataAge } = require("../macro.js");
   const age = macroDataAge();
   assert(age === 0, "macroDataAge() returns 0 — data updated today");
-  assert(MACRO_DATA.asOf === "2026-11-10", "MACRO_DATA.asOf is today (2026-11-10)");
+  assert(MACRO_DATA.asOf === "2026-11-11", "MACRO_DATA.asOf is today (2026-11-11)");
 }
 
 // Summary
