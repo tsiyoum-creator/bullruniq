@@ -1046,6 +1046,7 @@ assert(ladAllHit.rungs.filter(function(r){return !r.hit;}).length === 0, "no unh
 console.log("\n--- generate.js: ALLOWED_MODELS coverage ---");
 
 const ALLOWED_MODELS = new Set([
+  "claude-fable-5-2",
   "claude-fable-5-1",
   "claude-opus-5-5",
   "claude-sonnet-5-5",
@@ -1065,6 +1066,7 @@ function resolveModel(requested) {
 
 assert(resolveModel("claude-sonnet-5") === "claude-sonnet-5", "allowed model passes through");
 assert(resolveModel("claude-opus-5") === "claude-opus-5", "claude-opus-5 allowed");
+assert(resolveModel("claude-fable-5-2") === "claude-fable-5-2", "claude-fable-5-2 allowed");
 assert(resolveModel("claude-fable-5-1") === "claude-fable-5-1", "claude-fable-5-1 allowed");
 assert(resolveModel("claude-sonnet-5-5") === "claude-sonnet-5-5", "claude-sonnet-5-5 allowed");
 assert(resolveModel("claude-haiku-5-5") === "claude-haiku-5-5", "claude-haiku-5-5 allowed");

@@ -1801,8 +1801,8 @@ console.log("\n--- macro: catalysts pruned of past events ---");
   // Upcoming catalysts should still exist
   const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
-  // asOf should be updated to today (2026-11-12)
-  assert(macro.MACRO_DATA.asOf === "2026-11-12", "MACRO_DATA.asOf updated to 2026-11-12");
+  // asOf should be updated to today (2026-11-13)
+  assert(macro.MACRO_DATA.asOf === "2026-11-13", "MACRO_DATA.asOf updated to 2026-11-13");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1920,7 +1920,7 @@ console.log("\n--- generate: SYSTEM_PREAMBLE ladder threshold ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// macro: MACRO_DATA.asOf is today (2026-11-12)
+// macro: MACRO_DATA.asOf is today (2026-11-13)
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log("\n--- macro: asOf is today ---");
@@ -1928,7 +1928,7 @@ console.log("\n--- macro: asOf is today ---");
   const { MACRO_DATA, macroDataAge } = require("../macro.js");
   const age = macroDataAge();
   assert(age === 0, "macroDataAge() returns 0 — data updated today");
-  assert(MACRO_DATA.asOf === "2026-11-12", "MACRO_DATA.asOf is today (2026-11-12)");
+  assert(MACRO_DATA.asOf === "2026-11-13", "MACRO_DATA.asOf is today (2026-11-13)");
 }
 
 // Summary
