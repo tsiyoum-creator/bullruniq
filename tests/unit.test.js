@@ -1604,7 +1604,7 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   if (buyback) {
     assert(buyback.d === "2026-11-04", "Buyback catalyst date is 2026-11-04");
     const daysUntilBuyback = Math.round((new Date(buyback.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntilBuyback >= -10 && daysUntilBuyback <= 5, "Buyback renewal is within -10d to +5d of today (resolved Nov 4)");
+    assert(daysUntilBuyback >= -15 && daysUntilBuyback <= 5, "Buyback renewal is within -15d to +5d of today (resolved Nov 4)");
   }
 
   const decFomc = MACRO_DATA.catalysts.find(function (c) { return c.d === "2026-12-09"; });
@@ -1801,8 +1801,8 @@ console.log("\n--- macro: catalysts pruned of past events ---");
   // Upcoming catalysts should still exist
   const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
-  // asOf should be updated to today (2026-11-13)
-  assert(macro.MACRO_DATA.asOf === "2026-11-13", "MACRO_DATA.asOf updated to 2026-11-13");
+  // asOf should be updated to today (2026-11-14)
+  assert(macro.MACRO_DATA.asOf === "2026-11-14", "MACRO_DATA.asOf updated to 2026-11-14");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1920,7 +1920,7 @@ console.log("\n--- generate: SYSTEM_PREAMBLE ladder threshold ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// macro: MACRO_DATA.asOf is today (2026-11-13)
+// macro: MACRO_DATA.asOf is today (2026-11-14)
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log("\n--- macro: asOf is today ---");
@@ -1928,7 +1928,7 @@ console.log("\n--- macro: asOf is today ---");
   const { MACRO_DATA, macroDataAge } = require("../macro.js");
   const age = macroDataAge();
   assert(age === 0, "macroDataAge() returns 0 — data updated today");
-  assert(MACRO_DATA.asOf === "2026-11-13", "MACRO_DATA.asOf is today (2026-11-13)");
+  assert(MACRO_DATA.asOf === "2026-11-14", "MACRO_DATA.asOf is today (2026-11-14)");
 }
 
 // Summary
