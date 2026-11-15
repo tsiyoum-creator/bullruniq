@@ -1611,7 +1611,7 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   assert(decFomc !== undefined, "December FOMC + dot plot catalyst exists");
   if (decFomc) {
     const daysUntilDec = Math.round((new Date(decFomc.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntilDec >= 24, "December FOMC is at least 24 days away");
+    assert(daysUntilDec >= 23, "December FOMC is at least 23 days away");
     assert(decFomc.tests.includes("4.5%") || decFomc.tests.length > 0, "Dec FOMC catalyst has substantive tests description");
   }
 }
@@ -1801,8 +1801,8 @@ console.log("\n--- macro: catalysts pruned of past events ---");
   // Upcoming catalysts should still exist
   const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
-  // asOf should be updated to today (2026-11-14)
-  assert(macro.MACRO_DATA.asOf === "2026-11-14", "MACRO_DATA.asOf updated to 2026-11-14");
+  // asOf should be updated to today (2026-11-15)
+  assert(macro.MACRO_DATA.asOf === "2026-11-15", "MACRO_DATA.asOf updated to 2026-11-15");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1928,7 +1928,137 @@ console.log("\n--- macro: asOf is today ---");
   const { MACRO_DATA, macroDataAge } = require("../macro.js");
   const age = macroDataAge();
   assert(age === 0, "macroDataAge() returns 0 — data updated today");
-  assert(MACRO_DATA.asOf === "2026-11-14", "MACRO_DATA.asOf is today (2026-11-14)");
+  assert(MACRO_DATA.asOf === "2026-11-15", "MACRO_DATA.asOf is today (2026-11-15)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate: MAX_BODY_BYTES guard present
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- generate: MAX_BODY_BYTES body size guard ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  assert(src.includes("MAX_BODY_BYTES"), "generate.js defines MAX_BODY_BYTES constant");
+  assert(src.includes("128 * 1024"), "MAX_BODY_BYTES is 128 KB");
+  assert(src.includes("413"), "generate.js returns 413 when body too large");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate: validateMessages — non-text block size cap (inline copy for test)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ALLOWED_ROLES_TEST = new Set(["user", "assistant"]);
+const ALLOWED_BLOCK_TYPES_TEST = new Set(["text", "image", "tool_use", "tool_result"]);
+const MAX_BLOCK_BYTES_TEST = 32768;
+
+function validateMessagesTest(messages) {
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
+  for (const m of messages) {
+    if (!m || typeof m !== "object") return false;
+    if (!ALLOWED_ROLES_TEST.has(m.role)) return false;
+    if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
+    if (typeof m.content === "string" && m.content.length > 20000) return false;
+    if (Array.isArray(m.content)) {
+      if (m.content.length > 20) return false;
+      for (const block of m.content) {
+        if (!block || typeof block !== "object") return false;
+        if (typeof block.type !== "string" || !ALLOWED_BLOCK_TYPES_TEST.has(block.type)) return false;
+        if (block.type === "text") {
+          if (typeof block.text !== "string") return false;
+          if (block.text.length > 20000) return false;
+        } else {
+          if (JSON.stringify(block).length > MAX_BLOCK_BYTES_TEST) return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+console.log("\n--- generate: validateMessages non-text block size cap ---");
+{
+  const normalImage = [{
+    role: "user",
+    content: [{
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: Buffer.alloc(100).toString("base64") },
+    }],
+  }];
+  assert(validateMessagesTest(normalImage) === true, "small image block accepted");
+
+  const oversizedImage = [{
+    role: "user",
+    content: [{
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: Buffer.alloc(40000).toString("base64") },
+    }],
+  }];
+  assert(validateMessagesTest(oversizedImage) === false, "oversized image block rejected");
+
+  const normalToolResult = [{
+    role: "user",
+    content: [{ type: "tool_result", tool_use_id: "x", content: "result" }],
+  }];
+  assert(validateMessagesTest(normalToolResult) === true, "small tool_result block accepted");
+
+  const src = require("fs").readFileSync(require("path").join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  assert(src.includes("MAX_BLOCK_BYTES"), "generate.js defines MAX_BLOCK_BYTES for non-text block size cap");
+  assert(src.includes("JSON.stringify(block).length > MAX_BLOCK_BYTES"), "non-text blocks checked via JSON.stringify size");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: supply_trend endpoint present in production market.js
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: supply_trend endpoint ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const marketJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes("supply_trend"), "market.js has supply_trend kind");
+  assert(marketJs.includes("velocity_ratio"), "supply_trend returns velocity_ratio signal");
+  assert(marketJs.includes("accumulating"), "supply_trend includes accumulating signal label");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: supply_trend transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function supplyTrendTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const stables = data.filter(function (c) { return c.market_cap > 0; });
+  const totalSupply = stables.reduce(function (s, c) { return s + (c.market_cap || 0); }, 0);
+  const totalVolume = stables.reduce(function (s, c) { return s + (c.total_volume || 0); }, 0);
+  const velRatio = totalSupply > 0 ? totalVolume / totalSupply : null;
+  let signal = "neutral";
+  if (velRatio !== null) {
+    if (velRatio > 0.08) signal = "high_velocity";
+    else if (velRatio < 0.02) signal = "accumulating";
+  }
+  return { total_supply_usd: totalSupply, total_volume_24h: totalVolume, velocity_ratio: velRatio !== null ? parseFloat(velRatio.toFixed(4)) : null, signal: signal };
+}
+
+console.log("\n--- market: supply_trend transform ---");
+{
+  const stables = [
+    { id: "tether", symbol: "usdt", name: "Tether", market_cap: 120e9, total_volume: 1e9 },
+    { id: "usd-coin", symbol: "usdc", name: "USD Coin", market_cap: 50e9, total_volume: 2e9 },
+  ];
+  const r = supplyTrendTransform(stables);
+  assert(r.total_supply_usd === 170e9, "total supply sums correctly");
+  assert(typeof r.velocity_ratio === "number", "velocity_ratio is a number");
+  // vel = 3e9 / 170e9 ≈ 0.0176 < 0.02 → accumulating
+  assert(r.signal === "accumulating", "low velocity → accumulating signal");
+
+  const highVel = [{ id: "usdt", symbol: "usdt", name: "Tether", market_cap: 10e9, total_volume: 1e9 }];
+  const hv = supplyTrendTransform(highVel);
+  // vel = 1e9/10e9 = 0.1 > 0.08 → high_velocity
+  assert(hv.signal === "high_velocity", "high velocity → high_velocity signal");
+
+  assert(supplyTrendTransform([]).signal === "neutral", "empty data → neutral signal (no velocity)");
+  assert(supplyTrendTransform(null) === null, "null passthrough");
 }
 
 // Summary

@@ -24,6 +24,8 @@ const DAILY_IP_CAP = 200;
 const BURST_MAX = 30;
 const BURST_WINDOW_MS = 60000;
 const MAX_SYSTEM_LEN = 2000;
+const MAX_BODY_BYTES = 128 * 1024; // 128 KB — rejects oversized payloads before parsing
+const MAX_BLOCK_BYTES = 32768; // 32 KB per non-text content block (image source, tool data)
 
 // Per-plan max_tokens caps: Elite/Advisor get deeper analysis responses
 const PLAN_TOKEN_CAPS = {
@@ -76,6 +78,10 @@ function validateMessages(messages) {
         if (block.type === "text") {
           if (typeof block.text !== "string") return false;
           if (block.text.length > 20000) return false;
+        } else {
+          // For image/tool_use/tool_result blocks, cap total serialized size to
+          // prevent large base64 payloads from bypassing the per-text-block limit.
+          if (JSON.stringify(block).length > MAX_BLOCK_BYTES) return false;
         }
       }
     }
@@ -128,6 +134,11 @@ exports.handler = async function (event) {
   const API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!API_KEY) {
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: { message: "Server AI is not configured." } }) };
+  }
+
+  const bodyLen = Buffer.byteLength(event.body || "", "utf8");
+  if (bodyLen > MAX_BODY_BYTES) {
+    return { statusCode: 413, headers: CORS, body: JSON.stringify({ error: { message: "Request body too large." } }) };
   }
 
   try { require("@netlify/blobs").connectLambda(event); } catch (e) {}

@@ -362,6 +362,43 @@ exports.handler = async function (event) {
         }[rotation_signal],
       };
     };
+  } else if (q.kind === "supply_trend") {
+    // Stablecoin supply trend: tracks the top stablecoins' combined market cap as a
+    // leading indicator for crypto capital formation. Rising stablecoin supply means
+    // dry powder is accumulating on the sidelines — historically a bullish precursor
+    // 4–8 weeks before an altcoin rally. Falling supply suggests capital is exiting crypto.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=tether,usd-coin,dai,ethena-usde,paypal-usd,first-digital-usd&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:supply_trend";
+    ttl = 30 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      const stables = data.filter(function (c) { return c.market_cap > 0; });
+      const totalSupply = stables.reduce(function (s, c) { return s + (c.market_cap || 0); }, 0);
+      const totalVolume = stables.reduce(function (s, c) { return s + (c.total_volume || 0); }, 0);
+      const velRatio = totalSupply > 0 ? totalVolume / totalSupply : null;
+      let signal = "neutral";
+      let signal_note = "Stablecoin supply steady — no strong capital formation signal.";
+      if (velRatio !== null) {
+        if (velRatio > 0.08) { signal = "high_velocity"; signal_note = "Stablecoin velocity elevated — active movement suggests capital is rotating into risk assets."; }
+        else if (velRatio < 0.02) { signal = "accumulating"; signal_note = "Low velocity with large supply — capital parked on sidelines. Historically precedes an altcoin rally within 4–8 weeks."; }
+      }
+      return {
+        total_supply_usd: totalSupply,
+        total_volume_24h: totalVolume,
+        velocity_ratio: velRatio !== null ? parseFloat(velRatio.toFixed(4)) : null,
+        signal: signal,
+        signal_note: signal_note,
+        stables: stables.map(function (c) {
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            market_cap: c.market_cap,
+            volume_24h: c.total_volume,
+          };
+        }).sort(function (a, b) { return b.market_cap - a.market_cap; }),
+      };
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -371,7 +408,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence|supply_trend or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");
