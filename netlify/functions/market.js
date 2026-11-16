@@ -23,6 +23,8 @@ const SECTOR_IDS_LIST = [
   "bittensor", "render-token",
   "dogecoin", "shiba-inu", "dogwifcoin", "pepe",
   "chainlink", "the-graph", "pyth-network",
+  "ondo-finance", "usual", "agora-dollar",
+  "eigenlayer",
 ];
 
 const SECTOR_MAP = {
@@ -33,11 +35,14 @@ const SECTOR_MAP = {
   "bittensor": "ai", "render-token": "ai",
   "dogecoin": "meme", "shiba-inu": "meme", "dogwifcoin": "meme", "pepe": "meme",
   "chainlink": "infra", "the-graph": "infra", "pyth-network": "infra",
+  "ondo-finance": "rwa", "usual": "rwa", "agora-dollar": "rwa",
+  "eigenlayer": "restaking",
 };
 
 const SECTOR_LABELS = {
   layer1: "Layer 1", layer2: "Layer 2 / Scaling", defi: "DeFi",
   ai: "AI & Compute", meme: "Meme", infra: "Infrastructure",
+  rwa: "Real World Assets", restaking: "Restaking",
 };
 
 async function fetchJson(url, headers) {

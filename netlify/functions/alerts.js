@@ -489,7 +489,7 @@ exports.handler = async function (event) {
             }
           } catch (e) { console.log("[alerts] dca email error:", e.message); }
         } else if (dcaRung === 0 && prevDcaRung > 0) {
-          h.serverDcaRung = 0; changed = true; // re-arm once price recovers above -15% from avg
+          h.serverDcaRung = 0; changed = true; // re-arm once price recovers above -20% from avg
         }
       }
     }
