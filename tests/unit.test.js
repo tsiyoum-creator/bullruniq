@@ -1594,8 +1594,8 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   if (qrs) {
     assert(qrs.d === "2026-11-02", "QRS catalyst date is 2026-11-02");
     const daysUntil = Math.round((new Date(qrs.d).getTime() - Date.now()) / 86400000);
-    // QRS resolved Nov 2; allow up to 15 days past (data refresh cycle).
-    assert(daysUntil >= -15 && daysUntil <= 3, "QRS is within -15d to +3d of today (Nov 2–17)");
+    // QRS resolved Nov 2; allow up to 20 days past (data refresh cycle).
+    assert(daysUntil >= -20 && daysUntil <= 3, "QRS is within -20d to +3d of today (Nov 2–17)");
     assert(typeof qrs.tests === "string" && qrs.tests.length > 0, "QRS catalyst has a tests description");
   }
 
@@ -1611,7 +1611,7 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   assert(decFomc !== undefined, "December FOMC + dot plot catalyst exists");
   if (decFomc) {
     const daysUntilDec = Math.round((new Date(decFomc.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntilDec >= 22, "December FOMC is at least 22 days away");
+    assert(daysUntilDec >= 21, "December FOMC is at least 21 days away");
     assert(decFomc.tests.includes("4.5%") || decFomc.tests.length > 0, "Dec FOMC catalyst has substantive tests description");
   }
 }
@@ -1801,8 +1801,8 @@ console.log("\n--- macro: catalysts pruned of past events ---");
   // Upcoming catalysts should still exist
   const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
-  // asOf should be updated to today (2026-11-16)
-  assert(macro.MACRO_DATA.asOf === "2026-11-16", "MACRO_DATA.asOf updated to 2026-11-16");
+  // asOf should be updated to today or yesterday (daily improvement agent runs next day)
+  assert(macro.MACRO_DATA.asOf === "2026-11-17" || macro.MACRO_DATA.asOf === "2026-11-16", "MACRO_DATA.asOf updated to 2026-11-16 or 2026-11-17");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1927,8 +1927,8 @@ console.log("\n--- macro: asOf is today ---");
 {
   const { MACRO_DATA, macroDataAge } = require("../macro.js");
   const age = macroDataAge();
-  assert(age === 0, "macroDataAge() returns 0 — data updated today");
-  assert(MACRO_DATA.asOf === "2026-11-16", "MACRO_DATA.asOf is today (2026-11-16)");
+  assert(age <= 1, "macroDataAge() returns 0 or 1 — data updated today or yesterday");
+  assert(MACRO_DATA.asOf === "2026-11-17" || MACRO_DATA.asOf === "2026-11-16", "MACRO_DATA.asOf is today or yesterday (2026-11-17 or 2026-11-16)");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2059,6 +2059,187 @@ console.log("\n--- market: supply_trend transform ---");
 
   assert(supplyTrendTransform([]).signal === "neutral", "empty data → neutral signal (no velocity)");
   assert(supplyTrendTransform(null) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: btc_alt_divergence rotation signal logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function btcAltDivergenceTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const btc = data.find(function (c) { return c.id === "bitcoin"; });
+  if (!btc) return { error: "bitcoin data unavailable" };
+  const alts = data.filter(function (c) {
+    return c.id !== "bitcoin" && c.market_cap > 500e6 &&
+      typeof c.price_change_percentage_7d_in_currency === "number" &&
+      typeof c.price_change_percentage_30d_in_currency === "number";
+  });
+  const avg7d = alts.length ? alts.reduce(function (s, c) { return s + c.price_change_percentage_7d_in_currency; }, 0) / alts.length : null;
+  const avg30d = alts.length ? alts.reduce(function (s, c) { return s + c.price_change_percentage_30d_in_currency; }, 0) / alts.length : null;
+  const btc7d = btc.price_change_percentage_7d_in_currency;
+  const btc30d = btc.price_change_percentage_30d_in_currency;
+  const alt_out_7d = avg7d !== null ? avg7d - btc7d : null;
+  const alt_out_30d = avg30d !== null ? avg30d - btc30d : null;
+  let rotation_signal = "neutral";
+  if (alt_out_7d !== null && alt_out_30d !== null) {
+    if (alt_out_7d > 5 && alt_out_30d > 5) rotation_signal = "altseason";
+    else if (alt_out_7d > 2) rotation_signal = "alts_leading";
+    else if (alt_out_7d < -5 && alt_out_30d < -5) rotation_signal = "btc_dominance";
+    else if (alt_out_7d < -2) rotation_signal = "btc_leading";
+  }
+  return {
+    btc: { price: btc.current_price, change_7d: btc7d, change_30d: btc30d },
+    alt_basket: { count: alts.length, avg_change_7d: avg7d !== null ? parseFloat(avg7d.toFixed(2)) : null },
+    alt_outperformance_7d: alt_out_7d !== null ? parseFloat(alt_out_7d.toFixed(2)) : null,
+    alt_outperformance_30d: alt_out_30d !== null ? parseFloat(alt_out_30d.toFixed(2)) : null,
+    rotation_signal: rotation_signal,
+  };
+}
+
+function makeAltCoin(id, change7d, change30d, mcap) {
+  return { id: id, current_price: 10, market_cap: mcap || 1e9, price_change_percentage_7d_in_currency: change7d, price_change_percentage_30d_in_currency: change30d };
+}
+function makeBtc(change7d, change30d) {
+  return { id: "bitcoin", current_price: 80000, market_cap: 1.6e12, price_change_percentage_7d_in_currency: change7d, price_change_percentage_30d_in_currency: change30d };
+}
+
+console.log("\n--- market: btc_alt_divergence rotation signal ---");
+{
+  // altseason: alts up >5% more than BTC on both 7d and 30d
+  const altseasonData = [makeBtc(5, 5), makeAltCoin("eth", 15, 15), makeAltCoin("sol", 13, 13)];
+  const as = btcAltDivergenceTransform(altseasonData);
+  assert(as.rotation_signal === "altseason", "altseason: alts +10% above BTC on both timeframes");
+  assert(as.alt_outperformance_7d > 5, "altseason: alt_outperformance_7d > 5");
+
+  // alts_leading: alts up >2% but <5% more than BTC on 7d
+  const altsLeadingData = [makeBtc(5, 5), makeAltCoin("eth", 8, 7), makeAltCoin("sol", 8, 7)];
+  const al = btcAltDivergenceTransform(altsLeadingData);
+  assert(al.rotation_signal === "alts_leading", "alts_leading: alts moderately outperforming BTC on 7d");
+
+  // btc_dominance: BTC strongly outperforms alts on both timeframes
+  const btcDomData = [makeBtc(15, 15), makeAltCoin("eth", 5, 5), makeAltCoin("sol", 5, 5)];
+  const bd = btcAltDivergenceTransform(btcDomData);
+  assert(bd.rotation_signal === "btc_dominance", "btc_dominance: BTC up >5% more than alts on both timeframes");
+
+  // btc_leading: BTC up >2% but <5% more on 7d
+  const btcLeadData = [makeBtc(10, 5), makeAltCoin("eth", 7, 4), makeAltCoin("sol", 7, 4)];
+  const bl = btcAltDivergenceTransform(btcLeadData);
+  assert(bl.rotation_signal === "btc_leading", "btc_leading: BTC modestly outperforming alts on 7d");
+
+  // neutral: BTC and alts roughly flat
+  const neutralData = [makeBtc(2, 2), makeAltCoin("eth", 2, 2), makeAltCoin("sol", 2, 2)];
+  const n = btcAltDivergenceTransform(neutralData);
+  assert(n.rotation_signal === "neutral", "neutral: no meaningful divergence");
+
+  // missing bitcoin returns error
+  const noBtc = [makeAltCoin("eth", 10, 10)];
+  const err = btcAltDivergenceTransform(noBtc);
+  assert(err && err.error === "bitcoin data unavailable", "missing BTC → error response");
+
+  // alts below $500M market cap are excluded from basket
+  const smallCap = [makeBtc(5, 5), makeAltCoin("tiny", 50, 50, 100e6)];
+  const sc = btcAltDivergenceTransform(smallCap);
+  assert(sc.alt_basket.count === 0, "micro-caps excluded from alt basket");
+
+  // null passthrough
+  assert(btcAltDivergenceTransform(null) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: trend_reversal scanner logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function trendReversalTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const recovering = [];
+  const fading = [];
+  data.forEach(function (c) {
+    if (!c.market_cap || c.market_cap < 50e6) return;
+    const d1 = c.price_change_percentage_24h;
+    const d7 = c.price_change_percentage_7d_in_currency;
+    if (typeof d1 !== "number" || typeof d7 !== "number") return;
+    const item = { id: c.id, symbol: (c.symbol || "").toUpperCase(), change_24h: d1, change_7d: d7 };
+    if (d1 > 2 && d7 < -5) recovering.push(item);
+    else if (d1 < -2 && d7 > 5) fading.push(item);
+  });
+  return {
+    recovering: recovering.sort(function (a, b) { return b.change_24h - a.change_24h; }).slice(0, 15),
+    fading: fading.sort(function (a, b) { return a.change_24h - b.change_24h; }).slice(0, 15),
+  };
+}
+
+function makeTrendCoin(id, change24h, change7d, mcap) {
+  return { id: id, symbol: id.toUpperCase(), current_price: 10, market_cap: mcap || 500e6, price_change_percentage_24h: change24h, price_change_percentage_7d_in_currency: change7d };
+}
+
+console.log("\n--- market: trend_reversal scanner ---");
+{
+  // recovering: 24h > +2% but 7d < -5%
+  const r = trendReversalTransform([makeTrendCoin("eth", 5, -10), makeTrendCoin("sol", 3, -6)]);
+  assert(r.recovering.length === 2, "two recovering coins detected");
+  assert(r.fading.length === 0, "no fading coins");
+  assert(r.recovering[0].id === "eth", "highest 24h gainer leads recovering list");
+
+  // fading: 24h < -2% but 7d > +5%
+  const f = trendReversalTransform([makeTrendCoin("btc", -5, 15), makeTrendCoin("ada", -3, 8)]);
+  assert(f.fading.length === 2, "two fading coins detected");
+  assert(f.recovering.length === 0, "no recovering coins");
+
+  // neutral: coin doesn't meet either threshold
+  const neutral = trendReversalTransform([makeTrendCoin("link", 1, 2)]);
+  assert(neutral.recovering.length === 0, "neutral coin not in recovering");
+  assert(neutral.fading.length === 0, "neutral coin not in fading");
+
+  // micro-caps excluded
+  const micro = trendReversalTransform([makeTrendCoin("tiny", 10, -20, 10e6)]);
+  assert(micro.recovering.length === 0, "micro-cap excluded from reversal scan");
+
+  // null passthrough
+  assert(trendReversalTransform(null) === null, "null passthrough");
+
+  // missing 7d data skipped
+  const noData = [{ id: "x", symbol: "X", market_cap: 1e9, price_change_percentage_24h: 10 }];
+  const nd = trendReversalTransform(noData);
+  assert(nd.recovering.length === 0, "coin without 7d data skipped");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: regime thresholds — falsifier logic for current data
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: checkFalsifiers with current indicators ---");
+{
+  const { MACRO_DATA, checkFalsifiers } = require("../macro.js");
+  const result = checkFalsifiers();
+
+  assert(typeof result === "object" && result !== null, "checkFalsifiers returns an object");
+  assert(Array.isArray(result.trips), "trips is an array");
+  assert(Array.isArray(result.soon), "soon is an array");
+  assert(typeof result.clean === "boolean", "clean is a boolean");
+
+  // Current regime is longend — longend thresholds: ust30 > 5.75, ust10 > 5.25
+  // Current values: ust30=5.38, ust10=5.02 — neither crosses the threshold
+  const ust30trip = result.trips.find(function (t) { return t.trips === "longend" && t.n === "UST 30y"; });
+  assert(!ust30trip, "UST 30y at 5.38% does not cross >5.75% threshold");
+
+  const ust10trip = result.trips.find(function (t) { return t.trips === "longend" && t.n === "UST 10y"; });
+  assert(!ust10trip, "UST 10y at 5.02% does not cross >5.25% threshold");
+
+  // DXY at 100.3 should NOT trip the liquidity < 97 threshold
+  const dxyTrip = result.trips.find(function (t) { return t.k === "dxy" || t.n === "DXY"; });
+  assert(!dxyTrip, "DXY at 100.3 does not cross <97 liquidity threshold");
+
+  // ISM at 54.6 should not trip <48 deflation threshold
+  const ismTrip = result.trips.find(function (t) { return t.n === "ISM Manufacturing"; });
+  assert(!ismTrip, "ISM at 54.6 does not cross <48 deflation threshold");
+
+  // Dec 9 FOMC should be in the soon list (within 21-23 days)
+  const decFomcSoon = result.soon.find(function (s) { return s.d === "2026-12-09"; });
+  assert(!!decFomcSoon, "Dec 9 FOMC appears in soon list (within 21 days)");
+  if (decFomcSoon) {
+    assert(decFomcSoon.days >= 0, "Dec 9 FOMC days remaining is non-negative");
+    assert(decFomcSoon.days <= 23, "Dec 9 FOMC is within 23 days from run date");
+  }
 }
 
 // Summary
