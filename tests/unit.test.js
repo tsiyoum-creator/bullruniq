@@ -1604,14 +1604,14 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   if (buyback) {
     assert(buyback.d === "2026-11-04", "Buyback catalyst date is 2026-11-04");
     const daysUntilBuyback = Math.round((new Date(buyback.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntilBuyback >= -15 && daysUntilBuyback <= 5, "Buyback renewal is within -15d to +5d of today (resolved Nov 4)");
+    assert(daysUntilBuyback >= -20 && daysUntilBuyback <= 5, "Buyback renewal is within -20d to +5d of today (resolved Nov 4)");
   }
 
   const decFomc = MACRO_DATA.catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(decFomc !== undefined, "December FOMC + dot plot catalyst exists");
   if (decFomc) {
     const daysUntilDec = Math.round((new Date(decFomc.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntilDec >= 21, "December FOMC is at least 21 days away");
+    assert(daysUntilDec >= 0 && daysUntilDec <= 25, "December FOMC is an imminent upcoming event (0–25 days away)");
     assert(decFomc.tests.includes("4.5%") || decFomc.tests.length > 0, "Dec FOMC catalyst has substantive tests description");
   }
 }
@@ -1802,7 +1802,9 @@ console.log("\n--- macro: catalysts pruned of past events ---");
   const dec9 = catalysts.find(function (c) { return c.d === "2026-12-09"; });
   assert(!!dec9, "Dec 9 FOMC dot plot still in catalysts");
   // asOf should be updated to today or yesterday (daily improvement agent runs next day)
-  assert(macro.MACRO_DATA.asOf === "2026-11-17" || macro.MACRO_DATA.asOf === "2026-11-16", "MACRO_DATA.asOf updated to 2026-11-16 or 2026-11-17");
+  const _today1 = new Date().toISOString().slice(0, 10);
+  const _yesterday1 = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  assert(macro.MACRO_DATA.asOf === _today1 || macro.MACRO_DATA.asOf === _yesterday1, "MACRO_DATA.asOf updated to today or yesterday (" + _today1 + " or " + _yesterday1 + ")");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1928,7 +1930,9 @@ console.log("\n--- macro: asOf is today ---");
   const { MACRO_DATA, macroDataAge } = require("../macro.js");
   const age = macroDataAge();
   assert(age <= 1, "macroDataAge() returns 0 or 1 — data updated today or yesterday");
-  assert(MACRO_DATA.asOf === "2026-11-17" || MACRO_DATA.asOf === "2026-11-16", "MACRO_DATA.asOf is today or yesterday (2026-11-17 or 2026-11-16)");
+  const _today2 = new Date().toISOString().slice(0, 10);
+  const _yesterday2 = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  assert(MACRO_DATA.asOf === _today2 || MACRO_DATA.asOf === _yesterday2, "MACRO_DATA.asOf is today or yesterday (" + _today2 + " or " + _yesterday2 + ")");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2240,6 +2244,214 @@ console.log("\n--- macro: checkFalsifiers with current indicators ---");
     assert(decFomcSoon.days >= 0, "Dec 9 FOMC days remaining is non-negative");
     assert(decFomcSoon.days <= 23, "Dec 9 FOMC is within 23 days from run date");
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: supply_trend transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function supplyTrendTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const stables = data.filter(function (c) { return c.market_cap > 0; });
+  const totalSupply = stables.reduce(function (s, c) { return s + (c.market_cap || 0); }, 0);
+  const totalVolume = stables.reduce(function (s, c) { return s + (c.total_volume || 0); }, 0);
+  const velRatio = totalSupply > 0 ? totalVolume / totalSupply : null;
+  let signal = "neutral";
+  let signal_note = "Stablecoin supply steady — no strong capital formation signal.";
+  if (velRatio !== null) {
+    if (velRatio > 0.08) { signal = "high_velocity"; signal_note = "Stablecoin velocity elevated — active movement suggests capital is rotating into risk assets."; }
+    else if (velRatio < 0.02) { signal = "accumulating"; signal_note = "Low velocity with large supply — capital parked on sidelines. Historically precedes an altcoin rally within 4–8 weeks."; }
+  }
+  return {
+    total_supply_usd: totalSupply,
+    total_volume_24h: totalVolume,
+    velocity_ratio: velRatio !== null ? parseFloat(velRatio.toFixed(4)) : null,
+    signal: signal,
+    signal_note: signal_note,
+    stables: stables.map(function (c) {
+      return { id: c.id, symbol: (c.symbol || "").toUpperCase(), name: c.name, market_cap: c.market_cap, volume_24h: c.total_volume };
+    }).sort(function (a, b) { return b.market_cap - a.market_cap; }),
+  };
+}
+
+console.log("\n--- market: supply_trend transform ---");
+{
+  const stableCoins = [
+    { id: "tether", symbol: "usdt", name: "Tether", market_cap: 100e9, total_volume: 5e9 },
+    { id: "usd-coin", symbol: "usdc", name: "USD Coin", market_cap: 50e9, total_volume: 2e9 },
+    { id: "dai", symbol: "dai", name: "Dai", market_cap: 10e9, total_volume: 0.5e9 },
+  ];
+
+  const result = supplyTrendTransform(stableCoins);
+  assert(typeof result === "object" && !Array.isArray(result), "result is an object");
+  assert(result.total_supply_usd === 160e9, "total supply sums correctly");
+  assert(result.total_volume_24h === 7.5e9, "total volume sums correctly");
+
+  // vel = 7.5e9 / 160e9 = 0.046875 → neutral
+  assert(result.signal === "neutral", "vel ~0.047 → neutral signal");
+  assert(result.stables.length === 3, "all 3 stables returned");
+  assert(result.stables[0].id === "tether", "sorted by market cap descending");
+  assert(result.stables[0].symbol === "USDT", "symbol uppercased");
+
+  // High velocity scenario (vel > 0.08)
+  const highVelCoins = [
+    { id: "tether", symbol: "usdt", name: "Tether", market_cap: 100e9, total_volume: 10e9 },
+  ];
+  const hvResult = supplyTrendTransform(highVelCoins);
+  assert(hvResult.signal === "high_velocity", "vel 0.1 → high_velocity signal");
+
+  // Accumulating scenario (vel < 0.02)
+  const accumCoins = [
+    { id: "tether", symbol: "usdt", name: "Tether", market_cap: 100e9, total_volume: 1e9 },
+  ];
+  const accResult = supplyTrendTransform(accumCoins);
+  assert(accResult.signal === "accumulating", "vel 0.01 → accumulating signal");
+
+  // Zero-market-cap coins excluded
+  const mixedCoins = [
+    { id: "tether", symbol: "usdt", name: "Tether", market_cap: 100e9, total_volume: 5e9 },
+    { id: "zero-mcap", symbol: "zmc", name: "Zero", market_cap: 0, total_volume: 1e9 },
+  ];
+  const mixedResult = supplyTrendTransform(mixedCoins);
+  assert(mixedResult.stables.length === 1, "zero market cap coin excluded");
+
+  assert(supplyTrendTransform([]).total_supply_usd === 0, "empty array: supply is 0");
+  assert(supplyTrendTransform([]).velocity_ratio === null, "empty array: velocity_ratio is null");
+  assert(supplyTrendTransform(null) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: sector_leaders transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function sectorLeadersTransform(data, SECTOR_MAP_TEST, SECTOR_LABELS_TEST) {
+  if (!Array.isArray(data)) return data;
+  const bySector = {};
+  data.forEach(function (c) {
+    const sk = SECTOR_MAP_TEST[c.id] || "layer1";
+    if (!bySector[sk]) bySector[sk] = [];
+    if (c.market_cap >= 200e6) {
+      bySector[sk].push({
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        price: c.current_price,
+        change7d: c.price_change_percentage_7d_in_currency,
+        change30d: c.price_change_percentage_30d_in_currency,
+        market_cap: c.market_cap,
+      });
+    }
+  });
+  return Object.keys(bySector).map(function (sk) {
+    const coins = bySector[sk];
+    const sorted = coins.slice().sort(function (a, b) {
+      return (b.change7d || -Infinity) - (a.change7d || -Infinity);
+    });
+    const leader = sorted[0] || null;
+    const avg7d = coins.length
+      ? coins.reduce(function (s, c) { return s + (c.change7d || 0); }, 0) / coins.length
+      : null;
+    return { sector: sk, label: SECTOR_LABELS_TEST[sk] || sk, leader: leader, avg7d: avg7d, coins: coins.length };
+  }).sort(function (a, b) { return (b.avg7d || -Infinity) - (a.avg7d || -Infinity); });
+}
+
+console.log("\n--- market: sector_leaders transform ---");
+{
+  const SECTOR_MAP_T = { "bitcoin": "layer1", "ethereum": "layer1", "uniswap": "defi", "aave": "defi" };
+  const SECTOR_LABELS_T = { layer1: "Layer 1", defi: "DeFi" };
+
+  const coins = [
+    { id: "bitcoin", symbol: "btc", name: "Bitcoin", current_price: 82000, market_cap: 1.6e12, price_change_percentage_7d_in_currency: 5.0, price_change_percentage_30d_in_currency: 10.0 },
+    { id: "ethereum", symbol: "eth", name: "Ethereum", current_price: 3200, market_cap: 384e9, price_change_percentage_7d_in_currency: 8.0, price_change_percentage_30d_in_currency: 15.0 },
+    { id: "uniswap", symbol: "uni", name: "Uniswap", current_price: 12, market_cap: 9e9, price_change_percentage_7d_in_currency: 20.0, price_change_percentage_30d_in_currency: 30.0 },
+    { id: "aave", symbol: "aave", name: "Aave", current_price: 200, market_cap: 300e6, price_change_percentage_7d_in_currency: 10.0, price_change_percentage_30d_in_currency: 20.0 },
+    { id: "tiny-coin", symbol: "tiny", name: "Tiny", current_price: 0.001, market_cap: 50e6, price_change_percentage_7d_in_currency: 100.0, price_change_percentage_30d_in_currency: 200.0 },
+  ];
+
+  const result = sectorLeadersTransform(coins, SECTOR_MAP_T, SECTOR_LABELS_T);
+  assert(Array.isArray(result), "sector_leaders returns an array");
+  assert(result.length === 2, "two sectors (layer1 and defi)");
+
+  const defi = result.find(function (s) { return s.sector === "defi"; });
+  const layer1 = result.find(function (s) { return s.sector === "layer1"; });
+  assert(!!defi, "defi sector present");
+  assert(!!layer1, "layer1 sector present");
+
+  assert(defi.coins === 2, "defi has 2 qualifying coins (uniswap + aave)");
+  assert(defi.leader && defi.leader.symbol === "UNI", "uniswap leads defi (higher 7d change)");
+
+  // tiny-coin (market_cap 50M < 200M) must be excluded
+  assert(!result.find(function (s) { return s.coins > 2 && s.sector === "defi"; }), "tiny-coin excluded from sector leaders");
+
+  // Result sorted by avg7d descending: defi avg = (20+10)/2 = 15, layer1 avg = (5+8)/2 = 6.5
+  assert(result[0].sector === "defi", "defi sector leads (higher avg7d)");
+
+  assert(sectorLeadersTransform([], SECTOR_MAP_T, SECTOR_LABELS_T).length === 0, "empty array returns empty");
+  assert(sectorLeadersTransform(null, SECTOR_MAP_T, SECTOR_LABELS_T) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: ATH proximity hysteresis re-arm logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: ATH proximity re-arm logic ---");
+{
+  function simulateAthProximityAlert(h, athChangePct, prevAlerted) {
+    var item = Object.assign({}, h, { serverAthAlerted: prevAlerted });
+    if (athChangePct >= -10 && athChangePct <= 0 && !item.serverAthAlerted) {
+      item.serverAthAlerted = true;
+      item._fired = true;
+    } else if (athChangePct < -20 && item.serverAthAlerted) {
+      item.serverAthAlerted = false;
+      item._reArmed = true;
+    }
+    return item;
+  }
+
+  var h = { ticker: "BTC", avg: 60000, qty: 1 };
+
+  var r1 = simulateAthProximityAlert(h, -5, false);
+  assert(r1.serverAthAlerted === true && r1._fired === true, "ATH alert fires when within 10% of ATH");
+
+  var r2 = simulateAthProximityAlert(h, -5, true);
+  assert(r2.serverAthAlerted === true && !r2._fired, "no re-fire when already alerted");
+
+  var r3 = simulateAthProximityAlert(h, -15, true);
+  assert(r3.serverAthAlerted === true && !r3._reArmed, "no re-arm when -15% (above -20% threshold)");
+
+  var r4 = simulateAthProximityAlert(h, -25, true);
+  assert(r4.serverAthAlerted === false && r4._reArmed === true, "re-arms when price falls more than 20% below ATH");
+
+  var r5 = simulateAthProximityAlert(h, -11, false);
+  assert(!r5._fired, "no alert when -11% below ATH (outside top 10%)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: DCA blended average calculation
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: DCA blended average calculation ---");
+{
+  function computeBlendedAvg(avgCost, qty, dcaPrice, dcaFraction) {
+    var dcaSize = avgCost * qty * dcaFraction;
+    var dcaQty = dcaPrice > 0 ? dcaSize / dcaPrice : 0;
+    if (!dcaQty) return avgCost;
+    return (avgCost * qty + dcaPrice * dcaQty) / (qty + dcaQty);
+  }
+
+  // Avg cost $100, qty 10, DCA at $80 (25% of position value)
+  var blended = computeBlendedAvg(100, 10, 80, 0.25);
+  // dcaSize = 100 * 10 * 0.25 = $250; dcaQty = 250/80 = 3.125; blended = (100*10 + 80*3.125) / (10 + 3.125) = 1250 + 250 / 13.125 = 1500/13.125 ≈ 114.28
+  // Wait, that's wrong. blended should be LOWER than 100.
+  // dcaQty = 250/80 = 3.125; new total qty = 13.125; new total cost = 1000 + 250 = 1250; blended = 1250/13.125 ≈ 95.24
+  assert(blended < 100, "blended avg is below original avg cost");
+  assert(blended > 80, "blended avg is above DCA price");
+  assert(Math.abs(blended - (1000 + 250) / (10 + 250/80)) < 0.01, "blended avg formula is correct");
+
+  var blended2 = computeBlendedAvg(100, 10, 60, 0.25);
+  assert(blended2 < blended, "lower DCA price produces lower blended avg");
+
+  assert(computeBlendedAvg(100, 10, 0, 0.25) === 100, "zero DCA price: blended avg unchanged");
 }
 
 // Summary

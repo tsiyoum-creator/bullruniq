@@ -104,6 +104,8 @@ const CGMAP = {
   ACE:"fusionist", PORTAL:"portal-gaming", PIXEL:"pixels",
   GODS:"gods-unchained", PRIME:"echelon-prime",
   AETHIR:"aethir",
+  // Late-Nov 2026 additions — Solana DeFi and liquid staking
+  RAY:"raydium", MSOL:"marinade-staked-sol", MNDE:"marinade",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
