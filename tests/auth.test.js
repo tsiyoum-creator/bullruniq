@@ -183,12 +183,17 @@ console.log("\n--- generate.js: message validation ---");
 const ALLOWED_ROLES = new Set(["user", "assistant"]);
 function validateMessages(messages) {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
+  if (!messages[0] || messages[0].role !== "user") return false;
   for (const m of messages) {
     if (!m || typeof m !== "object") return false;
     if (!ALLOWED_ROLES.has(m.role)) return false;
     if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
     if (typeof m.content === "string" && m.content.length > 20000) return false;
     if (Array.isArray(m.content) && m.content.length > 20) return false;
+  }
+  for (let i = 1; i < messages.length; i++) {
+    const expected = messages[i - 1].role === "user" ? "assistant" : "user";
+    if (messages[i].role !== expected) return false;
   }
   return true;
 }
@@ -201,6 +206,9 @@ assert(!validateMessages(null), "null messages invalid");
 assert(!validateMessages("string"), "string instead of array invalid");
 const longConvo = Array.from({ length: 41 }, function (_, i) { return { role: i % 2 ? "assistant" : "user", content: "msg" }; });
 assert(!validateMessages(longConvo), "over 40 messages rejected");
+assert(!validateMessages([{ role: "assistant", content: "hi" }]), "first message as assistant rejected");
+assert(!validateMessages([{ role: "user", content: "q" }, { role: "user", content: "follow-up" }]), "consecutive user messages rejected");
+assert(validateMessages([{ role: "user", content: "q" }, { role: "assistant", content: "a" }, { role: "user", content: "follow" }]), "u/a/u alternation accepted");
 
 console.log("\n--- generate.js: system prompt length cap ---");
 

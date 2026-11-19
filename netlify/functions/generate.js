@@ -65,6 +65,9 @@ const ALLOWED_BLOCK_TYPES = new Set(["text", "image", "tool_use", "tool_result"]
 
 function validateMessages(messages) {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
+  // Anthropic API requires messages start with "user" and strictly alternate roles.
+  // Enforcing this here avoids wasted upstream API calls that would return 400.
+  if (!messages[0] || messages[0].role !== "user") return false;
   for (const m of messages) {
     if (!m || typeof m !== "object") return false;
     if (!ALLOWED_ROLES.has(m.role)) return false;
@@ -85,6 +88,11 @@ function validateMessages(messages) {
         }
       }
     }
+  }
+  // Enforce strict role alternation (user → assistant → user → …).
+  for (let i = 1; i < messages.length; i++) {
+    const expected = messages[i - 1].role === "user" ? "assistant" : "user";
+    if (messages[i].role !== expected) return false;
   }
   return true;
 }
