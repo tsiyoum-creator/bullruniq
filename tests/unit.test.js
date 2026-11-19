@@ -1501,6 +1501,7 @@ const ALLOWED_BLOCK_TYPES = new Set(["text", "image", "tool_use", "tool_result"]
 
 function validateMessages(messages) {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
+  if (!messages[0] || messages[0].role !== "user") return false;
   for (const m of messages) {
     if (!m || typeof m !== "object") return false;
     if (!ALLOWED_ROLES.has(m.role)) return false;
@@ -1517,6 +1518,10 @@ function validateMessages(messages) {
         }
       }
     }
+  }
+  for (let i = 1; i < messages.length; i++) {
+    const expected = messages[i - 1].role === "user" ? "assistant" : "user";
+    if (messages[i].role !== expected) return false;
   }
   return true;
 }
@@ -1579,6 +1584,31 @@ console.log("\n--- generate.js: validateMessages edge cases ---");
   // Content is neither string nor array
   assert(validateMessages([{ role: "user", content: 42 }]) === false, "numeric content rejected");
   assert(validateMessages([{ role: "user", content: null }]) === false, "null content rejected");
+
+  // First message must be "user" — Anthropic API requirement
+  assert(validateMessages([{ role: "assistant", content: "hi" }]) === false, "first message as assistant rejected");
+
+  // Strict role alternation — Anthropic API requirement
+  assert(validateMessages([
+    { role: "user", content: "q" },
+    { role: "user", content: "follow-up" },
+  ]) === false, "consecutive user messages rejected");
+  assert(validateMessages([
+    { role: "user", content: "q" },
+    { role: "assistant", content: "a" },
+    { role: "assistant", content: "extra" },
+  ]) === false, "consecutive assistant messages rejected");
+  assert(validateMessages([
+    { role: "user", content: "q" },
+    { role: "assistant", content: "a" },
+    { role: "user", content: "follow" },
+  ]) === true, "user/assistant/user alternation accepted");
+  assert(validateMessages([
+    { role: "user", content: "q" },
+    { role: "assistant", content: "a" },
+    { role: "user", content: "follow" },
+    { role: "assistant", content: "resp" },
+  ]) === true, "four-message alternating conversation accepted");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1830,6 +1860,20 @@ console.log("\n--- generate: validateMessages edge cases ---");
   assert(validateMessages(manyMsgs) === false, "more than 40 messages rejected");
   const exactly40 = Array.from({ length: 40 }, function (_, i) { return { role: i % 2 === 0 ? "user" : "assistant", content: "x" }; });
   assert(validateMessages(exactly40) === true, "exactly 40 messages accepted");
+
+  // First message must be user (Anthropic API requirement)
+  assert(validateMessages([{ role: "assistant", content: "hi" }]) === false, "first message as assistant rejected");
+
+  // Strict role alternation (Anthropic API requirement)
+  assert(validateMessages([
+    { role: "user", content: "q" },
+    { role: "user", content: "follow" },
+  ]) === false, "consecutive user messages rejected");
+  assert(validateMessages([
+    { role: "user", content: "q" },
+    { role: "assistant", content: "a" },
+    { role: "user", content: "r" },
+  ]) === true, "u/a/u alternation valid");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1959,6 +2003,7 @@ const MAX_BLOCK_BYTES_TEST = 32768;
 
 function validateMessagesTest(messages) {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) return false;
+  if (!messages[0] || messages[0].role !== "user") return false;
   for (const m of messages) {
     if (!m || typeof m !== "object") return false;
     if (!ALLOWED_ROLES_TEST.has(m.role)) return false;
@@ -1977,6 +2022,10 @@ function validateMessagesTest(messages) {
         }
       }
     }
+  }
+  for (let i = 1; i < messages.length; i++) {
+    const expected = messages[i - 1].role === "user" ? "assistant" : "user";
+    if (messages[i].role !== expected) return false;
   }
   return true;
 }
