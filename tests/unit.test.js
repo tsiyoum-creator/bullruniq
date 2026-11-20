@@ -2503,6 +2503,73 @@ console.log("\n--- alerts: DCA blended average calculation ---");
   assert(computeBlendedAvg(100, 10, 0, 0.25) === 100, "zero DCA price: blended avg unchanged");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// market: btc_alt_divergence alts_leading and btc_leading signals
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: btc_alt_divergence alts_leading / btc_leading signals ---");
+{
+  // alts_leading: alt_out_7d between +2 and +5
+  const altsLeadingCoins = [
+    { id: "bitcoin",  current_price: 80000, market_cap: 1.5e12, price_change_percentage_7d_in_currency: 5.0, price_change_percentage_30d_in_currency: 10.0 },
+    { id: "ethereum", current_price: 3000,  market_cap: 360e9,  price_change_percentage_7d_in_currency: 8.5, price_change_percentage_30d_in_currency: 12.0 },
+  ];
+  // alt_out_7d = 8.5 - 5.0 = 3.5 (between 2 and 5) → alts_leading
+  // alt_out_30d = 12 - 10 = 2 (not > 5) → prevents altseason
+  const altsLeading = btcAltDivergenceTransform(altsLeadingCoins);
+  assert(altsLeading.rotation_signal === "alts_leading", "alt_out_7d=3.5 → alts_leading (not altseason since 30d < 5)");
+  assert(altsLeading.alt_outperformance_7d === 3.5, "alt outperformance 7d = 8.5 - 5.0 = 3.5");
+
+  // btc_leading: alt_out_7d between -5 and -2
+  const btcLeadingCoins = [
+    { id: "bitcoin",  current_price: 90000, market_cap: 1.7e12, price_change_percentage_7d_in_currency: 10.0, price_change_percentage_30d_in_currency: 20.0 },
+    { id: "ethereum", current_price: 2900,  market_cap: 348e9,  price_change_percentage_7d_in_currency: 7.0,  price_change_percentage_30d_in_currency: 15.0 },
+  ];
+  // alt_out_7d = 7.0 - 10.0 = -3 (between -5 and -2) → btc_leading
+  const btcLeading = btcAltDivergenceTransform(btcLeadingCoins);
+  assert(btcLeading.rotation_signal === "btc_leading", "alt_out_7d=-3 → btc_leading");
+  assert(btcLeading.alt_outperformance_7d === -3, "alt outperformance 7d = 7.0 - 10.0 = -3");
+
+  // micro-cap exclusion: alt with market_cap 400M (below 500M threshold) excluded from basket
+  const mixedCoins = [
+    { id: "bitcoin",  current_price: 85000, market_cap: 1.6e12, price_change_percentage_7d_in_currency: 5.0, price_change_percentage_30d_in_currency: 8.0 },
+    { id: "ethereum", current_price: 3100,  market_cap: 372e9,  price_change_percentage_7d_in_currency: 10.0, price_change_percentage_30d_in_currency: 15.0 },
+    { id: "tiny",     current_price: 1.0,   market_cap: 400e6,  price_change_percentage_7d_in_currency: 50.0, price_change_percentage_30d_in_currency: 100.0 },
+  ];
+  const mixedResult = btcAltDivergenceTransform(mixedCoins);
+  assert(mixedResult.alt_basket.count === 1, "tiny-coin (400M mcap) excluded from alt basket — only ETH qualifies");
+  // only ETH in basket: avg7d = 10, btc7d = 5, out = 5 → not > 5, so alts_leading (between 2 and 5 is not 5+)
+  assert(mixedResult.alt_outperformance_7d === 5.0, "alt outperformance = ETH 7d (10) - BTC 7d (5) = 5.0");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generate: validateMessages — additional edge cases
+// ─────────────────────────────────────────────────────────────────────────────
+
+// generate.js: validateMessages — production source check for empty content array guard
+console.log("\n--- generate: empty content array guard (production file check) ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../netlify/functions/generate.js"), "utf8");
+  assert(src.includes("m.content.length === 0"), "generate.js rejects empty content arrays");
+  assert(src.includes("m.content.length > 20"), "generate.js still rejects content arrays over 20 blocks");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: sector_leaders includes hyperliquid in defi (production file check)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: hyperliquid in sector taxonomy ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const marketJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes('"hyperliquid": "defi"'), "hyperliquid mapped to defi sector in SECTOR_MAP");
+  assert(marketJs.includes('"hyperliquid"') && marketJs.includes("SECTOR_IDS_LIST"), "hyperliquid present in SECTOR_IDS_LIST area");
+  assert(marketJs.includes('"fetch-ai": "ai"'), "fetch-ai mapped to ai sector");
+}
+
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
