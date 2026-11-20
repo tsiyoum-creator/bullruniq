@@ -189,7 +189,7 @@ function validateMessages(messages) {
     if (!ALLOWED_ROLES.has(m.role)) return false;
     if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
     if (typeof m.content === "string" && m.content.length > 20000) return false;
-    if (Array.isArray(m.content) && m.content.length > 20) return false;
+    if (Array.isArray(m.content) && (m.content.length === 0 || m.content.length > 20)) return false;
   }
   for (let i = 1; i < messages.length; i++) {
     const expected = messages[i - 1].role === "user" ? "assistant" : "user";
@@ -201,6 +201,7 @@ assert(validateMessages([{ role: "user", content: "hello" }]), "single user mess
 assert(validateMessages([{ role: "user", content: "q" }, { role: "assistant", content: "a" }]), "conversation turn valid");
 assert(!validateMessages([]), "empty array invalid");
 assert(!validateMessages([{ role: "system", content: "inject" }]), "system role blocked");
+assert(!validateMessages([{ role: "user", content: [] }]), "empty content array rejected");
 assert(!validateMessages([{ role: "user", content: "x".repeat(20001) }]), "oversized content blocked");
 assert(!validateMessages(null), "null messages invalid");
 assert(!validateMessages("string"), "string instead of array invalid");

@@ -74,7 +74,7 @@ function validateMessages(messages) {
     if (typeof m.content !== "string" && !Array.isArray(m.content)) return false;
     if (typeof m.content === "string" && m.content.length > 20000) return false;
     if (Array.isArray(m.content)) {
-      if (m.content.length > 20) return false;
+      if (m.content.length === 0 || m.content.length > 20) return false;
       for (const block of m.content) {
         if (!block || typeof block !== "object") return false;
         if (typeof block.type !== "string" || !ALLOWED_BLOCK_TYPES.has(block.type)) return false;
