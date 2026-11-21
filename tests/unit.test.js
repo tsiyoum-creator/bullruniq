@@ -2570,6 +2570,142 @@ console.log("\n--- market: hyperliquid in sector taxonomy ---");
   assert(marketJs.includes('"fetch-ai": "ai"'), "fetch-ai mapped to ai sector");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: Nov 21 2026 CGMAP additions — DeFi protocols and L2s
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: Nov 21 2026 CGMAP entries ---");
+{
+  const fs = require("fs");
+  const alertsJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("MNT"), "MNT (Mantle) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"mantle"'), "mantle CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("SCRL"), "SCRL (Scroll) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"scroll"'), "scroll CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("RPL"), "RPL (Rocket Pool) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"rocket-pool"'), "rocket-pool CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("CVX"), "CVX (Convex Finance) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"convex-finance"'), "convex-finance CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("FXS"), "FXS (Frax Share) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"frax-share"'), "frax-share CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("LQTY"), "LQTY (Liquity) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"liquity"'), "liquity CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("JOE"), "JOE ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"joe"'), "joe CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("RDNT"), "RDNT (Radiant Capital) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"radiant-capital"'), "radiant-capital CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("SPELL"), "SPELL ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"spell-token"'), "spell-token CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("SILO"), "SILO (Silo Finance) ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"silo-finance"'), "silo-finance CG ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("CREAM"), "CREAM ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes('"cream-2"'), "cream-2 CG ID present in alerts.js CGMAP");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: altcoin_season_index endpoint
+// ─────────────────────────────────────────────────────────────────────────────
+
+function altcoinSeasonIndexTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const btc = data.find(function (c) { return c.id === "bitcoin"; });
+  if (!btc || typeof btc.price_change_percentage_30d_in_currency !== "number") {
+    return { error: "bitcoin 30d data unavailable" };
+  }
+  const btc30d = btc.price_change_percentage_30d_in_currency;
+  const eligible = data.filter(function (c) {
+    return c.id !== "bitcoin" && typeof c.price_change_percentage_30d_in_currency === "number";
+  });
+  const outperforming = eligible.filter(function (c) {
+    return c.price_change_percentage_30d_in_currency > btc30d;
+  });
+  const index = eligible.length > 0
+    ? Math.round((outperforming.length / eligible.length) * 100)
+    : null;
+  let signal = "neutral";
+  if (index !== null) {
+    if (index >= 75) signal = "altseason";
+    else if (index <= 25) signal = "btc_season";
+  }
+  return {
+    index: index,
+    btc_30d_change: parseFloat(btc30d.toFixed(2)),
+    eligible_coins: eligible.length,
+    outperforming_btc: outperforming.length,
+    signal: signal,
+  };
+}
+
+console.log("\n--- market: altcoin_season_index endpoint (production source) ---");
+{
+  const fs = require("fs");
+  const marketJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes("altcoin_season_index"), "market.js has altcoin_season_index kind");
+  assert(marketJs.includes("outperforming_btc"), "altcoin_season_index returns outperforming_btc count");
+  assert(marketJs.includes('"altseason"'), "altcoin_season_index includes altseason signal");
+  assert(marketJs.includes('"btc_season"'), "altcoin_season_index includes btc_season signal");
+}
+
+console.log("\n--- market: altcoin_season_index transform ---");
+{
+  function makeAsiCoin(id, change30d) {
+    return { id: id, current_price: 10, market_cap: 1e9, price_change_percentage_30d_in_currency: change30d };
+  }
+
+  // altseason: BTC up 10%, 9/10 alts beat it → index = 90 ≥ 75
+  const altseasonCoins = [
+    { id: "bitcoin", current_price: 95000, market_cap: 1.8e12, price_change_percentage_30d_in_currency: 10 },
+    makeAsiCoin("eth", 20), makeAsiCoin("sol", 25), makeAsiCoin("bnb", 15),
+    makeAsiCoin("ada", 18), makeAsiCoin("avax", 22), makeAsiCoin("dot", 30),
+    makeAsiCoin("link", 12), makeAsiCoin("matic", 16), makeAsiCoin("uni", 14),
+    makeAsiCoin("small", 5), // underperforms BTC
+  ];
+  const altseason = altcoinSeasonIndexTransform(altseasonCoins);
+  assert(altseason.signal === "altseason", "9 of 10 alts outperforming → altseason");
+  assert(altseason.index === 90, "index = 9/10 = 90");
+  assert(altseason.btc_30d_change === 10, "btc_30d_change is 10");
+  assert(altseason.eligible_coins === 10, "10 eligible alts");
+  assert(altseason.outperforming_btc === 9, "9 outperforming");
+
+  // btc_season: BTC up 30%, only 2 of 8 alts beat it → index = 25 ≤ 25
+  const btcSeasonCoins = [
+    { id: "bitcoin", current_price: 110000, market_cap: 2e12, price_change_percentage_30d_in_currency: 30 },
+    makeAsiCoin("eth", 10), makeAsiCoin("sol", 8), makeAsiCoin("bnb", 5),
+    makeAsiCoin("ada", 3), makeAsiCoin("avax", 7), makeAsiCoin("dot", 2),
+    makeAsiCoin("link", 35), makeAsiCoin("matic", 40), // only 2 beat BTC
+  ];
+  const btcSeason = altcoinSeasonIndexTransform(btcSeasonCoins);
+  assert(btcSeason.signal === "btc_season", "2 of 8 alts outperforming → btc_season (25%)");
+  assert(btcSeason.index === 25, "index = 2/8 = 25");
+
+  // neutral: 5 of 10 alts outperform → index = 50
+  const neutralCoins = [
+    { id: "bitcoin", current_price: 85000, market_cap: 1.6e12, price_change_percentage_30d_in_currency: 15 },
+    makeAsiCoin("eth", 20), makeAsiCoin("sol", 18), makeAsiCoin("bnb", 16),
+    makeAsiCoin("ada", 17), makeAsiCoin("avax", 19),  // 5 beat BTC
+    makeAsiCoin("dot", 10), makeAsiCoin("link", 12), makeAsiCoin("matic", 8),
+    makeAsiCoin("uni", 5), makeAsiCoin("atom", 14),   // 5 below BTC
+  ];
+  const neutral = altcoinSeasonIndexTransform(neutralCoins);
+  assert(neutral.signal === "neutral", "5 of 10 outperforming → neutral");
+  assert(neutral.index === 50, "index = 5/10 = 50");
+
+  // No BTC in data
+  const noBtc = [makeAsiCoin("eth", 20), makeAsiCoin("sol", 15)];
+  const errResult = altcoinSeasonIndexTransform(noBtc);
+  assert(errResult && errResult.error, "missing BTC → error result");
+
+  // null passthrough
+  assert(altcoinSeasonIndexTransform(null) === null, "null passthrough");
+
+  // Only BTC, no alts → index null
+  const onlyBtcResult = altcoinSeasonIndexTransform([
+    { id: "bitcoin", current_price: 80000, market_cap: 1.5e12, price_change_percentage_30d_in_currency: 10 },
+  ]);
+  assert(onlyBtcResult.index === null, "no eligible alts → index is null");
+  assert(onlyBtcResult.signal === "neutral", "no eligible alts → neutral signal");
+}
+
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
