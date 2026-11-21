@@ -404,6 +404,44 @@ exports.handler = async function (event) {
         }).sort(function (a, b) { return b.market_cap - a.market_cap; }),
       };
     };
+  } else if (q.kind === "altcoin_season_index") {
+    // Altcoin season index: measures what % of the top 100 coins outperform BTC over 30 days.
+    // A reading of 75%+ signals altcoin season (broad alt rotation); 25% or below signals BTC season.
+    // This is the standard industry metric used to identify rotation windows.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=30d";
+    key = "mkt:altcoin_season_index";
+    ttl = 60 * 60000; // hourly — slow-moving indicator
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      const btc = data.find(function (c) { return c.id === "bitcoin"; });
+      if (!btc || typeof btc.price_change_percentage_30d_in_currency !== "number") {
+        return { error: "bitcoin 30d data unavailable" };
+      }
+      const btc30d = btc.price_change_percentage_30d_in_currency;
+      const eligible = data.filter(function (c) {
+        return c.id !== "bitcoin" && typeof c.price_change_percentage_30d_in_currency === "number";
+      });
+      const outperforming = eligible.filter(function (c) {
+        return c.price_change_percentage_30d_in_currency > btc30d;
+      });
+      const index = eligible.length > 0
+        ? Math.round((outperforming.length / eligible.length) * 100)
+        : null;
+      let signal = "neutral";
+      let signal_note = "Mixed market — 25–74% of alts outperforming BTC over 30 days. No dominant rotation signal.";
+      if (index !== null) {
+        if (index >= 75) { signal = "altseason"; signal_note = "75%+ of top coins outperforming BTC over 30 days — classic altcoin season. Historically the best window for altcoin exposure."; }
+        else if (index <= 25) { signal = "btc_season"; signal_note = "Fewer than 25% of top coins outperforming BTC — capital concentrated in Bitcoin. Reduce alt exposure, focus on BTC-correlated assets."; }
+      }
+      return {
+        index: index,
+        btc_30d_change: parseFloat(btc30d.toFixed(2)),
+        eligible_coins: eligible.length,
+        outperforming_btc: outperforming.length,
+        signal: signal,
+        signal_note: signal_note,
+      };
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -413,7 +451,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence|supply_trend or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence|supply_trend|altcoin_season_index or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");

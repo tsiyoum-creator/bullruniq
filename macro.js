@@ -17,12 +17,12 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-11-20",
+  asOf: "2026-11-21",
 
   current: {
     regime: "longend",
     confidence: 82,
-    summary: "Both near-term binaries resolved cleanly: QRS (Nov 2) confirmed $119bn nominal coupons unchanged with buybacks extended, and the Nov 4 buyback authority renewal expanded the program rather than letting it lapse — active long-end management continues. The 30-year sits at 5.38% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP at +2.2% removes the deflation tail. DXY 100.3 above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin range-bound near $82k. The regime map has narrowed: long-end disorder is the only live read with 19 days until the next dated binary — Dec 9 FOMC dot plot.",
+    summary: "Both near-term binaries resolved cleanly: QRS (Nov 2) confirmed $119bn nominal coupons unchanged with buybacks extended, and the Nov 4 buyback authority renewal expanded the program rather than letting it lapse — active long-end management continues. The 30-year sits at 5.38% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP at +2.2% removes the deflation tail. DXY 100.3 above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin range-bound near $82k. The regime map has narrowed: long-end disorder is the only live read with 18 days until the next dated binary — Dec 9 FOMC dot plot.",
     forBook: "Both near-term event risks resolved in line with the base case: no duration-shortening surprise from the QRS, no lapse of buyback authority — Treasury expanded the program and confirmed it is actively managing long-end dysfunction. That confirmation is worth more than a neutral outcome: the buyers' strike is structural and Treasury knows it. Confidence holds at 82 because nothing has changed the underlying regime drivers — 30-year above 5.25%, real yields elevated, DXY above 100, and no Fed pivot language. The next 19 days are a holding pattern. Dec 9 FOMC dot plot is the binary that matters: a 2027 terminal rate path above 4.5% forecloses the liquidity case entirely. Rising real yields and a firming dollar with no pivot is not a setup that rewards being long crypto or high-multiple equity. The liquidity thesis needs a pivot and a falling dollar — neither is in progress."
   },
 
@@ -61,19 +61,19 @@ var MACRO_DATA = {
 
   /* thresholds[] drive checkFalsifiers(). op: 'gt' | 'lt' */
   indicators: [
-    { k:"dxy",      n:"DXY",                 v:100.30, u:"",      asOf:"2026-11-20", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
-    { k:"ust30",    n:"UST 30y",             v:5.38,   u:"%",     asOf:"2026-11-20", src:"US Treasury",     op:"gt", th:5.75, trips:"longend"   },
-    { k:"ust10",    n:"UST 10y",             v:5.02,   u:"%",     asOf:"2026-11-20", src:"US Treasury",     op:"gt", th:5.25, trips:"longend"   },
+    { k:"dxy",      n:"DXY",                 v:100.30, u:"",      asOf:"2026-11-21", src:"FXStreet",        op:"lt", th:97,   trips:"liquidity" },
+    { k:"ust30",    n:"UST 30y",             v:5.38,   u:"%",     asOf:"2026-11-21", src:"US Treasury",     op:"gt", th:5.75, trips:"longend"   },
+    { k:"ust10",    n:"UST 10y",             v:5.02,   u:"%",     asOf:"2026-11-21", src:"US Treasury",     op:"gt", th:5.25, trips:"longend"   },
     { k:"ust2",     n:"UST 2y",              v:4.68,   u:"%",     asOf:"2026-11-19", src:"US Treasury",     op:null, th:null, trips:null        },
     { k:"ffr",      n:"Fed funds target",    v:3.875,  u:"%",     asOf:"2026-10-28", src:"FOMC",            op:"gt", th:4.5,  trips:"longend"   },
     { k:"netliq",   n:"Net liquidity",       v:5812,   u:"bn",    asOf:"2026-10-15", src:"Fed H.4.1",       op:null, th:null, trips:null        },
     { k:"tga",      n:"Treasury General Acct", v:921,  u:"bn",    asOf:"2026-10-15", src:"Fed H.4.1",       op:null, th:null, trips:null        },
     { k:"rrp",      n:"Overnight RRP",       v:1,      u:"bn",    asOf:"2026-10-15", src:"Fed H.4.1",       op:null, th:null, trips:null        },
-    { k:"gold",     n:"Gold",                v:4421.50,u:"/oz",   asOf:"2026-11-20", src:"Trading Economics", op:null, th:null, trips:null      },
+    { k:"gold",     n:"Gold",                v:4421.50,u:"/oz",   asOf:"2026-11-21", src:"Trading Economics", op:null, th:null, trips:null      },
     { k:"stables",  n:"Stablecoin supply",   v:312.40, u:"bn",    asOf:"2026-11-01", src:"DefiLlama",       op:"lt", th:280,  trips:"deflation" },
     { k:"cofer",    n:"COFER USD share",     v:57.13,  u:"%",     asOf:"2026-Q2",    src:"IMF COFER",       op:null, th:null, trips:null        },
     { k:"ism",      n:"ISM Manufacturing",   v:54.6,   u:"",      asOf:"2026-10",    src:"ISM",             op:"lt", th:48,   trips:"deflation" },
-    { k:"btc",      n:"Bitcoin",             v:82100,  u:"",      asOf:"2026-11-20", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
+    { k:"btc",      n:"Bitcoin",             v:82100,  u:"",      asOf:"2026-11-21", src:"CoinDesk",        op:"lt", th:63000,trips:null        },
     { k:"termprem", n:"ACM term premium",    v:null,   u:"",      asOf:null,         src:"NY Fed",          op:null, th:null, trips:null        },
     { k:"real10",   n:"10y TIPS real",       v:null,   u:"%",     asOf:null,         src:"US Treasury",     op:null, th:null, trips:null        },
     { k:"move",     n:"MOVE index",          v:null,   u:"",      asOf:null,         src:"ICE",             op:null, th:null, trips:null        }

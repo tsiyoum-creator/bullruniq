@@ -106,6 +106,11 @@ const CGMAP = {
   AETHIR:"aethir",
   // Late-Nov 2026 additions — Solana DeFi and liquid staking
   RAY:"raydium", MSOL:"marinade-staked-sol", MNDE:"marinade",
+  // Nov 21 2026 additions — Mantle L2, Scroll, Rocket Pool, Convex, Frax ecosystem
+  MNT:"mantle", SCRL:"scroll",
+  RPL:"rocket-pool", CVX:"convex-finance", FXS:"frax-share",
+  LQTY:"liquity", JOE:"joe", RDNT:"radiant-capital",
+  SPELL:"spell-token", SILO:"silo-finance", CREAM:"cream-2",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
