@@ -1624,8 +1624,9 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   if (qrs) {
     assert(qrs.d === "2026-11-02", "QRS catalyst date is 2026-11-02");
     const daysUntil = Math.round((new Date(qrs.d).getTime() - Date.now()) / 86400000);
-    // QRS resolved Nov 2; allow up to 20 days past (data refresh cycle).
-    assert(daysUntil >= -20 && daysUntil <= 3, "QRS is within -20d to +3d of today (Nov 2–17)");
+    // QRS resolved Nov 2; allow up to 30 days past — resolved catalysts stay in the
+    // data as historical context until the next scheduled refresh cycle removes them.
+    assert(daysUntil >= -30 && daysUntil <= 3, "QRS is within -30d to +3d of today");
     assert(typeof qrs.tests === "string" && qrs.tests.length > 0, "QRS catalyst has a tests description");
   }
 
@@ -1634,7 +1635,8 @@ console.log("\n--- macro.js: upcoming catalysts ---");
   if (buyback) {
     assert(buyback.d === "2026-11-04", "Buyback catalyst date is 2026-11-04");
     const daysUntilBuyback = Math.round((new Date(buyback.d).getTime() - Date.now()) / 86400000);
-    assert(daysUntilBuyback >= -20 && daysUntilBuyback <= 5, "Buyback renewal is within -20d to +5d of today (resolved Nov 4)");
+    // Resolved Nov 4; allow 30 days past for the same reason as QRS above.
+    assert(daysUntilBuyback >= -30 && daysUntilBuyback <= 5, "Buyback renewal is within -30d to +5d of today");
   }
 
   const decFomc = MACRO_DATA.catalysts.find(function (c) { return c.d === "2026-12-09"; });

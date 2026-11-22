@@ -17,13 +17,13 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-11-21",
+  asOf: "2026-11-22",
 
   current: {
     regime: "longend",
     confidence: 82,
-    summary: "Both near-term binaries resolved cleanly: QRS (Nov 2) confirmed $119bn nominal coupons unchanged with buybacks extended, and the Nov 4 buyback authority renewal expanded the program rather than letting it lapse — active long-end management continues. The 30-year sits at 5.38% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP at +2.2% removes the deflation tail. DXY 100.3 above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin range-bound near $82k. The regime map has narrowed: long-end disorder is the only live read with 18 days until the next dated binary — Dec 9 FOMC dot plot.",
-    forBook: "Both near-term event risks resolved in line with the base case: no duration-shortening surprise from the QRS, no lapse of buyback authority — Treasury expanded the program and confirmed it is actively managing long-end dysfunction. That confirmation is worth more than a neutral outcome: the buyers' strike is structural and Treasury knows it. Confidence holds at 82 because nothing has changed the underlying regime drivers — 30-year above 5.25%, real yields elevated, DXY above 100, and no Fed pivot language. The next 19 days are a holding pattern. Dec 9 FOMC dot plot is the binary that matters: a 2027 terminal rate path above 4.5% forecloses the liquidity case entirely. Rising real yields and a firming dollar with no pivot is not a setup that rewards being long crypto or high-multiple equity. The liquidity thesis needs a pivot and a falling dollar — neither is in progress."
+    summary: "Both near-term binaries resolved cleanly: QRS (Nov 2) confirmed $119bn nominal coupons unchanged with buybacks extended, and the Nov 4 buyback authority renewal expanded the program rather than letting it lapse — active long-end management continues. The 30-year sits at 5.38% and the 10-year has held above 5.00% for over two weeks. FOMC held at 3.75–4.00% on Oct 28 with no pivot language. Q3 GDP at +2.2% removes the deflation tail. DXY 100.3 above 100 for six consecutive weeks. IIJA authority expired 2026-09-30. Bitcoin range-bound near $82k. The regime map has narrowed: long-end disorder is the only live read with 17 days until the next dated binary — Dec 9 FOMC dot plot.",
+    forBook: "Both near-term event risks resolved in line with the base case: no duration-shortening surprise from the QRS, no lapse of buyback authority — Treasury expanded the program and confirmed it is actively managing long-end dysfunction. That confirmation is worth more than a neutral outcome: the buyers' strike is structural and Treasury knows it. Confidence holds at 82 because nothing has changed the underlying regime drivers — 30-year above 5.25%, real yields elevated, DXY above 100, and no Fed pivot language. The next 17 days are a holding pattern. Dec 9 FOMC dot plot is the binary that matters: a 2027 terminal rate path above 4.5% forecloses the liquidity case entirely. Rising real yields and a firming dollar with no pivot is not a setup that rewards being long crypto or high-multiple equity. The liquidity thesis needs a pivot and a falling dollar — neither is in progress."
   },
 
   regimes: [
@@ -157,7 +157,29 @@ var MACRO_TAGS = {
   BERA:{r:"liquidity",f:null, b:null,   w:"Berachain. Novel proof-of-liquidity L1. Incentive-driven bootstrapping phase; depends on risk appetite."},
   // Meme / social momentum (no regime edge — regime-neutral)
   WIF:{r:"liquidity", f:null, b:null,   w:"Dogwifhat. Meme. Pure sentiment play — goes up most when risk appetite is highest."},
-  PEPE:{r:"liquidity",f:null, b:null,   w:"Pepe. Meme. Same driver as WIF — sentiment-gated, amplified in liquidity regimes."}
+  PEPE:{r:"liquidity",f:null, b:null,   w:"Pepe. Meme. Same driver as WIF — sentiment-gated, amplified in liquidity regimes."},
+  // Major L1s — commonly held, need regime tagging
+  BNB:{r:"liquidity", f:null, b:null,   w:"BNB Chain. Broad liquidity beta. Benefits from risk-on activity in the BNB ecosystem."},
+  XRP:{r:"liquidity", f:null, b:null,   w:"XRP. Payments network. Regulatory-driven rally potential; fundamentals are liquidity-sensitive."},
+  DOT:{r:"liquidity", f:null, b:null,   w:"Polkadot. Parachain ecosystem. High-beta liquidity trade with added validator/staking mechanics."},
+  NEAR:{r:"liquidity", f:null, b:null,  w:"NEAR Protocol. EVM-compatible L1. High-beta liquidity trade with AI narrative overlay."},
+  SUI:{r:"liquidity", f:null, b:null,   w:"Sui. High-throughput Move VM L1. Institutional backing; performs in risk-on regimes."},
+  APT:{r:"liquidity", f:null, b:null,   w:"Aptos. Move VM L1. Same category as SUI — benefits from liquidity expansion and risk appetite."},
+  TON:{r:"liquidity", f:null, b:null,   w:"TON. Telegram-native chain. Viral distribution advantage; adoption is gated by risk appetite."},
+  // DeFi extensions
+  JUP:{r:"liquidity", f:null, b:null,   w:"Jupiter. Largest Solana DEX aggregator. Volume-driven revenue; directly tied to risk-on activity."},
+  ENA:{r:"liquidity", f:null, b:null,   w:"Ethena. Synthetic dollar protocol. TVL and revenue collapse in risk-off; expands aggressively in liquidity regimes."},
+  UNI:{r:"liquidity", f:null, b:null,   w:"Uniswap. Largest DEX by volume. Protocol revenue rises with risk-on trading activity."},
+  LDO:{r:"liquidity", f:null, b:null,   w:"Lido DAO. Liquid staking dominant player. Staking demand rises in liquidity expansion; punished by regulatory risk."},
+  // Layer 2
+  ARB:{r:"liquidity", f:null, b:null,   w:"Arbitrum. Leading Ethereum L2. Sequencer revenue grows with on-chain activity in risk-on regimes."},
+  OP:{r:"liquidity",  f:null, b:null,   w:"Optimism. Ethereum L2. Same driver as ARB — sequencer fees tied to DeFi and dApp activity."},
+  // Infrastructure / oracles
+  LINK:{r:"liquidity", f:null, b:null,  w:"Chainlink. Oracle network. Data-feed revenue grows with smart-contract activity — lagging liquidity beta."},
+  PYTH:{r:"liquidity", f:null, b:null,  w:"Pyth Network. High-frequency oracle. Activity correlated with on-chain trading volume; liquidity-regime dependent."},
+  INJ:{r:"liquidity",  f:null, b:null,  w:"Injective. L1 for financial dApps. Direct exposure to on-chain derivatives volume — high beta to liquidity."},
+  // AI / compute
+  RENDER:{r:"fiscdom", f:"hs", b:null,  w:"Render Network. Decentralised GPU rendering. Rides the hyperscaler AI capex wave at the edge-compute layer."}
 };
 var MTAGK='briq-macrotags';
 var macroTags={};
