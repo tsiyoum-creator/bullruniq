@@ -111,6 +111,12 @@ const CGMAP = {
   RPL:"rocket-pool", CVX:"convex-finance", FXS:"frax-share",
   LQTY:"liquity", JOE:"joe", RDNT:"radiant-capital",
   SPELL:"spell-token", SILO:"silo-finance", CREAM:"cream-2",
+  // Nov 23 2026 additions — AI agents, story protocol, restaking, perp DEX, Solana AMM
+  KAITO:"kaito", IP:"story-2", GRASS:"grass",
+  DYDX:"dydx", GMX:"gmx", ORCA:"orca",
+  LAYER:"solayer", STX:"blockstack",
+  SAFE:"safe", ENS:"ethereum-name-service",
+  ZK:"zksync", LPT:"livepeer",
 };
 
 const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };

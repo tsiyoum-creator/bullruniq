@@ -2708,6 +2708,283 @@ console.log("\n--- market: altcoin_season_index transform ---");
   assert(onlyBtcResult.signal === "neutral", "no eligible alts → neutral signal");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// market: volume_leaders transform
+// ─────────────────────────────────────────────────────────────────────────────
+
+function volumeLeadersTransform(data) {
+  const STABLE_AND_WRAPPED_IDS = new Set([
+    "tether", "usd-coin", "dai", "binance-usd", "trueusd", "pax-dollar",
+    "ethena-usde", "agora-dollar", "paypal-usd", "usual", "resolv",
+    "frax", "liquity-usd", "crvusd", "gemini-dollar",
+    "wrapped-bitcoin", "coinbase-wrapped-btc", "wrapped-eeth", "wrapped-staked-ether",
+    "staked-ether", "rocket-pool-eth", "mantle-staked-ether",
+  ]);
+  if (!Array.isArray(data)) return data;
+  return data
+    .filter(function (c) {
+      return c.market_cap > 0 && c.total_volume > 0 && !STABLE_AND_WRAPPED_IDS.has(c.id);
+    })
+    .map(function (c) {
+      return {
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        price: c.current_price,
+        market_cap: c.market_cap,
+        volume_24h: c.total_volume,
+        volume_mcap_ratio: c.total_volume / c.market_cap,
+        change_24h: c.price_change_percentage_24h,
+      };
+    })
+    .sort(function (a, b) { return b.volume_mcap_ratio - a.volume_mcap_ratio; })
+    .slice(0, 20);
+}
+
+console.log("\n--- market: volume_leaders transform ---");
+{
+  function makeVol(id, volume, marketCap, change24h) {
+    return { id: id, symbol: id.toUpperCase(), name: id, current_price: 10,
+      total_volume: volume, market_cap: marketCap, price_change_percentage_24h: change24h };
+  }
+
+  const data = [
+    makeVol("bitcoin", 30e9, 1.5e12, 2.0),     // ratio 0.02
+    makeVol("ethereum", 15e9, 300e9, 1.5),       // ratio 0.05
+    makeVol("tether", 60e9, 100e9, 0.01),        // stablecoin — excluded
+    makeVol("solana", 5e9, 50e9, 3.0),           // ratio 0.10
+    makeVol("pepe", 2e9, 10e9, -1.0),            // ratio 0.20 — highest
+    makeVol("zeroval", 0, 100e9, 0),             // zero volume — excluded
+    makeVol("zeroCap", 1e9, 0, 0),               // zero market cap — excluded
+  ];
+
+  const result = volumeLeadersTransform(data);
+
+  assert(Array.isArray(result), "volume_leaders returns array");
+  assert(!result.find(function (c) { return c.id === "tether"; }), "stablecoin excluded");
+  assert(!result.find(function (c) { return c.id === "zeroval"; }), "zero-volume coin excluded");
+  assert(!result.find(function (c) { return c.id === "zeroCap"; }), "zero-mcap coin excluded");
+  // 4 valid coins pass: bitcoin, ethereum, solana, pepe (tether/zeroval/zeroCap excluded)
+  assert(result.length === 4, "4 valid coins returned");
+  // Sorted by volume/mcap ratio descending
+  assert(result[0].id === "pepe", "highest ratio coin is first (pepe: 2bn/10bn = 0.2)");
+  assert(approx(result[0].volume_mcap_ratio, 0.20), "pepe ratio is 0.20");
+  assert(result[1].id === "solana", "second highest ratio (5bn/50bn = 0.10)");
+  assert(approx(result[1].volume_mcap_ratio, 0.10), "solana ratio is 0.10");
+  assert(result[2].id === "ethereum", "third (15bn/300bn = 0.05)");
+
+  // Max 20 results
+  const bigData = Array.from({ length: 30 }, function (_, i) {
+    return makeVol("coin" + i, (i + 1) * 1e9, (i + 1) * 10e9, 0);
+  });
+  const big = volumeLeadersTransform(bigData);
+  assert(big.length === 20, "volume_leaders capped at 20 results");
+
+  // null passthrough
+  assert(volumeLeadersTransform(null) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: dca_opportunity transform
+// ─────────────────────────────────────────────────────────────────────────────
+
+function dcaOpportunityTransform(data) {
+  const STABLE_AND_WRAPPED_IDS = new Set([
+    "tether", "usd-coin", "dai", "binance-usd", "trueusd", "pax-dollar",
+    "ethena-usde", "agora-dollar", "paypal-usd", "usual", "resolv",
+    "frax", "liquity-usd", "crvusd", "gemini-dollar",
+    "wrapped-bitcoin", "coinbase-wrapped-btc", "wrapped-eeth", "wrapped-staked-ether",
+    "staked-ether", "rocket-pool-eth", "mantle-staked-ether",
+  ]);
+  if (!Array.isArray(data)) return data;
+  return data
+    .filter(function (c) {
+      return typeof c.ath_change_percentage === "number" &&
+        c.ath_change_percentage < -30 &&
+        c.ath_change_percentage > -70 &&
+        typeof c.price_change_percentage_7d_in_currency === "number" &&
+        c.price_change_percentage_7d_in_currency > 0 &&
+        c.market_cap > 200e6 &&
+        !STABLE_AND_WRAPPED_IDS.has(c.id);
+    })
+    .map(function (c) {
+      const drawdown = Math.abs(c.ath_change_percentage);
+      const change7d = c.price_change_percentage_7d_in_currency;
+      const change30d = c.price_change_percentage_30d_in_currency || 0;
+      const drawdownScore = (drawdown - 30) / 40;
+      const recoveryScore = Math.min(change7d / 20, 1);
+      const dca_score = parseFloat(((drawdownScore * 0.4) + (recoveryScore * 0.6)).toFixed(3));
+      return {
+        id: c.id, symbol: (c.symbol || "").toUpperCase(), name: c.name,
+        price: c.current_price, ath: c.ath, ath_change_pct: c.ath_change_percentage,
+        drawdown_pct: parseFloat(drawdown.toFixed(1)),
+        market_cap: c.market_cap, change_7d: change7d, change_30d: change30d,
+        dca_score: dca_score,
+      };
+    })
+    .sort(function (a, b) { return b.dca_score - a.dca_score; })
+    .slice(0, 20);
+}
+
+console.log("\n--- market: dca_opportunity transform ---");
+{
+  function makeDca(id, athChangePct, change7d, marketCap) {
+    return {
+      id: id, symbol: id.toUpperCase(), name: id, current_price: 10,
+      ath: 10 / (1 + athChangePct / 100), ath_change_percentage: athChangePct,
+      price_change_percentage_7d_in_currency: change7d,
+      price_change_percentage_30d_in_currency: 5,
+      market_cap: marketCap || 500e6, total_volume: 50e6,
+    };
+  }
+
+  const data = [
+    makeDca("eth",    -50, 8,   300e9),  // in band, positive 7d → included
+    makeDca("sol",    -40, 5,   50e6),   // market cap too small ($50M < $200M) → excluded
+    makeDca("avax",   -60, 3,   5e9),    // in band, positive 7d → included
+    makeDca("btc",    -20, 10,  1.5e12), // drawdown < 30% → excluded (ATH zone)
+    makeDca("link",   -80, 7,   3e9),    // drawdown > 70% → excluded (too distressed)
+    makeDca("dot",    -45, -2,  2e9),    // negative 7d → excluded
+    makeDca("tether", -50, 5,   100e9),  // stablecoin → excluded
+    makeDca("near",   -55, 12,  2e9),    // in band, strong recovery → higher score
+  ];
+
+  const result = dcaOpportunityTransform(data);
+
+  assert(Array.isArray(result), "dca_opportunity returns array");
+  assert(result.length === 3, "3 coins pass all filters (eth, avax, near)");
+  assert(!result.find(function (c) { return c.id === "sol"; }), "sol excluded: market cap below $200M floor");
+  assert(!result.find(function (c) { return c.id === "btc"; }), "< 30% drawdown excluded");
+  assert(!result.find(function (c) { return c.id === "link"; }), "> 70% drawdown excluded");
+  assert(!result.find(function (c) { return c.id === "dot"; }), "negative 7d excluded");
+  assert(!result.find(function (c) { return c.id === "tether"; }), "stablecoin excluded");
+
+  // near has stronger 7d (12%) than eth (8%), both in band — near scores higher on recovery
+  assert(result[0].id === "near", "near leads due to stronger 7d momentum");
+  assert(result.every(function (c) { return c.dca_score >= 0; }), "all scores non-negative");
+  assert(result.every(function (c) { return c.drawdown_pct >= 30 && c.drawdown_pct <= 70; }), "all drawdowns in 30–70 band");
+
+  // dca_score formula check: near is -55% drawdown → drawdownScore = (55-30)/40 = 0.625
+  // 7d = 12 → recoveryScore = min(12/20, 1) = 0.6; score = 0.625*0.4 + 0.6*0.6 = 0.25+0.36 = 0.61
+  const nearCoin = result.find(function (c) { return c.id === "near"; });
+  assert(approx(nearCoin.dca_score, 0.61, 0.005), "near dca_score ≈ 0.61");
+
+  // Max 20
+  const bigData = Array.from({ length: 30 }, function (_, i) {
+    return makeDca("coin" + i, -50, 5 + i, 500e6);
+  });
+  const big = dcaOpportunityTransform(bigData);
+  assert(big.length === 20, "dca_opportunity capped at 20 results");
+
+  // null passthrough
+  assert(dcaOpportunityTransform(null) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: breakout_watch transform
+// ─────────────────────────────────────────────────────────────────────────────
+
+function breakoutWatchTransform(data) {
+  const STABLE_AND_WRAPPED_IDS = new Set([
+    "tether", "usd-coin", "dai", "wrapped-bitcoin", "coinbase-wrapped-btc",
+    "wrapped-eeth", "wrapped-staked-ether", "staked-ether", "rocket-pool-eth",
+  ]);
+  if (!Array.isArray(data)) return data;
+  return data
+    .filter(function (c) {
+      return typeof c.ath_change_percentage === "number" &&
+        c.ath_change_percentage >= -2 &&
+        c.ath_change_percentage <= 0 &&
+        c.market_cap > 100e6 &&
+        !STABLE_AND_WRAPPED_IDS.has(c.id);
+    })
+    .map(function (c) {
+      return {
+        id: c.id, symbol: (c.symbol || "").toUpperCase(), name: c.name,
+        price: c.current_price, ath: c.ath, ath_change_pct: c.ath_change_percentage,
+        market_cap: c.market_cap, volume_24h: c.total_volume,
+        change_7d: c.price_change_percentage_7d_in_currency,
+        change_30d: c.price_change_percentage_30d_in_currency,
+      };
+    })
+    .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
+}
+
+console.log("\n--- market: breakout_watch transform ---");
+{
+  function makeBreakout(id, athChangePct, marketCap) {
+    return {
+      id: id, symbol: id.toUpperCase(), name: id, current_price: 100,
+      ath: 100 / (1 + athChangePct / 100), ath_change_percentage: athChangePct,
+      market_cap: marketCap || 500e6, total_volume: 10e6,
+      price_change_percentage_7d_in_currency: 5,
+      price_change_percentage_30d_in_currency: 10,
+    };
+  }
+
+  const data = [
+    makeBreakout("btc",   -1.5,  1.5e12),   // in range → included
+    makeBreakout("eth",   -0.5,  300e9),     // in range, closer to ATH → higher sort
+    makeBreakout("sol",   -2.0,  50e9),      // exactly -2% → included (boundary)
+    makeBreakout("avax",  -2.1,  10e9),      // just outside (-2.1) → excluded
+    makeBreakout("link",  0,     5e9),       // exactly 0 (AT ATH) → included, small cap
+    makeBreakout("tether", -1,   100e9),     // stablecoin → excluded
+    makeBreakout("small", -1.5,  50e6),      // below $100M mcap → excluded
+  ];
+
+  const result = breakoutWatchTransform(data);
+
+  assert(Array.isArray(result), "breakout_watch returns array");
+  assert(!result.find(function (c) { return c.id === "avax"; }), "-2.1% excluded (outside -2 boundary)");
+  assert(!result.find(function (c) { return c.id === "tether"; }), "stablecoin excluded");
+  assert(!result.find(function (c) { return c.id === "small"; }), "small cap excluded");
+  // btc, eth, sol, link pass (sol -2.0 is exactly boundary — included; link at 0 is included)
+  assert(result.length === 4, "4 coins pass all filters");
+  // Sorted by ath_change_pct descending (closest to ATH first): eth -0.5, link 0, btc -1.5, sol -2.0
+  // link is 0 (at ATH) → highest ath_change_pct value
+  assert(result[0].id === "link", "coin AT ATH (0%) sorts first");
+  assert(result[1].id === "eth", "eth (-0.5%) sorts second");
+  // All have volume_24h field
+  assert(result.every(function (c) { return typeof c.volume_24h === "number"; }), "all results have volume_24h");
+
+  // null passthrough
+  assert(breakoutWatchTransform(null) === null, "null passthrough");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: dca_opportunity and breakout_watch present in market.js source
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: dca_opportunity and breakout_watch in production source ---");
+{
+  const fs = require("fs");
+  const marketJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes("dca_opportunity"), "market.js has dca_opportunity kind");
+  assert(marketJs.includes("breakout_watch"), "market.js has breakout_watch kind");
+  assert(marketJs.includes("drawdown_pct"), "dca_opportunity returns drawdown_pct");
+  assert(marketJs.includes("dca_score"), "dca_opportunity returns dca_score");
+  assert(marketJs.includes("ath_change_percentage < -30"), "dca_opportunity upper drawdown boundary -30%");
+  assert(marketJs.includes("ath_change_percentage > -70"), "dca_opportunity lower drawdown boundary -70%");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: CGMAP Nov 23 2026 additions
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: CGMAP Nov 23 2026 additions ---");
+{
+  const fs = require("fs");
+  const alertsJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  const nov23Tokens = [
+    ["KAITO", "kaito"], ["IP", "story-2"], ["GRASS", "grass"],
+    ["DYDX", "dydx"], ["GMX", "gmx"], ["ORCA", "orca"],
+    ["LAYER", "solayer"], ["STX", "blockstack"],
+  ];
+  for (const [ticker, cgId] of nov23Tokens) {
+    assert(alertsJs.includes(ticker + ":\"" + cgId + "\"") || alertsJs.includes(ticker + ':\"' + cgId + '\"') || alertsJs.includes(ticker + ":" + "\"" + cgId + "\""), ticker + " (" + cgId + ") present in CGMAP");
+  }
+}
+
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");

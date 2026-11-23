@@ -17,7 +17,7 @@
    Every figure carries asOf + src. null means NO DATA — never guess.
    ================================================================ */
 var MACRO_DATA = {
-  asOf: "2026-11-22",
+  asOf: "2026-11-23",
 
   current: {
     regime: "longend",
@@ -179,7 +179,28 @@ var MACRO_TAGS = {
   PYTH:{r:"liquidity", f:null, b:null,  w:"Pyth Network. High-frequency oracle. Activity correlated with on-chain trading volume; liquidity-regime dependent."},
   INJ:{r:"liquidity",  f:null, b:null,  w:"Injective. L1 for financial dApps. Direct exposure to on-chain derivatives volume — high beta to liquidity."},
   // AI / compute
-  RENDER:{r:"fiscdom", f:"hs", b:null,  w:"Render Network. Decentralised GPU rendering. Rides the hyperscaler AI capex wave at the edge-compute layer."}
+  RENDER:{r:"fiscdom", f:"hs", b:null,  w:"Render Network. Decentralised GPU rendering. Rides the hyperscaler AI capex wave at the edge-compute layer."},
+  TAO:{r:"fiscdom",  f:"hs",  b:null,  w:"Bittensor. Decentralised AI training network. Valued on AI narrative and hyperscaler capex tailwind; punished when liquidity contracts."},
+  AGIX:{r:"fiscdom", f:"hs",  b:null,  w:"SingularityNET. AGI-focused AI protocol. High-beta AI narrative play; needs both liquidity and hyperscaler capex flow."},
+  FET:{r:"fiscdom",  f:"hs",  b:null,  w:"Fetch.ai. Autonomous AI agents. Rides the AI compute wave; infrastructure layer for the agent economy."},
+  KAITO:{r:"liquidity",f:null,b:null,  w:"Kaito AI. Crypto information layer. Adoption is gated by on-chain activity and risk appetite."},
+  // Governance / social
+  ENS:{r:"liquidity", f:null, b:null,  w:"Ethereum Name Service. Identity infrastructure. Activity correlates with ETH ecosystem health and risk-on regimes."},
+  SAFE:{r:"liquidity", f:null,b:null,  w:"Safe (multisig). Institutional custody infrastructure. Adoption is structural but price action follows liquidity."},
+  // L1 / scaling
+  ZK:{r:"liquidity",  f:null, b:null,  w:"zkSync. ZK rollup L2. High-beta liquidity trade; sequencer revenue tied to DeFi activity."},
+  STX:{r:"liquidity",  f:null,b:null,  w:"Stacks. Bitcoin L2 for smart contracts. Rides BTC narrative but needs risk-on for DeFi TVL to build."},
+  DYDX:{r:"liquidity", f:null,b:null,  w:"dYdX. Perpetuals DEX. Revenue is directly tied to derivatives volume; highest in risk-on regimes."},
+  GMX:{r:"liquidity",  f:null,b:null,  w:"GMX. Perpetuals DEX on Arbitrum/Avalanche. Fee revenue rises with trading volume in risk-on regimes."},
+  // Solana DeFi
+  ORCA:{r:"liquidity", f:null,b:null,  w:"Orca. Solana AMM. Volume-driven fee revenue; directly tied to Solana ecosystem activity in risk-on."},
+  LAYER:{r:"liquidity",f:null,b:null,  w:"Solayer. Solana restaking. Early-stage infrastructure; adoption gated by risk appetite and Solana TVL growth."},
+  // Real-world / infra
+  IP:{r:"fiscdom",   f:null, b:null,   w:"Story Protocol. IP tokenisation on L1. Infrastructure for the creator economy; rides AI content demand."},
+  GRASS:{r:"fiscdom",f:"hs", b:null,   w:"Grass. Decentralised data network. AI training data layer; directly upstream of hyperscaler demand for training sets."},
+  // Stablecoin yields
+  USDE:{r:"liquidity",f:null,b:null,   w:"Ethena USDe. Synthetic dollar. Yield product that expands in risk-on when funding rates are positive."},
+  USUAL:{r:"liquidity",f:null,b:null,  w:"Usual. Tokenised T-bill yield. RWA stablecoin; structurally bid when rates are positive and crypto is risk-on."}
 };
 var MTAGK='briq-macrotags';
 var macroTags={};

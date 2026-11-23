@@ -442,6 +442,91 @@ exports.handler = async function (event) {
         signal_note: signal_note,
       };
     };
+  } else if (q.kind === "dca_opportunity") {
+    // DCA opportunity scanner: coins 30–70% below their ATH with a positive 7-day
+    // return. The 30–70% band is the typical accumulation zone in a bull market —
+    // deep enough to have cleared most leveraged longs, shallow enough that the
+    // macro bull case is still intact. A positive 7d signal confirms early buying
+    // pressure from the base, which is the minimum confirmation needed before DCA.
+    // Coins at >70% drawdown (deeply distressed) and <30% (ATH distribution zone)
+    // are excluded deliberately — different risk profiles, different playbooks.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:top250_dca";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) {
+          return typeof c.ath_change_percentage === "number" &&
+            c.ath_change_percentage < -30 &&
+            c.ath_change_percentage > -70 &&
+            typeof c.price_change_percentage_7d_in_currency === "number" &&
+            c.price_change_percentage_7d_in_currency > 0 &&
+            c.market_cap > 200e6 &&
+            !STABLE_AND_WRAPPED_IDS.has(c.id);
+        })
+        .map(function (c) {
+          const drawdown = Math.abs(c.ath_change_percentage);
+          const change7d = c.price_change_percentage_7d_in_currency;
+          const change30d = c.price_change_percentage_30d_in_currency || 0;
+          // Score rewards early recovery (high 7d) in a deep but not fatal drawdown.
+          // Drawdown is normalised to [0,1] over the 30–70% band; 50% drawdown = 0.5 score.
+          const drawdownScore = (drawdown - 30) / 40; // 0 = 30% drawdown, 1 = 70% drawdown
+          const recoveryScore = Math.min(change7d / 20, 1); // cap at 20% 7d gain
+          const dca_score = parseFloat(((drawdownScore * 0.4) + (recoveryScore * 0.6)).toFixed(3));
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            ath: c.ath,
+            ath_change_pct: c.ath_change_percentage,
+            drawdown_pct: parseFloat(drawdown.toFixed(1)),
+            market_cap: c.market_cap,
+            change_7d: change7d,
+            change_30d: change30d,
+            dca_score: dca_score,
+          };
+        })
+        .sort(function (a, b) { return b.dca_score - a.dca_score; })
+        .slice(0, 20);
+    };
+  } else if (q.kind === "breakout_watch") {
+    // Breakout watch: coins within 2% of their all-time high.
+    // This is the tightest distribution zone — the coin is testing or just
+    // setting a new ATH. Historically, a confirmed close above ATH on volume is
+    // the single strongest continuation signal in crypto. These coins are at a
+    // decision point: either they break out or distribution and rejection begin.
+    // Investors should watch volume and have a profit-taking plan ready.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:top250_breakout";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) {
+          return typeof c.ath_change_percentage === "number" &&
+            c.ath_change_percentage >= -2 &&
+            c.ath_change_percentage <= 0 &&
+            c.market_cap > 100e6 &&
+            !STABLE_AND_WRAPPED_IDS.has(c.id);
+        })
+        .map(function (c) {
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            ath: c.ath,
+            ath_change_pct: c.ath_change_percentage,
+            market_cap: c.market_cap,
+            volume_24h: c.total_volume,
+            change_7d: c.price_change_percentage_7d_in_currency,
+            change_30d: c.price_change_percentage_30d_in_currency,
+          };
+        })
+        .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -451,7 +536,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence|supply_trend|altcoin_season_index or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence|supply_trend|altcoin_season_index|dca_opportunity|breakout_watch or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");
