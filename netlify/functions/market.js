@@ -2,8 +2,13 @@
 
 const TTL_MS = 10 * 60000;
 const CORS = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120", "X-Content-Type-Options": "nosniff" };
-const CG_BASE = "https://api.coingecko.com/api/v3";
-const UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+// When COINGECKO_API_KEY is set the pro endpoint is used (higher rate limits, no throttling).
+const CG_BASE = process.env.COINGECKO_API_KEY
+  ? "https://pro-api.coingecko.com/api/v3"
+  : "https://api.coingecko.com/api/v3";
+const UA = process.env.COINGECKO_API_KEY
+  ? { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)", "x-cg-pro-api-key": process.env.COINGECKO_API_KEY }
+  : { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
 
 // Stablecoins and wrapped tokens whose volume/market-cap ratio is structurally
 // high and carries no directional signal. Excluded from volume_leaders.

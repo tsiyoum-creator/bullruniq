@@ -111,15 +111,14 @@ const CGMAP = {
   RPL:"rocket-pool", CVX:"convex-finance", FXS:"frax-share",
   LQTY:"liquity", JOE:"joe", RDNT:"radiant-capital",
   SPELL:"spell-token", SILO:"silo-finance", CREAM:"cream-2",
-  // Nov 23 2026 additions — AI agents, story protocol, restaking, perp DEX, Solana AMM
-  KAITO:"kaito", IP:"story-2", GRASS:"grass",
-  DYDX:"dydx", GMX:"gmx", ORCA:"orca",
-  LAYER:"solayer", STX:"blockstack",
-  SAFE:"safe", ENS:"ethereum-name-service",
-  ZK:"zksync", LPT:"livepeer",
 };
 
-const CG_UA = { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+const CG_UA = process.env.COINGECKO_API_KEY
+  ? { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)", "x-cg-pro-api-key": process.env.COINGECKO_API_KEY }
+  : { "User-Agent": "BullrunIQ/1.0 (+https://bullruniq.com)" };
+const CG_SIMPLE_BASE = process.env.COINGECKO_API_KEY
+  ? "https://pro-api.coingecko.com/api/v3"
+  : "https://api.coingecko.com/api/v3";
 
 // Returns a CoinGecko-safe ID for a ticker, or null if the ticker cannot be safely resolved.
 // Prevents URL injection when tickers are interpolated into CoinGecko API calls.
@@ -383,7 +382,7 @@ exports.handler = async function (event) {
     for (let i = 0; i < idList.length; i += CG_BATCH) {
       const chunk = idList.slice(i, i + CG_BATCH);
       const r = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=" + chunk.join(",") + "&vs_currencies=usd",
+        CG_SIMPLE_BASE + "/simple/price?ids=" + chunk.join(",") + "&vs_currencies=usd",
         { headers: CG_UA }
       );
       if (!r.ok) { console.log("[alerts] CoinGecko error:", r.status); continue; }
@@ -398,7 +397,7 @@ exports.handler = async function (event) {
     for (let i = 0; i < idList.length; i += CG_BATCH) {
       const chunk = idList.slice(i, i + CG_BATCH);
       const r = await fetch(
-        "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + chunk.join(",") + "&sparkline=false",
+        CG_SIMPLE_BASE + "/coins/markets?vs_currency=usd&ids=" + chunk.join(",") + "&sparkline=false",
         { headers: CG_UA }
       );
       if (!r.ok) { console.log("[alerts] CoinGecko ATH fetch error:", r.status); continue; }

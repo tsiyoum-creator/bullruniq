@@ -2985,6 +2985,60 @@ console.log("\n--- alerts: CGMAP Nov 23 2026 additions ---");
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: CGMAP has no duplicate keys
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: CGMAP no duplicate keys ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  const match = src.match(/const CGMAP = \{([\s\S]*?)\};/);
+  assert(match !== null, "CGMAP definition found in alerts.js");
+  if (match) {
+    const seen = {};
+    const dups = [];
+    match[1].split("\n").forEach(function (line) {
+      const m = line.match(/^\s+([A-Z0-9]+):/);
+      if (m) {
+        const k = m[1];
+        if (seen[k]) dups.push(k);
+        seen[k] = true;
+      }
+    });
+    assert(dups.length === 0, "No duplicate CGMAP keys (found: " + dups.join(", ") + ")");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: CoinGecko Pro API key support present
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: CoinGecko Pro API key support ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const marketJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes("COINGECKO_API_KEY"), "market.js checks COINGECKO_API_KEY env var");
+  assert(marketJs.includes("pro-api.coingecko.com"), "market.js uses pro endpoint when key is set");
+  assert(marketJs.includes("x-cg-pro-api-key"), "market.js sends x-cg-pro-api-key header");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: CoinGecko Pro API key support present
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: CoinGecko Pro API key support ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const alertsJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("COINGECKO_API_KEY"), "alerts.js checks COINGECKO_API_KEY env var");
+  assert(alertsJs.includes("pro-api.coingecko.com"), "alerts.js uses pro endpoint when key is set");
+  assert(alertsJs.includes("CG_SIMPLE_BASE"), "alerts.js uses CG_SIMPLE_BASE for all fetch URLs");
+}
+
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
