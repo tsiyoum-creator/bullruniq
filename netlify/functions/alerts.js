@@ -111,6 +111,9 @@ const CGMAP = {
   RPL:"rocket-pool", CVX:"convex-finance", FXS:"frax-share",
   LQTY:"liquity", JOE:"joe", RDNT:"radiant-capital",
   SPELL:"spell-token", SILO:"silo-finance", CREAM:"cream-2",
+  // Nov 25 2026 additions — AI agents, DePIN, PoW, gaming, and BSC DeFi
+  AIXBT:"aixbt-by-virtuals", VANA:"vana", KAS:"kaspa",
+  YGG:"yield-guild-games", CAKE:"pancakeswap-token",
 };
 
 const CG_UA = process.env.COINGECKO_API_KEY

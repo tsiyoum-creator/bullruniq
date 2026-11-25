@@ -3012,6 +3012,23 @@ console.log("\n--- alerts: CGMAP no duplicate keys ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// alerts: CGMAP Nov 25 2026 additions
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: CGMAP Nov 25 2026 additions ---");
+{
+  const fs = require("fs");
+  const alertsJs = fs.readFileSync(require("path").join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  const nov25Tokens = [
+    ["AIXBT", "aixbt-by-virtuals"], ["VANA", "vana"], ["KAS", "kaspa"],
+    ["YGG", "yield-guild-games"], ["CAKE", "pancakeswap-token"],
+  ];
+  for (const [ticker, cgId] of nov25Tokens) {
+    assert(alertsJs.includes(ticker + ":\"" + cgId + "\"") || alertsJs.includes(ticker + ":" + "\"" + cgId + "\""), ticker + " (" + cgId + ") present in CGMAP");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // market: CoinGecko Pro API key support present
 // ─────────────────────────────────────────────────────────────────────────────
 
