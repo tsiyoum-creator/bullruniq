@@ -3056,6 +3056,31 @@ console.log("\n--- alerts: CoinGecko Pro API key support ---");
   assert(alertsJs.includes("CG_SIMPLE_BASE"), "alerts.js uses CG_SIMPLE_BASE for all fetch URLs");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: Nov 26 2026 CGMAP additions (ACX, VRTX)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: Nov 26 2026 CGMAP additions ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const alertsJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("ACX"), "ACX ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("across-protocol"), "across-protocol ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("VRTX"), "VRTX ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("vertex-protocol"), "vertex-protocol ID present in alerts.js CGMAP");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// macro: asOf date is 2026-11-26
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- macro: asOf updated to 2026-11-26 ---");
+{
+  const macro = require("../macro.js");
+  assert(macro.MACRO_DATA.asOf === "2026-11-26", "MACRO_DATA.asOf is 2026-11-26");
+}
+
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════");
