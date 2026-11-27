@@ -532,6 +532,45 @@ exports.handler = async function (event) {
         })
         .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
     };
+  } else if (q.kind === "new_ath") {
+    // New ATH scanner: coins trading at or above their all-time high.
+    // A confirmed close above ATH on volume is the single strongest continuation
+    // signal in crypto — but also the highest-risk distribution zone. Investors
+    // in these coins face the binary: extend the breakout or reject back into range.
+    // The volume_ratio field (volume/market_cap) confirms whether the break has real
+    // buying pressure behind it. A high ratio alongside ath_change_pct > 0 is the
+    // strongest combined signal in this app.
+    upstream = CG_BASE + "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=7d,30d";
+    key = "mkt:top250_new_ath";
+    ttl = 15 * 60000;
+    transform = function (data) {
+      if (!Array.isArray(data)) return data;
+      return data
+        .filter(function (c) {
+          return typeof c.ath_change_percentage === "number" &&
+            c.ath_change_percentage > 0 &&
+            c.market_cap > 100e6 &&
+            !STABLE_AND_WRAPPED_IDS.has(c.id);
+        })
+        .map(function (c) {
+          const c7d = c.price_change_percentage_7d_in_currency || 0;
+          const c30d = c.price_change_percentage_30d_in_currency || 0;
+          return {
+            id: c.id,
+            symbol: (c.symbol || "").toUpperCase(),
+            name: c.name,
+            price: c.current_price,
+            ath: c.ath,
+            ath_change_pct: c.ath_change_percentage,
+            market_cap: c.market_cap,
+            volume_24h: c.total_volume,
+            volume_ratio: c.market_cap > 0 ? parseFloat((c.total_volume / c.market_cap).toFixed(4)) : null,
+            change_7d: c7d,
+            change_30d: c30d,
+          };
+        })
+        .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
+    };
   } else if (q.ids) {
     const ids = String(q.ids).toLowerCase().split(",")
       .map(function (s) { return s.trim(); })
@@ -541,7 +580,7 @@ exports.handler = async function (event) {
     upstream = CG_BASE + "/coins/markets?vs_currency=usd&ids=" + ids.join(",") + "&sparkline=false&price_change_percentage=30d,200d,1y";
     key = "mkt:ids:" + ids.sort().join(",");
   } else {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence|supply_trend|altcoin_season_index|dca_opportunity|breakout_watch or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "pass kind=top50|top100|gainers|losers|trending|fear_greed|dominance|sectors|volume_leaders|ath_nearby|sector_leaders|momentum|trend_reversal|btc_alt_divergence|supply_trend|altcoin_season_index|dca_opportunity|breakout_watch|new_ath or ids=... (fear_greed accepts optional ?limit=1-30)" }) };
   }
 
   const blobs = require("@netlify/blobs");
