@@ -3072,13 +3072,109 @@ console.log("\n--- alerts: Nov 26 2026 CGMAP additions ---");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// macro: asOf date is 2026-11-26
+// macro: asOf date is 2026-11-27
 // ─────────────────────────────────────────────────────────────────────────────
 
-console.log("\n--- macro: asOf updated to 2026-11-26 ---");
+console.log("\n--- macro: asOf updated to 2026-11-27 ---");
 {
   const macro = require("../macro.js");
-  assert(macro.MACRO_DATA.asOf === "2026-11-26", "MACRO_DATA.asOf is 2026-11-26");
+  assert(macro.MACRO_DATA.asOf === "2026-11-27", "MACRO_DATA.asOf is 2026-11-27");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alerts: Nov 27 2026 CGMAP additions (Polkadot ecosystem parachains)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- alerts: Nov 27 2026 CGMAP additions ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const alertsJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/alerts.js"), "utf8");
+  assert(alertsJs.includes("GLMR"), "GLMR ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("moonbeam"), "moonbeam ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("ACA"), "ACA ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("acala"), "acala ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("KSM"), "KSM ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("kusama"), "kusama ID present in alerts.js CGMAP");
+  assert(alertsJs.includes("MOVR"), "MOVR ticker present in alerts.js CGMAP");
+  assert(alertsJs.includes("moonriver"), "moonriver ID present in alerts.js CGMAP");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: new_ath endpoint present in production market.js
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log("\n--- market: new_ath endpoint ---");
+{
+  const fs = require("fs");
+  const path = require("path");
+  const marketJs = fs.readFileSync(path.join(__dirname, "../netlify/functions/market.js"), "utf8");
+  assert(marketJs.includes("new_ath"), "market.js has new_ath kind");
+  assert(marketJs.includes("volume_ratio"), "new_ath endpoint includes volume_ratio field");
+  assert(marketJs.includes("ath_change_pct"), "new_ath endpoint includes ath_change_pct field");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// market: new_ath transform logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+function newAthTransform(data) {
+  if (!Array.isArray(data)) return data;
+  const STABLE_IDS = new Set(["tether", "usd-coin", "dai", "wrapped-bitcoin"]);
+  return data
+    .filter(function (c) {
+      return typeof c.ath_change_percentage === "number" &&
+        c.ath_change_percentage > 0 &&
+        c.market_cap > 100e6 &&
+        !STABLE_IDS.has(c.id);
+    })
+    .map(function (c) {
+      const c7d = c.price_change_percentage_7d_in_currency || 0;
+      const c30d = c.price_change_percentage_30d_in_currency || 0;
+      return {
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        price: c.current_price,
+        ath: c.ath,
+        ath_change_pct: c.ath_change_percentage,
+        market_cap: c.market_cap,
+        volume_24h: c.total_volume,
+        volume_ratio: c.market_cap > 0 ? parseFloat((c.total_volume / c.market_cap).toFixed(4)) : null,
+        change_7d: c7d,
+        change_30d: c30d,
+      };
+    })
+    .sort(function (a, b) { return b.ath_change_pct - a.ath_change_pct; });
+}
+
+console.log("\n--- market: new_ath transform ---");
+{
+  const coins = [
+    { id: "bitcoin", symbol: "btc", name: "Bitcoin", current_price: 90000, ath: 89000, ath_change_percentage: 1.1, market_cap: 1.7e12, total_volume: 50e9, price_change_percentage_7d_in_currency: 5.0, price_change_percentage_30d_in_currency: 20.0 },
+    { id: "ethereum", symbol: "eth", name: "Ethereum", current_price: 3500, ath: 4878, ath_change_percentage: -28.3, market_cap: 420e9, total_volume: 20e9, price_change_percentage_7d_in_currency: 3.0, price_change_percentage_30d_in_currency: 10.0 },
+    { id: "solana", symbol: "sol", name: "Solana", current_price: 300, ath: 290, ath_change_percentage: 3.4, market_cap: 150e9, total_volume: 8e9, price_change_percentage_7d_in_currency: 8.0, price_change_percentage_30d_in_currency: 25.0 },
+    { id: "tiny-coin", symbol: "tiny", name: "Tiny", current_price: 0.01, ath: 0.009, ath_change_percentage: 11.1, market_cap: 5e6, total_volume: 1e6, price_change_percentage_7d_in_currency: 50.0, price_change_percentage_30d_in_currency: 100.0 },
+    { id: "tether", symbol: "usdt", name: "Tether", current_price: 1.001, ath: 1.0, ath_change_percentage: 0.1, market_cap: 120e9, total_volume: 60e9, price_change_percentage_7d_in_currency: 0.0, price_change_percentage_30d_in_currency: 0.0 },
+  ];
+
+  const result = newAthTransform(coins);
+
+  assert(Array.isArray(result), "new_ath transform returns an array");
+  assert(result.length === 2, "only coins above ATH with mcap>100M and not stablecoin qualify (btc + sol)");
+  assert(result[0].symbol === "SOL", "solana ranked first (higher ath_change_pct: 3.4 > 1.1)");
+  assert(result[1].symbol === "BTC", "bitcoin ranked second (lower ath_change_pct)");
+  assert(!result.find(function (x) { return x.symbol === "ETH"; }), "ethereum excluded (below ATH)");
+  assert(!result.find(function (x) { return x.symbol === "TINY"; }), "tiny-coin excluded (market_cap < 100M)");
+  assert(!result.find(function (x) { return x.symbol === "USDT"; }), "tether excluded (stablecoin)");
+  assert(typeof result[1].volume_ratio === "number", "volume_ratio is a number");
+  const expectedRatio = parseFloat((50e9 / 1.7e12).toFixed(4));
+  assert(Math.abs(result[1].volume_ratio - expectedRatio) < 0.0001, "volume_ratio = volume_24h / market_cap (btc)");
+  assert(typeof result[0].ath_change_pct === "number" && result[0].ath_change_pct > 0, "ath_change_pct is positive for new ATH coins");
+  assert(result[0].ath_change_pct === 3.4 && result[1].ath_change_pct === 1.1, "sorted by ath_change_pct descending (3.4 > 1.1)");
+
+  assert(newAthTransform([]).length === 0, "empty array returns empty");
+  assert(newAthTransform(null) === null, "null passthrough");
 }
 
 // Summary

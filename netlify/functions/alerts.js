@@ -108,6 +108,8 @@ const CGMAP = {
   RAY:"raydium", MSOL:"marinade-staked-sol", MNDE:"marinade",
   // Nov 26 2026 additions — cross-chain bridges and perp DEX infrastructure
   ACX:"across-protocol", VRTX:"vertex-protocol",
+  // Nov 27 2026 additions — Polkadot ecosystem parachains and emerging DeFi
+  GLMR:"moonbeam", ACA:"acala", KSM:"kusama", MOVR:"moonriver",
   // Nov 21 2026 additions — Mantle L2, Scroll, Rocket Pool, Convex, Frax ecosystem
   MNT:"mantle", SCRL:"scroll",
   RPL:"rocket-pool", CVX:"convex-finance", FXS:"frax-share",
